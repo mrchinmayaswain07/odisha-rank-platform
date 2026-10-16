@@ -96,6 +96,54 @@ export const SEED_SUBJECTS: Subject[] = [
     chapters_count: 1,
     topics_count: 2,
     completed_topics_count: 0
+  },
+  {
+    id: "a5555555-5555-5555-5555-555555555555",
+    exam_id: "22222222-2222-2222-2222-222222222222",
+    name: "General Awareness & Odisha Heritage",
+    code: "GA-01",
+    description: "Odisha History, Geography, Culture, Government Schemes, and Current Affairs.",
+    order_index: 1,
+    created_at: new Date().toISOString(),
+    chapters_count: 2,
+    topics_count: 3,
+    completed_topics_count: 0
+  },
+  {
+    id: "a6666666-6666-6666-6666-666666666666",
+    exam_id: "22222222-2222-2222-2222-222222222222",
+    name: "Arithmetic & Land Mensuration",
+    code: "AM-02",
+    description: "Basic arithmetic, Percentage, Average, Land measurement units, Perimeter and Area.",
+    order_index: 2,
+    created_at: new Date().toISOString(),
+    chapters_count: 2,
+    topics_count: 3,
+    completed_topics_count: 0
+  },
+  {
+    id: "a7777777-7777-7777-7777-777777777777",
+    exam_id: "22222222-2222-2222-2222-222222222222",
+    name: "Basic Computer Skills & Surveying",
+    code: "CS-03",
+    description: "MS Word, Excel, PowerPoint, Internet concepts, and basic surveying principles.",
+    order_index: 3,
+    created_at: new Date().toISOString(),
+    chapters_count: 1,
+    topics_count: 2,
+    completed_topics_count: 0
+  },
+  {
+    id: "a8888888-8888-8888-8888-888888888888",
+    exam_id: "33333333-3333-3333-3333-333333333333",
+    name: "General Studies Paper I (OAS)",
+    code: "GS-OAS-01",
+    description: "Indian & Odisha History, Physical and Social Geography, Indian Polity and Governance, Economic Development.",
+    order_index: 1,
+    created_at: new Date().toISOString(),
+    chapters_count: 3,
+    topics_count: 4,
+    completed_topics_count: 0
   }
 ];
 
@@ -295,6 +343,105 @@ export const SEED_QUESTIONS: Question[] = [
     options: ["10 days", "12 days", "15 days", "18 days"],
     correct_option_index: 1,
     explanation: "Formula: M1 * D1 * H1 = M2 * D2 * H2. (15 * 12 * 8) = (20 * D2 * 6) => 1440 = 120 * D2 => D2 = 12 days.",
+    difficulty: "medium",
+    is_sample: true,
+    created_by: null,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: "e7777777-7777-7777-7777-777777777777",
+    exam_id: "22222222-2222-2222-2222-222222222222",
+    subject_id: "a5555555-5555-5555-5555-555555555555",
+    topic_id: null,
+    question_text: "Under which administrative department does the post of Revenue Inspector (RI) function in Odisha?",
+    options: [
+      "Home Department",
+      "Revenue and Disaster Management Department",
+      "Panchayati Raj and Drinking Water Department",
+      "Finance Department"
+    ],
+    correct_option_index: 1,
+    explanation: "The Revenue Inspector (RI) works under the Revenue and Disaster Management Department of the Government of Odisha at the Tahasil and Revenue Circle level.",
+    difficulty: "easy",
+    is_sample: true,
+    created_by: null,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: "e8888888-8888-8888-8888-888888888888",
+    exam_id: "22222222-2222-2222-2222-222222222222",
+    subject_id: "a6666666-6666-6666-6666-666666666666",
+    topic_id: null,
+    question_text: "In Odisha land revenue and surveying records, how many Decimals equal 1 Acre of land?",
+    options: ["50 Decimals", "100 Decimals", "150 Decimals", "200 Decimals"],
+    correct_option_index: 1,
+    explanation: "In Odisha standard land records (RoR), 1 Acre is universally divided into 100 Decimals (also known as Cents/Gunthas based on regional nomenclature).",
+    difficulty: "easy",
+    is_sample: true,
+    created_by: null,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: "e9999999-9999-9999-9999-999999999999",
+    exam_id: "22222222-2222-2222-2222-222222222222",
+    subject_id: "a7777777-7777-7777-7777-777777777777",
+    topic_id: null,
+    question_text: "In MS Excel, what is the default keyboard shortcut used to auto-calculate the sum of adjacent cells?",
+    options: ["Ctrl + S", "Alt + =", "Ctrl + Shift + S", "Alt + F4"],
+    correct_option_index: 1,
+    explanation: "The shortcut key 'Alt + =' in Microsoft Excel automatically inserts the AutoSum formula for adjacent rows or columns.",
+    difficulty: "medium",
+    is_sample: true,
+    created_by: null,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: "ea111111-1111-1111-1111-111111111111",
+    exam_id: "22222222-2222-2222-2222-222222222222",
+    subject_id: "a5555555-5555-5555-5555-555555555555",
+    topic_id: null,
+    question_text: "Who composed the state anthem of Odisha, 'Bande Utkala Janani'?",
+    options: [
+      "Radhanath Ray",
+      "Kantakabi Lakshmikanta Mohapatra",
+      "Fakir Mohan Senapati",
+      "Gopabandhu Das"
+    ],
+    correct_option_index: 1,
+    explanation: "'Bande Utkala Janani' was composed in 1912 by Kantakabi Lakshmikanta Mohapatra and was officially declared as the state song of Odisha in 2020.",
+    difficulty: "easy",
+    is_sample: true,
+    created_by: null,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: "ea222222-2222-2222-2222-222222222222",
+    exam_id: "33333333-3333-3333-3333-333333333333",
+    subject_id: "a8888888-8888-8888-8888-888888888888",
+    topic_id: null,
+    question_text: "The Konark Sun Temple was constructed during the reign of which monarch of the Eastern Ganga Dynasty in the 13th century?",
+    options: [
+      "Anantavarman Chodaganga Deva",
+      "Langula Narasimhadeva I",
+      "Bhanudeva II",
+      "Kapilendradeva"
+    ],
+    correct_option_index: 1,
+    explanation: "The magnificent 13th-century Konark Sun Temple (a UNESCO World Heritage site) was built by King Narasimhadeva I of the Eastern Ganga Dynasty around 1250 CE.",
+    difficulty: "medium",
+    is_sample: true,
+    created_by: null,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: "ea333333-3333-3333-3333-333333333333",
+    exam_id: "33333333-3333-3333-3333-333333333333",
+    subject_id: "a8888888-8888-8888-8888-888888888888",
+    topic_id: null,
+    question_text: "In which year was Chilika Lake in Odisha designated as the first Indian wetland of international importance under the Ramsar Convention?",
+    options: ["1972", "1981", "1986", "1992"],
+    correct_option_index: 1,
+    explanation: "Chilika Lake was designated as the very first Ramsar Site in India in 1981 due to its extraordinary biodiversity and vital wintering grounds for migratory waterfowl.",
     difficulty: "medium",
     is_sample: true,
     created_by: null,

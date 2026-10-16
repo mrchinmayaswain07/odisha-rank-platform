@@ -88,6 +88,16 @@ export const QuestionBankClient: React.FC<QuestionBankClientProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+            <button
+              onClick={() => router.push(`/questions?exam=all`)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                !activeExam || activeExam.id === ""
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              All Odisha Exams
+            </button>
             {allExams.map((ex) => (
               <button
                 key={ex.id}
@@ -281,12 +291,33 @@ export const QuestionBankClient: React.FC<QuestionBankClientProps> = ({
         })}
 
         {filteredQuestions.length === 0 && (
-          <div className="text-center py-16 bg-white rounded-xl border border-slate-200 p-8">
-            <HelpCircle className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-slate-900">No Questions Found</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              No practice questions match the selected subject or difficulty criteria. Try clearing filters.
-            </p>
+          <div className="text-center py-16 bg-white rounded-xl border border-slate-200 p-8 space-y-4">
+            <HelpCircle className="w-10 h-10 text-slate-400 mx-auto" />
+            <div>
+              <h3 className="text-base font-bold text-slate-900">No Questions Found for this Selection</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                No specific practice questions match the selected course or filter criteria yet.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedSubjectId("all");
+                  setSelectedDifficulty("all");
+                }}
+              >
+                Clear Filters
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => router.push("/questions?exam=all")}
+              >
+                Practice All Odisha Questions
+              </Button>
+            </div>
           </div>
         )}
       </div>

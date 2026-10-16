@@ -260,7 +260,10 @@ export async function getQuestions(filters?: {
 }): Promise<Question[]> {
   if (!isSupabaseConfigured()) {
     let result = SEED_QUESTIONS;
-    if (filters?.examId) result = result.filter((q) => q.exam_id === filters.examId);
+    if (filters?.examId) {
+      const match = result.filter((q) => q.exam_id === filters.examId);
+      result = match.length > 0 ? match : result;
+    }
     if (filters?.subjectId) result = result.filter((q) => q.subject_id === filters.subjectId);
     if (filters?.difficulty) result = result.filter((q) => q.difficulty === filters.difficulty);
     if (filters?.search) {
@@ -281,8 +284,29 @@ export async function getQuestions(filters?: {
 
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
+      // If no questions exist specifically for this exam in the database, fetch available questions so students can always practice
+      if (filters?.examId && (!data || data.length === 0)) {
+        try {
+          const generalRes = await supabase
+            .from("questions")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(25);
+          if (generalRes.data && generalRes.data.length > 0) {
+            return generalRes.data as Question[];
+          }
+        } catch {
+          // Continue to seed fallback
+        }
+      }
+
       let fallback = SEED_QUESTIONS;
-      if (filters?.examId) fallback = fallback.filter((q) => q.exam_id === filters.examId);
+      if (filters?.examId) {
+        const examMatch = fallback.filter((q) => q.exam_id === filters.examId);
+        if (examMatch.length > 0) {
+          fallback = examMatch;
+        }
+      }
       if (filters?.subjectId) fallback = fallback.filter((q) => q.subject_id === filters.subjectId);
       if (filters?.difficulty) fallback = fallback.filter((q) => q.difficulty === filters.difficulty);
       return fallback;

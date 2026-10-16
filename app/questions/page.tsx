@@ -30,14 +30,15 @@ export default async function QuestionsPage({
   ]);
 
   // Determine active course
-  const activeExamId = searchParams?.exam || profile?.target_exam_id || allExams[0]?.id || "";
-  const activeExam = allExams.find((e) => e.id === activeExamId) || allExams[0] || null;
+  const isAllExams = searchParams?.exam === "all";
+  const activeExamId = isAllExams ? "" : (searchParams?.exam || profile?.target_exam_id || allExams[0]?.id || "");
+  const activeExam = isAllExams ? null : (allExams.find((e) => e.id === activeExamId) || (activeExamId ? allExams[0] : null));
 
   // Parallel fetch: subjects and questions for active exam
   const [subjects, questions] = await Promise.all([
-    getSubjects(activeExamId),
+    activeExamId ? getSubjects(activeExamId) : getSubjects(),
     getQuestions({
-      examId: activeExamId,
+      examId: activeExamId || undefined,
       subjectId: searchParams?.subject,
       difficulty: searchParams?.difficulty,
     }),
