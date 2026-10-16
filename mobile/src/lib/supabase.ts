@@ -5,12 +5,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const supabaseUrl =
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  "https://odisharank-placeholder.supabase.co";
+  "https://axauwfokutymvckamboi.supabase.co";
 
 const supabaseAnonKey =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "placeholder-anon-key";
+  "sb_publishable_VObtutpCMIG-cnoSzWENzg_HXwzK8J8";
 
 /**
  * Mobile Supabase Client with persistent session handling via AsyncStorage
