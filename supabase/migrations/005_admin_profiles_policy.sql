@@ -53,10 +53,10 @@ CREATE POLICY "Admins can manage user roles" ON public.user_roles
 GRANT ALL ON public.profiles TO postgres, authenticated, service_role;
 GRANT ALL ON public.user_roles TO postgres, authenticated, service_role;
 
--- 7. Automatically grant admin role to mrchinmayaswain07@gmail.com and cchinmaya071@gmail.com
+-- 7. Automatically grant admin role to root administrator mrchinmayaswain07@gmail.com
 INSERT INTO public.user_roles (user_id, role)
 SELECT id, 'admin'
 FROM auth.users
-WHERE email IN ('mrchinmayaswain07@gmail.com', 'cchinmaya071@gmail.com')
+WHERE email = 'mrchinmayaswain07@gmail.com'
 ON CONFLICT (user_id) DO UPDATE SET role = 'admin', updated_at = NOW();
 

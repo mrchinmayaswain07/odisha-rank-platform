@@ -33,7 +33,7 @@ function LoginForm() {
   const [loggedInUser, setLoggedInUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const ADMIN_EMAILS = ["mrchinmayaswain07@gmail.com", "cchinmaya071@gmail.com"];
+  const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
 
   // Check if user is already signed in
   useEffect(() => {
@@ -51,7 +51,7 @@ function LoginForm() {
 
         const isUserAdmin =
           Boolean(roleData) ||
-          (data.user.email && ADMIN_EMAILS.includes(data.user.email.toLowerCase()));
+          data.user.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
         setIsAdmin(Boolean(isUserAdmin));
 
         // If explicitly requested a redirect, redirect to target
@@ -95,7 +95,7 @@ function LoginForm() {
 
         const isUserAdmin =
           Boolean(roleData) ||
-          (signInData.user.email && ADMIN_EMAILS.includes(signInData.user.email.toLowerCase()));
+          signInData.user.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
         const target = searchParams.get("redirectTo") || (isUserAdmin ? "/admin" : "/dashboard");
         // Hard redirect guarantees Next.js layout re-mounts and reads updated cookies
         window.location.href = target;

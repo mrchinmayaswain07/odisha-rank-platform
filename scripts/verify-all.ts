@@ -308,14 +308,10 @@ async function runTests() {
     assert(checkIsAdminServer(undefined) === false, "Unauthenticated session returns false");
     assert(checkIsAdminServer("attacker-id") === false, "Unknown user ID returns false");
 
-    const { PRIMARY_ADMIN_EMAILS } = await import("../lib/admin-auth");
+    const { ROOT_ADMIN_EMAIL } = await import("../lib/admin-auth");
     assert(
-      PRIMARY_ADMIN_EMAILS.includes("mrchinmayaswain07@gmail.com"),
-      "mrchinmayaswain07@gmail.com is configured as primary platform administrator"
-    );
-    assert(
-      PRIMARY_ADMIN_EMAILS.includes("cchinmaya071@gmail.com"),
-      "cchinmaya071@gmail.com is configured as primary platform administrator"
+      ROOT_ADMIN_EMAIL === "mrchinmayaswain07@gmail.com",
+      "mrchinmayaswain07@gmail.com is exclusively configured as root platform administrator"
     );
   }
 
