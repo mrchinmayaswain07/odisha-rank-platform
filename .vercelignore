@@ -1,0 +1,5 @@
+# Ignore mobile app code and build artifacts during Vercel web deployment
+mobile/
+.expo/
+*.apk
+*.aab

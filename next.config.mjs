@@ -7,6 +7,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  transpilePackages: ["@odisha-rank/shared"],
 };
 
 export default nextConfig;
