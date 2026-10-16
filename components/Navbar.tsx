@@ -44,11 +44,6 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Suppress public student navigation on administrative routes to prevent layout collision
-  if (pathname?.startsWith("/admin")) {
-    return null;
-  }
-
   // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -59,6 +54,12 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Suppress public student navigation on administrative routes to prevent layout collision
+  // NOTE: Must be evaluated AFTER all React hooks are executed unconditionally to satisfy React Rules of Hooks
+  if (pathname?.startsWith("/admin")) {
+    return null;
+  }
 
   const navLinks = [
     { name: "Target Exams", href: "/exams", icon: GraduationCap },
