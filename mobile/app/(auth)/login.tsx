@@ -8,10 +8,11 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { GraduationCap, Mail, Lock, AlertCircle } from "lucide-react-native";
+import { Mail, Lock, AlertCircle } from "lucide-react-native";
 import { BRAND_COLORS, loginSchema } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
 import { Button } from "../../src/components/Button";
@@ -51,9 +52,11 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoBadge}>
-              <GraduationCap size={32} color="#ffffff" />
-            </View>
+            <Image
+              source={require("../../assets/logo.png")}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
             <Text style={styles.title}>
               Odisha<Text style={styles.brandAccent}>Rank</Text>
             </Text>
@@ -146,14 +149,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 32,
   },
-  logoBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    backgroundColor: BRAND_COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
+  logoImage: {
+    width: 76,
+    height: 76,
+    borderRadius: 20,
+    marginBottom: 16,
   },
   title: {
     fontSize: 26,

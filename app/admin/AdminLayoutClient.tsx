@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -81,8 +82,14 @@ export const AdminLayoutClient: React.FC<AdminLayoutClientProps> = ({
           {/* Header */}
           <div className="h-16 px-6 border-b border-slate-800/80 flex items-center justify-between">
             <Link href="/admin" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shadow-md">
-                <ShieldCheck className="w-5 h-5" />
+              <div className="relative w-8 h-8 rounded-lg overflow-hidden shadow-md">
+                <Image
+                  src="/logo.png"
+                  alt="OdishaRank Logo"
+                  width={32}
+                  height={32}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div>
                 <span className="font-extrabold text-base tracking-tight text-white">

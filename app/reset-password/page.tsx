@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -200,8 +201,15 @@ export default function ResetPasswordPage() {
     <div className="min-h-[calc(100vh-16rem)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto mb-3 shadow-sm">
-            <GraduationCap className="w-7 h-7" />
+          <div className="relative w-14 h-14 rounded-2xl overflow-hidden shadow-md mx-auto mb-3">
+            <Image
+              src="/logo.png"
+              alt="OdishaRank Logo"
+              width={56}
+              height={56}
+              className="w-full h-full object-cover"
+              priority
+            />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Create New Password

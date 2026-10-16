@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { router } from "expo-router";
 import { ChevronLeft, GraduationCap, ArrowLeftRight } from "lucide-react-native";
 import { BRAND_COLORS } from "@odisha-rank/shared";
@@ -24,7 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
     <View style={styles.container}>
       <View style={styles.topRow}>
         <View style={styles.left}>
-          {showBack && (
+          {showBack ? (
             <TouchableOpacity
               onPress={() => router.back()}
               style={styles.backButton}
@@ -32,10 +32,16 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <ChevronLeft size={24} color={BRAND_COLORS.textPrimary} />
             </TouchableOpacity>
+          ) : (
+            <Image
+              source={require("../../assets/logo.png")}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           )}
-          <View>
-            <Text style={styles.title}>{title}</Text>
-            {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title} numberOfLines={1}>{title}</Text>
+            {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
           </View>
         </View>
 
@@ -108,5 +114,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: BRAND_COLORS.primary,
+  },
+  logoImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
   },
 });

@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { GraduationCap, Mail, MapPin, ExternalLink } from "lucide-react";
 import { SITE_CONFIG } from "@/lib/constants";
@@ -21,8 +22,14 @@ export const Footer: React.FC = () => {
           {/* Brand Info & Accurate Verified Contact Details */}
           <div className="lg:col-span-2 space-y-4">
             <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-                <GraduationCap className="w-5 h-5" />
+              <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-md shadow-blue-500/20">
+                <Image
+                  src="/logo.png"
+                  alt="OdishaRank Logo"
+                  width={36}
+                  height={36}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span className="text-xl font-extrabold tracking-tight text-white">
                 Odisha<span className="text-blue-400">Rank</span>

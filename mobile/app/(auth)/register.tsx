@@ -8,6 +8,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -107,9 +108,11 @@ export default function RegisterScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoBadge}>
-              <GraduationCap size={32} color="#ffffff" />
-            </View>
+            <Image
+              source={require("../../assets/logo.png")}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Join serious Odisha exam aspirants</Text>
           </View>
@@ -231,13 +234,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 28,
   },
-  logoBadge: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: BRAND_COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
+  logoImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
     marginBottom: 12,
   },
   title: {

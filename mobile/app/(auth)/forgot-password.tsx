@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Image,
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -56,9 +57,11 @@ export default function ForgotPasswordScreen() {
         </TouchableOpacity>
 
         <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <KeyRound size={32} color="#ffffff" />
-          </View>
+          <Image
+            source={require("../../assets/logo.png")}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>Reset Password</Text>
           <Text style={styles.subtitle}>
             Enter your registered email and we will send you a secure password reset link.
@@ -133,13 +136,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 28,
   },
-  logoBadge: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    backgroundColor: BRAND_COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
+  logoImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
     marginBottom: 14,
   },
   title: {
