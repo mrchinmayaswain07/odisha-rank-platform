@@ -1,17 +1,25 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import { Profile, Exam } from "@odisha-rank/shared";
-import { getExams, getStudentProfile, updateStudentCourse } from "./data-service";
+import { Profile, Exam, SITE_CONFIG } from "@odisha-rank/shared";
+import { getExams, getStudentProfile, updateStudentCourse, updateStudentProfile } from "./data-service";
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
+  isAdmin: boolean;
   activeExam: Exam | null;
   allExams: Exam[];
   isLoading: boolean;
   setActiveCourse: (exam: Exam) => Promise<void>;
+  editProfile: (updates: {
+    full_name?: string;
+    phone?: string | null;
+    district?: string | null;
+    target_year?: number;
+    bio?: string | null;
+  }) => Promise<void>;
   signIn: (email: string, pass: string) => Promise<{ error: any }>;
   signUp: (fullName: string, email: string, pass: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -24,6 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [activeExam, setActiveExam] = useState<Exam | null>(null);
   const [allExams, setAllExams] = useState<Exam[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,10 +48,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Sync profile and active target exam
-  const syncProfile = async (userId: string, examsList?: Exam[]) => {
+  // Check admin privileges via root email or user_roles table
+  const checkAdminStatus = async (userObj: User | null) => {
+    if (!userObj) {
+      setIsAdmin(false);
+      return false;
+    }
+
+    const email = userObj.email?.toLowerCase();
+    if (email === SITE_CONFIG.admin.rootEmail.toLowerCase()) {
+      setIsAdmin(true);
+      return true;
+    }
+
     try {
-      const prof = await getStudentProfile(userId);
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userObj.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      const admin = data?.role === "admin";
+      setIsAdmin(admin);
+      return admin;
+    } catch {
+      setIsAdmin(false);
+      return false;
+    }
+  };
+
+  // Sync profile and active target exam
+  const syncProfile = async (userObj: User, examsList?: Exam[]) => {
+    try {
+      await checkAdminStatus(userObj);
+      const prof = await getStudentProfile(userObj.id);
       setProfile(prof);
 
       const catalog = examsList || allExams;
@@ -67,7 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(data.session?.user || null);
 
         if (data.session?.user) {
-          await syncProfile(data.session.user.id, exams);
+          await syncProfile(data.session.user, exams);
         }
       } catch (err) {
         console.warn("Session restore error:", err);
@@ -86,9 +126,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(currentSession?.user || null);
 
       if (currentSession?.user) {
-        await syncProfile(currentSession.user.id);
+        await syncProfile(currentSession.user);
       } else {
         setProfile(null);
+        setIsAdmin(false);
         setActiveExam(null);
       }
       setIsLoading(false);
@@ -162,8 +203,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshProfile = async () => {
     if (user) {
-      await syncProfile(user.id);
+      await syncProfile(user);
     }
+  };
+
+  const editProfile = async (updates: {
+    full_name?: string;
+    phone?: string | null;
+    district?: string | null;
+    target_year?: number;
+    bio?: string | null;
+  }) => {
+    if (!user) throw new Error("User not authenticated");
+    const updated = await updateStudentProfile(user.id, updates);
+    setProfile(updated);
   };
 
   return (
@@ -172,10 +225,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         session,
         user,
         profile,
+        isAdmin,
         activeExam,
         allExams,
         isLoading,
         setActiveCourse,
+        editProfile,
         signIn,
         signUp,
         signOut,

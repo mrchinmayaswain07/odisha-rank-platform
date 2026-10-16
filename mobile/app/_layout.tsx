@@ -41,6 +41,14 @@ export default function RootLayout() {
             name="course-select"
             options={{ presentation: "modal", headerShown: false }}
           />
+          <Stack.Screen
+            name="edit-profile"
+            options={{ presentation: "modal", headerShown: false }}
+          />
+          <Stack.Screen
+            name="admin"
+            options={{ presentation: "card", headerShown: false }}
+          />
           <Stack.Screen name="topic/[topicId]" options={{ headerShown: false }} />
           <Stack.Screen name="material/[materialId]" options={{ headerShown: false }} />
           <Stack.Screen name="mock-test/[testId]" options={{ headerShown: false }} />

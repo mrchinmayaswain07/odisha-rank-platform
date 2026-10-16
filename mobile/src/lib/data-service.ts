@@ -326,6 +326,78 @@ export async function updateStudentCourse(userId: string, targetExamId: string) 
 }
 
 /**
+ * Update Student Profile in Supabase
+ */
+export async function updateStudentProfile(
+  userId: string,
+  updates: {
+    full_name?: string;
+    phone?: string | null;
+    district?: string | null;
+    target_year?: number;
+    bio?: string | null;
+  }
+): Promise<Profile> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Profile;
+}
+
+/**
+ * Fetch Mission Control Administration Catalog Statistics
+ */
+export async function getAdminOverviewStats() {
+  try {
+    const [
+      studentsRes,
+      coursesRes,
+      chaptersRes,
+      topicsRes,
+      questionsRes,
+      materialsRes,
+      mocksRes,
+    ] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }),
+      supabase.from("exams").select("*", { count: "exact", head: true }),
+      supabase.from("chapters").select("*", { count: "exact", head: true }),
+      supabase.from("topics").select("*", { count: "exact", head: true }),
+      supabase.from("questions").select("*", { count: "exact", head: true }),
+      supabase.from("study_materials").select("*", { count: "exact", head: true }),
+      supabase.from("mock_tests").select("*", { count: "exact", head: true }),
+    ]);
+
+    return {
+      studentsCount: studentsRes.count || 0,
+      activeCoursesCount: coursesRes.count || 0,
+      chaptersCount: chaptersRes.count || 0,
+      topicsCount: topicsRes.count || 0,
+      questionsCount: questionsRes.count || 0,
+      materialsCount: materialsRes.count || 0,
+      mockTestsCount: mocksRes.count || 0,
+    };
+  } catch {
+    return {
+      studentsCount: 0,
+      activeCoursesCount: 0,
+      chaptersCount: 0,
+      topicsCount: 0,
+      questionsCount: 0,
+      materialsCount: 0,
+      mockTestsCount: 0,
+    };
+  }
+}
+
+/**
  * Fetch Dashboard Metrics for Student, scoped strictly to targetExamId
  */
 export async function getDashboardMetrics(
