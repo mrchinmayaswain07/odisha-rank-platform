@@ -36,7 +36,10 @@
               "pathPrefix": "/auth"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -48,8 +51,11 @@
       "typedRoutes": true
     },
     "extra": {
+      "router": {
+        "origin": false
+      },
       "eas": {
-        "projectId": "odisharank-mobile"
+        "projectId": "4e8dd90d-1e56-4789-83ee-4c1020bfd06f"
       }
     }
   }

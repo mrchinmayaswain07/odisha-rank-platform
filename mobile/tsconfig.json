@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "es2020",
-    "lib": ["es2020"],
+    "lib": [
+      "es2020"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -15,8 +17,12 @@
     "jsx": "react-native",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@odisha-rank/shared": ["../packages/shared/src/index.ts"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@odisha-rank/shared": [
+        "../packages/shared/src/index.ts"
+      ]
     }
   },
   "include": [
@@ -24,5 +30,6 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }
