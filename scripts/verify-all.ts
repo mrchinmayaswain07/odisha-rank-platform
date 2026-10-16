@@ -464,6 +464,76 @@ async function runTests() {
     assert(exams3.length === exams1.length, "getExams works seamlessly after cache invalidation");
   }
 
+  // TEST 16: Shared Monorepo Package Integration (@odisha-rank/shared)
+  console.log("\n16. SHARED MONOREPO PACKAGE INTEGRATION (@odisha-rank/shared)");
+  {
+    const {
+      evaluateMockTestScoring,
+      calculateProgress,
+      calculateAccuracy,
+      calculateStudyStreak,
+      loginSchema,
+      registerSchema,
+    } = await import("../packages/shared/src/index");
+
+    // Pure evaluation test
+    const dummyTest = {
+      total_marks: 100,
+      negative_marking: 0.25,
+      pass_percentage: 50,
+    };
+    const dummyQuestions = [
+      { id: "q1", question_text: "Q1", options: ["A", "B"], correct_option_index: 0, explanation: "Exp 1" },
+      { id: "q2", question_text: "Q2", options: ["A", "B"], correct_option_index: 1, explanation: "Exp 2" },
+      { id: "q3", question_text: "Q3", options: ["A", "B"], correct_option_index: 0, explanation: "Exp 3" },
+      { id: "q4", question_text: "Q4", options: ["A", "B"], correct_option_index: 1, explanation: "Exp 4" },
+    ];
+    // 2 correct (50 marks), 1 incorrect (-0.25 marks), 1 skipped
+    const answers = { q1: 0, q2: 1, q3: 1 };
+    const evalResult = evaluateMockTestScoring(dummyTest, dummyQuestions, answers, 120);
+
+    assert(evalResult.score === 49.75, "Server-authoritative scoring calculates (2 * 25) - 0.25 = 49.75");
+    assert(evalResult.correct_count === 2, "Evaluated 2 correct answers");
+    assert(evalResult.incorrect_count === 1, "Evaluated 1 incorrect answer");
+    assert(evalResult.unanswered_count === 1, "Evaluated 1 unanswered question");
+    assert(evalResult.accuracy === 67, "Calculated 67% accuracy (2/3 attempted)");
+    assert(evalResult.passed === false, "49.75% is below 50% pass threshold");
+
+    // Streak calculation test
+    const streakDays = calculateStudyStreak([
+      new Date().toISOString(),
+      new Date(Date.now() - 86400000).toISOString(),
+      new Date(Date.now() - 86400000 * 2).toISOString(),
+    ]);
+    assert(streakDays === 3, "Calculated consecutive 3-day study streak");
+
+    // Validation schemas test
+    assert(loginSchema.safeParse({ email: "test@domain.com", password: "secretPassword" }).success, "loginSchema validates valid credentials");
+    assert(!loginSchema.safeParse({ email: "bad-email", password: "123" }).success, "loginSchema rejects invalid email and short password");
+  }
+
+  // TEST 17: Mobile Data Service Contract & Credential Isolation
+  console.log("\n17. MOBILE ARCHITECTURE & CREDENTIAL ISOLATION");
+  {
+    const fs = await import("fs");
+    const path = await import("path");
+
+    // Verify mobile directory structure
+    const mobileAppExists = fs.existsSync(path.resolve(__dirname, "../mobile/app/_layout.tsx"));
+    const mobilePackageExists = fs.existsSync(path.resolve(__dirname, "../mobile/package.json"));
+    const mobileEasExists = fs.existsSync(path.resolve(__dirname, "../mobile/eas.json"));
+    const sharedPackageExists = fs.existsSync(path.resolve(__dirname, "../packages/shared/src/index.ts"));
+
+    assert(mobileAppExists, "Mobile Expo Router app layout exists");
+    assert(mobilePackageExists, "Mobile package.json configuration exists");
+    assert(mobileEasExists, "Mobile EAS build configuration exists");
+    assert(sharedPackageExists, "Shared TypeScript package exists");
+
+    // Verify client-side Supabase configuration does NOT expose Service Role key
+    const mobileSupabaseCode = fs.readFileSync(path.resolve(__dirname, "../mobile/src/lib/supabase.ts"), "utf-8");
+    assert(!mobileSupabaseCode.includes("SUPABASE_SERVICE_ROLE_KEY"), "Mobile client never imports or references SUPABASE_SERVICE_ROLE_KEY (Zero leakage)");
+  }
+
   console.log("\n=================================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
   console.log("=================================================");
