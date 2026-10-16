@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
+import { CourseSelectModal } from "@/components/CourseSelectModal";
 import {
   Clock,
   HelpCircle,
@@ -26,25 +27,32 @@ import {
   Sparkles,
   CheckCircle2,
   Activity,
-  UserCheck,
+  ArrowLeftRight,
+  GraduationCap,
 } from "lucide-react";
 
 interface DashboardClientProps {
   profile: Profile | null;
   metrics: DashboardMetrics;
   targetExam: Exam | null;
+  allExams: Exam[];
 }
 
 export const DashboardClient: React.FC<DashboardClientProps> = ({
   profile,
   metrics,
   targetExam,
+  allExams,
 }) => {
   const [currentMetrics, setCurrentMetrics] = useState<DashboardMetrics>(metrics);
   const [showLogModal, setShowLogModal] = useState(false);
+  const [showCourseModal, setShowCourseModal] = useState(false);
   const [sessionMinutes, setSessionMinutes] = useState(60);
   const [sessionNotes, setSessionNotes] = useState("");
   const [isLogging, setIsLogging] = useState(false);
+
+  // If student has no target course chosen, force the course selector
+  const hasNoCourse = !targetExam;
 
   const handleLogStudySession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,9 +98,11 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
     }
   };
 
+  const courseQueryParam = targetExam ? `?exam=${targetExam.id}` : "";
+
   return (
     <div className="space-y-8">
-      {/* 1. WELCOME HEADER */}
+      {/* 1. WELCOME & COURSE STATUS HEADER */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-subtle flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -100,38 +110,57 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               Aspirant Workspace
             </span>
             {targetExam ? (
-              <Badge variant="blue" size="md">
-                Target: {targetExam.conducting_body} — {targetExam.title}
+              <Badge variant="blue" size="md" className="gap-1.5 py-1">
+                <GraduationCap className="w-4 h-4 text-blue-600" />
+                <span>
+                  Target: {targetExam.conducting_body} — {targetExam.title}
+                </span>
               </Badge>
             ) : (
-              <Link href="/profile">
-                <Badge variant="amber" size="md" className="cursor-pointer hover:bg-amber-100">
-                  Select Target Examination &rarr;
-                </Badge>
-              </Link>
+              <Badge
+                variant="amber"
+                size="md"
+                onClick={() => setShowCourseModal(true)}
+                className="cursor-pointer hover:bg-amber-100 gap-1.5 py-1 animate-pulse"
+              >
+                <span>No Course Selected — Click to Choose &rarr;</span>
+              </Badge>
             )}
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Namaskar, {profile?.full_name || "Scholar"}!
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            Track your authentic syllabus completion and competitive progress without inflated metrics.
+          <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl">
+            {targetExam
+              ? `Personalized study plan for ${targetExam.title}. Only course-specific syllabus, materials, and test results are displayed.`
+              : "Please select your target competitive examination to unlock your personalized curriculum and mock tests."}
           </p>
         </div>
 
+        {/* Action Controls: Change Course & Log Study */}
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowCourseModal(true)}
+            className="gap-1.5 border-blue-200 bg-blue-50/50 hover:bg-blue-100 text-blue-700"
+          >
+            <ArrowLeftRight className="w-4 h-4 text-blue-600" />
+            <span>{targetExam ? "Change Course" : "Select Course"}</span>
+          </Button>
+
           <Button
             size="sm"
             variant="outline"
             onClick={() => setShowLogModal(true)}
             className="gap-1.5"
           >
-            <Clock className="w-4 h-4 text-blue-600" />
+            <Clock className="w-4 h-4 text-slate-600" />
             <span>Log Study Time</span>
           </Button>
 
-          <Link href="/mock-tests">
+          <Link href={`/mock-tests${courseQueryParam}`}>
             <Button size="sm" className="gap-1.5">
               <Award className="w-4 h-4" />
               <span>Take Mock Test</span>
@@ -195,17 +224,17 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
         </Card>
       </div>
 
-      {/* 3. SYLLABUS PROGRESS DUAL-TRACK (Official vs Personal) */}
+      {/* 3. COURSE SYLLABUS DUAL-TRACK PROGRESS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Official Progress */}
+        {/* Official Course Syllabus */}
         <Card className="p-6 border-slate-200 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                Official Syllabus Coverage
+                {targetExam?.title || "Official Course"} Syllabus
               </span>
               <h3 className="text-lg font-bold text-slate-900 mt-0.5">
-                Official Examination Topics
+                Official Examination Coverage
               </h3>
             </div>
             <div className="text-2xl font-extrabold text-blue-600">
@@ -226,10 +255,10 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               {currentMetrics.total_official_topics} official topics
             </span>
             <Link
-              href="/syllabus"
+              href={`/syllabus${courseQueryParam}`}
               className="text-blue-600 font-semibold hover:underline flex items-center gap-1"
             >
-              <span>Explore syllabus</span>
+              <span>Explore course syllabus</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -264,7 +293,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               {currentMetrics.total_personal_topics} created
             </span>
             <Link
-              href="/syllabus"
+              href={`/syllabus${courseQueryParam}`}
               className="text-emerald-600 font-semibold hover:underline flex items-center gap-1"
             >
               <span>Add custom topic</span>
@@ -281,9 +310,11 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Layers className="w-4 h-4 text-blue-600" />
-              <span>Subject-Wise Progress Breakdown</span>
+              <span>
+                {targetExam?.title ? `${targetExam.conducting_body} Subject Breakdown` : "Subject Progress"}
+              </span>
             </h3>
-            <Link href="/syllabus" className="text-xs font-semibold text-blue-600 hover:underline">
+            <Link href={`/syllabus${courseQueryParam}`} className="text-xs font-semibold text-blue-600 hover:underline">
               View all
             </Link>
           </div>
@@ -303,7 +334,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                     {sub.completed_topics} / {sub.total_topics} topics completed
                   </span>
                   <Link
-                    href={`/syllabus?subject=${sub.subject_id}`}
+                    href={`/syllabus${courseQueryParam}&subject=${sub.subject_id}`}
                     className="text-blue-600 hover:underline font-medium"
                   >
                     Open subject &rarr;
@@ -315,10 +346,10 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             {currentMetrics.subject_progress.length === 0 && (
               <EmptyState
                 icon={BookOpen}
-                title="No Subjects Configured"
-                description="Select your target examination in your profile to load syllabus subjects."
-                actionHref="/profile"
-                actionText="Configure Target Exam"
+                title="No Subjects Configured for this Exam"
+                description="Select or change your target examination to load the official subject syllabus."
+                actionHref="#"
+                actionText="Select Target Course"
               />
             )}
           </div>
@@ -372,13 +403,22 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                 icon={Activity}
                 title="No Activity Logged Yet"
                 description="Complete topics in the syllabus, answer MCQs in the Question Bank, or submit a mock test to build your record."
-                actionHref="/questions"
+                actionHref={`/questions${courseQueryParam}`}
                 actionText="Practice First Question"
               />
             </Card>
           )}
         </div>
       </div>
+
+      {/* Course Selection Modal */}
+      <CourseSelectModal
+        isOpen={showCourseModal || hasNoCourse}
+        onClose={() => setShowCourseModal(false)}
+        exams={allExams}
+        currentExamId={targetExam?.id || null}
+        isRequired={hasNoCourse}
+      />
 
       {/* Log Study Session Modal */}
       {showLogModal && (

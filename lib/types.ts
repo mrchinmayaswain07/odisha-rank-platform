@@ -1,5 +1,7 @@
 export type UserRole = "student" | "admin" | "moderator";
 
+export type ContentStatus = "draft" | "published" | "archived";
+
 export interface Profile {
   id: string;
   email: string | null;
@@ -29,6 +31,8 @@ export interface Exam {
   eligibility: string | null;
   stages: ExamStage[];
   is_active: boolean;
+  status?: ContentStatus;
+  students_count?: number;
   created_at: string;
 }
 
@@ -39,6 +43,7 @@ export interface Subject {
   code: string | null;
   description: string | null;
   order_index: number;
+  status?: ContentStatus;
   created_at: string;
   // Computed / joined fields
   chapters_count?: number;
@@ -53,6 +58,7 @@ export interface Chapter {
   description: string | null;
   order_index: number;
   is_official: boolean;
+  status?: ContentStatus;
   created_by: string | null;
   created_at: string;
   topics?: Topic[];
@@ -66,6 +72,7 @@ export interface Topic {
   estimated_minutes: number;
   order_index: number;
   is_official: boolean;
+  status?: ContentStatus;
   created_by: string | null;
   created_at: string;
   // User progress join
@@ -81,11 +88,20 @@ export interface StudyMaterial {
   id: string;
   topic_id: string;
   title: string;
-  material_type: "text" | "link" | "summary" | "note";
+  material_type: "text" | "link" | "summary" | "note" | "pdf";
   content: string;
   url: string | null;
+  file_url?: string | null;
+  file_size?: number;
+  category?: string;
+  description?: string | null;
+  status?: ContentStatus;
   is_official: boolean;
   created_by: string | null;
+  exam_id?: string | null;
+  subject_id?: string | null;
+  chapter_id?: string | null;
+  published_at?: string;
   created_at: string;
 }
 
@@ -114,12 +130,16 @@ export interface Question {
   id: string;
   exam_id: string | null;
   subject_id: string | null;
+  chapter_id?: string | null;
   topic_id: string | null;
   question_text: string;
   options: string[];
   correct_option_index: number;
   explanation: string | null;
   difficulty: "easy" | "medium" | "hard";
+  marks?: number;
+  negative_marks?: number;
+  status?: ContentStatus;
   is_sample: boolean;
   created_by: string | null;
   created_at: string;
@@ -145,6 +165,7 @@ export interface MockTest {
   negative_marking: number;
   pass_percentage: number;
   is_published: boolean;
+  status?: ContentStatus;
   created_at: string;
   questions_count?: number;
 }
@@ -203,4 +224,38 @@ export interface DashboardMetrics {
     completed_topics: number;
     progress_percentage: number;
   }[];
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface AdminDashboardStats {
+  total_students: number;
+  total_courses: number;
+  total_subjects: number;
+  total_chapters: number;
+  total_topics: number;
+  total_materials: number;
+  total_questions: number;
+  total_mock_tests: number;
+  recent_activities: StudentActivity[];
+}
+
+export interface StudentListItem {
+  id: string;
+  email: string | null;
+  full_name: string;
+  target_exam_id: string | null;
+  target_exam_title?: string;
+  target_year: number;
+  district: string | null;
+  phone: string | null;
+  role: UserRole;
+  is_profile_completed: boolean;
+  created_at: string;
 }

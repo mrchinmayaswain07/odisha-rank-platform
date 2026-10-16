@@ -47,19 +47,35 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  let user = null;
+  let navUser = null;
+
   try {
     const supabase = await createClient();
     const { data } = await supabase.auth.getUser();
-    user = data.user;
+    const user = data?.user;
+
+    if (user) {
+      const [{ data: prof }, { data: roleData }] = await Promise.all([
+        supabase.from("profiles").select("full_name, target_exam_id").eq("id", user.id).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle(),
+      ]);
+
+      navUser = {
+        id: user.id,
+        email: user.email || null,
+        fullName: prof?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "Aspirant",
+        targetExamId: prof?.target_exam_id || null,
+        isAdmin: Boolean(roleData),
+      };
+    }
   } catch {
-    user = null;
+    navUser = null;
   }
 
   return (
     <html lang="en">
       <body className="min-h-screen flex flex-col font-sans antialiased text-slate-900 bg-slate-50">
-        <Navbar user={user ? { id: user.id, email: user.email } : null} />
+        <Navbar user={navUser} />
         <main className="flex-1">{children}</main>
         <Footer />
       </body>

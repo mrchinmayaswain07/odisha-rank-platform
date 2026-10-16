@@ -9,7 +9,10 @@ import {
   MockTest,
   Profile,
   DashboardMetrics,
-  StudentActivity
+  StudentActivity,
+  AdminDashboardStats,
+  PaginatedResult,
+  StudentListItem,
 } from "./types";
 import {
   SEED_EXAMS,
@@ -18,7 +21,7 @@ import {
   SEED_TOPICS,
   SEED_MATERIALS,
   SEED_QUESTIONS,
-  SEED_MOCK_TESTS
+  SEED_MOCK_TESTS,
 } from "./mock-data";
 
 /**
@@ -30,34 +33,68 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(url && key && !url.includes("placeholder"));
 }
 
-export async function getExams(): Promise<Exam[]> {
+/**
+ * Fetch all registered exams / competitive courses.
+ * Optionally includes inactive/draft exams for admin views.
+ */
+export async function getExams(includeInactive: boolean = false): Promise<Exam[]> {
   if (!isSupabaseConfigured()) {
     return SEED_EXAMS;
   }
 
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("exams")
-      .select("*")
-      .eq("is_active", true)
-      .order("created_at", { ascending: true });
+    let query = supabase.from("exams").select("*").order("created_at", { ascending: true });
 
-    if (error || !data || data.length === 0) {
+    if (!includeInactive) {
+      query = query.eq("is_active", true).neq("status", "archived");
+    }
+
+    const { data: exams, error } = await query;
+    if (error || !exams || exams.length === 0) {
       return SEED_EXAMS;
     }
-    return data as Exam[];
+
+    // Parallel fetch enrollment counts
+    try {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("target_exam_id");
+
+      const countMap: Record<string, number> = {};
+      profiles?.forEach((p) => {
+        if (p.target_exam_id) {
+          countMap[p.target_exam_id] = (countMap[p.target_exam_id] || 0) + 1;
+        }
+      });
+
+      return exams.map((ex: any) => ({
+        ...ex,
+        status: ex.status || "published",
+        students_count: countMap[ex.id] || 0,
+      })) as Exam[];
+    } catch {
+      return exams as Exam[];
+    }
   } catch {
     return SEED_EXAMS;
   }
 }
 
 export async function getExamBySlug(slug: string): Promise<Exam | null> {
-  const exams = await getExams();
+  const exams = await getExams(true);
   return exams.find((e) => e.slug === slug) || null;
 }
 
-export async function getSubjects(examId?: string): Promise<Subject[]> {
+export async function getExamById(id: string): Promise<Exam | null> {
+  const exams = await getExams(true);
+  return exams.find((e) => e.id === id) || null;
+}
+
+/**
+ * Fetch subjects filtered by course/exam with parallel counts.
+ */
+export async function getSubjects(examId?: string, includeAllStatus: boolean = false): Promise<Subject[]> {
   if (!isSupabaseConfigured()) {
     if (examId) return SEED_SUBJECTS.filter((s) => s.exam_id === examId);
     return SEED_SUBJECTS;
@@ -66,9 +103,14 @@ export async function getSubjects(examId?: string): Promise<Subject[]> {
   try {
     const supabase = await createClient();
     let query = supabase.from("subjects").select("*").order("order_index", { ascending: true });
+
     if (examId) {
       query = query.eq("exam_id", examId);
     }
+    if (!includeAllStatus) {
+      query = query.neq("status", "archived");
+    }
+
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
       return examId ? SEED_SUBJECTS.filter((s) => s.exam_id === examId) : SEED_SUBJECTS;
@@ -79,7 +121,10 @@ export async function getSubjects(examId?: string): Promise<Subject[]> {
   }
 }
 
-export async function getChapters(subjectId: string, userId?: string): Promise<Chapter[]> {
+/**
+ * Fetch chapters for a given subject.
+ */
+export async function getChapters(subjectId: string, userId?: string, includeAllStatus: boolean = false): Promise<Chapter[]> {
   if (!isSupabaseConfigured()) {
     return SEED_CHAPTERS.filter((c) => c.subject_id === subjectId);
   }
@@ -98,6 +143,10 @@ export async function getChapters(subjectId: string, userId?: string): Promise<C
       query = query.eq("is_official", true);
     }
 
+    if (!includeAllStatus) {
+      query = query.neq("status", "archived");
+    }
+
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
       return SEED_CHAPTERS.filter((c) => c.subject_id === subjectId);
@@ -108,7 +157,10 @@ export async function getChapters(subjectId: string, userId?: string): Promise<C
   }
 }
 
-export async function getTopics(chapterId: string, userId?: string): Promise<Topic[]> {
+/**
+ * Fetch topics for a chapter.
+ */
+export async function getTopics(chapterId: string, userId?: string, includeAllStatus: boolean = false): Promise<Topic[]> {
   if (!isSupabaseConfigured()) {
     return SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
   }
@@ -127,6 +179,10 @@ export async function getTopics(chapterId: string, userId?: string): Promise<Top
       query = query.eq("is_official", true);
     }
 
+    if (!includeAllStatus) {
+      query = query.neq("status", "archived");
+    }
+
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
       return SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
@@ -137,40 +193,69 @@ export async function getTopics(chapterId: string, userId?: string): Promise<Top
   }
 }
 
-export async function getStudyMaterials(topicId: string): Promise<StudyMaterial[]> {
+/**
+ * Fetch study materials with search, course/topic/subject filtering, and status filter.
+ */
+export async function getStudyMaterials(filters?: {
+  topicId?: string;
+  subjectId?: string;
+  examId?: string;
+  status?: string;
+  search?: string;
+}): Promise<StudyMaterial[]> {
   if (!isSupabaseConfigured()) {
-    return SEED_MATERIALS.filter((m) => m.topic_id === topicId);
+    let result = SEED_MATERIALS;
+    if (filters?.topicId) result = result.filter((m) => m.topic_id === filters.topicId);
+    if (filters?.search) {
+      const q = filters.search.toLowerCase();
+      result = result.filter((m) => m.title.toLowerCase().includes(q) || m.content.toLowerCase().includes(q));
+    }
+    return result;
   }
 
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("study_materials")
-      .select("*")
-      .eq("topic_id", topicId)
-      .order("created_at", { ascending: true });
+    let query = supabase.from("study_materials").select("*").order("created_at", { ascending: false });
 
+    if (filters?.topicId) query = query.eq("topic_id", filters.topicId);
+    if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
+    if (filters?.examId) query = query.eq("exam_id", filters.examId);
+    if (filters?.status) {
+      query = query.eq("status", filters.status);
+    } else {
+      query = query.neq("status", "archived");
+    }
+    if (filters?.search) {
+      query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+    }
+
+    const { data, error } = await query;
     if (error || !data || data.length === 0) {
-      return SEED_MATERIALS.filter((m) => m.topic_id === topicId);
+      return filters?.topicId ? SEED_MATERIALS.filter((m) => m.topic_id === filters.topicId) : SEED_MATERIALS;
     }
     return data as StudyMaterial[];
   } catch {
-    return SEED_MATERIALS.filter((m) => m.topic_id === topicId);
+    return filters?.topicId ? SEED_MATERIALS.filter((m) => m.topic_id === filters.topicId) : SEED_MATERIALS;
   }
 }
 
+/**
+ * Fetch questions matching filters (backward-compatible).
+ */
 export async function getQuestions(filters?: {
   examId?: string;
   subjectId?: string;
   difficulty?: string;
+  search?: string;
 }): Promise<Question[]> {
   if (!isSupabaseConfigured()) {
     let result = SEED_QUESTIONS;
-    if (filters?.subjectId) {
-      result = result.filter((q) => q.subject_id === filters.subjectId);
-    }
-    if (filters?.difficulty) {
-      result = result.filter((q) => q.difficulty === filters.difficulty);
+    if (filters?.examId) result = result.filter((q) => q.exam_id === filters.examId);
+    if (filters?.subjectId) result = result.filter((q) => q.subject_id === filters.subjectId);
+    if (filters?.difficulty) result = result.filter((q) => q.difficulty === filters.difficulty);
+    if (filters?.search) {
+      const s = filters.search.toLowerCase();
+      result = result.filter((q) => q.question_text.toLowerCase().includes(s));
     }
     return result;
   }
@@ -182,10 +267,12 @@ export async function getQuestions(filters?: {
     if (filters?.examId) query = query.eq("exam_id", filters.examId);
     if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
     if (filters?.difficulty) query = query.eq("difficulty", filters.difficulty);
+    if (filters?.search) query = query.ilike("question_text", `%${filters.search}%`);
 
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
       let fallback = SEED_QUESTIONS;
+      if (filters?.examId) fallback = fallback.filter((q) => q.exam_id === filters.examId);
       if (filters?.subjectId) fallback = fallback.filter((q) => q.subject_id === filters.subjectId);
       if (filters?.difficulty) fallback = fallback.filter((q) => q.difficulty === filters.difficulty);
       return fallback;
@@ -196,7 +283,94 @@ export async function getQuestions(filters?: {
   }
 }
 
-export async function getMockTests(examId?: string): Promise<MockTest[]> {
+/**
+ * Fetch paginated questions for Question Bank & Admin with total count and page metadata.
+ */
+export async function getPaginatedQuestions(filters?: {
+  examId?: string;
+  subjectId?: string;
+  chapterId?: string;
+  difficulty?: string;
+  search?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<PaginatedResult<Question>> {
+  const page = Math.max(1, filters?.page || 1);
+  const pageSize = Math.max(1, Math.min(100, filters?.pageSize || 10));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  if (!isSupabaseConfigured()) {
+    let list = SEED_QUESTIONS;
+    if (filters?.examId) list = list.filter((q) => q.exam_id === filters.examId);
+    if (filters?.subjectId) list = list.filter((q) => q.subject_id === filters.subjectId);
+    if (filters?.difficulty) list = list.filter((q) => q.difficulty === filters.difficulty);
+    if (filters?.search) {
+      const s = filters.search.toLowerCase();
+      list = list.filter((q) => q.question_text.toLowerCase().includes(s));
+    }
+    const total = list.length;
+    const paginated = list.slice(from, to + 1);
+    return {
+      data: paginated,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize) || 1,
+    };
+  }
+
+  try {
+    const supabase = await createClient();
+    let query = supabase
+      .from("questions")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false });
+
+    if (filters?.examId) query = query.eq("exam_id", filters.examId);
+    if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
+    if (filters?.chapterId) query = query.eq("chapter_id", filters.chapterId);
+    if (filters?.difficulty) query = query.eq("difficulty", filters.difficulty);
+    if (filters?.status) query = query.eq("status", filters.status);
+    if (filters?.search) query = query.ilike("question_text", `%${filters.search}%`);
+
+    query = query.range(from, to);
+
+    const { data, count, error } = await query;
+    if (error || !data) {
+      return {
+        data: SEED_QUESTIONS.slice(0, pageSize),
+        total: SEED_QUESTIONS.length,
+        page,
+        pageSize,
+        totalPages: Math.ceil(SEED_QUESTIONS.length / pageSize) || 1,
+      };
+    }
+
+    const total = count ?? data.length;
+    return {
+      data: data as Question[],
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize) || 1,
+    };
+  } catch {
+    return {
+      data: SEED_QUESTIONS.slice(0, pageSize),
+      total: SEED_QUESTIONS.length,
+      page,
+      pageSize,
+      totalPages: Math.ceil(SEED_QUESTIONS.length / pageSize) || 1,
+    };
+  }
+}
+
+/**
+ * Fetch mock tests filtered by course/exam.
+ */
+export async function getMockTests(examId?: string, includeAllStatus: boolean = false): Promise<MockTest[]> {
   if (!isSupabaseConfigured()) {
     if (examId) return SEED_MOCK_TESTS.filter((m) => m.exam_id === examId);
     return SEED_MOCK_TESTS;
@@ -207,9 +381,11 @@ export async function getMockTests(examId?: string): Promise<MockTest[]> {
     let query = supabase
       .from("mock_tests")
       .select("*, mock_test_questions(count)")
-      .eq("is_published", true)
       .order("created_at", { ascending: false });
 
+    if (!includeAllStatus) {
+      query = query.eq("is_published", true).neq("status", "archived");
+    }
     if (examId) query = query.eq("exam_id", examId);
 
     const { data, error } = await query;
@@ -276,7 +452,7 @@ export async function getStudentProfile(userId: string): Promise<Profile | null>
       bio: "Preparing for Odisha Government Exams with dedication.",
       is_profile_completed: true,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
   }
 
@@ -296,12 +472,13 @@ export async function getStudentProfile(userId: string): Promise<Profile | null>
 }
 
 /**
- * Calculates genuine student dashboard metrics directly from DB tables.
- * Never fabricates counts, streaks, or progress.
+ * HIGH-PERFORMANCE PERSONALIZED DASHBOARD METRICS:
+ * 1. Parallelizes all database network calls with Promise.all (zero sequential waterfalls).
+ * 2. Scopes official syllabus progress STRICTLY to the student's selected targetExamId.
+ * 3. Never leaks or mixes up progress across different courses or custom topics.
  */
-export async function getDashboardMetrics(userId: string): Promise<DashboardMetrics> {
+export async function getDashboardMetrics(userId: string, targetExamId?: string | null): Promise<DashboardMetrics> {
   if (!isSupabaseConfigured()) {
-    // Return honest zeroed / demonstration initial state for preview
     return {
       study_hours: 0,
       questions_practiced: 0,
@@ -327,30 +504,77 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
   try {
     const supabase = await createClient();
 
-    // 1. Study Hours from study_sessions
-    const { data: sessions } = await supabase
-      .from("study_sessions")
-      .select("duration_minutes, session_date")
-      .eq("user_id", userId);
+    // PARALLEL EXECUTION: Run all independent queries at once
+    const [
+      sessionsRes,
+      questionsCountRes,
+      mocksCountRes,
+      userProgressRes,
+      activitiesRes,
+      courseSubjectsRes,
+      personalTopicsRes,
+    ] = await Promise.all([
+      // 1. Study sessions
+      supabase
+        .from("study_sessions")
+        .select("duration_minutes, session_date")
+        .eq("user_id", userId),
 
-    const totalMinutes = sessions?.reduce((sum, s) => sum + (s.duration_minutes || 0), 0) || 0;
+      // 2. Questions practiced count
+      supabase
+        .from("question_attempts")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId),
+
+      // 3. Mock tests completed count
+      supabase
+        .from("mock_test_attempts")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("status", "completed"),
+
+      // 4. Student topic progress (completed topics)
+      supabase
+        .from("student_topic_progress")
+        .select("topic_id")
+        .eq("user_id", userId)
+        .eq("status", "completed"),
+
+      // 5. Recent activities
+      supabase
+        .from("student_activity")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(6),
+
+      // 6. Course-specific hierarchy: subjects -> chapters -> topics
+      targetExamId
+        ? supabase
+            .from("subjects")
+            .select("id, name, order_index, chapters(id, is_official, topics(id, is_official, title))")
+            .eq("exam_id", targetExamId)
+            .order("order_index", { ascending: true })
+        : supabase
+            .from("subjects")
+            .select("id, name, order_index, chapters(id, is_official, topics(id, is_official, title))")
+            .order("order_index", { ascending: true }),
+
+      // 7. Student's own custom topics
+      supabase
+        .from("topics")
+        .select("id")
+        .eq("is_official", false)
+        .eq("created_by", userId),
+    ]);
+
+    // Compute Study Hours
+    const sessions = sessionsRes.data || [];
+    const totalMinutes = sessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
     const studyHours = Math.round((totalMinutes / 60) * 10) / 10;
 
-    // 2. Questions Practiced from question_attempts
-    const { count: questionsCount } = await supabase
-      .from("question_attempts")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId);
-
-    // 3. Mock Tests Completed
-    const { count: mocksCount } = await supabase
-      .from("mock_test_attempts")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("status", "completed");
-
-    // 4. Calculate Streak from session dates and activity dates
-    const sessionDates = new Set(sessions?.map((s) => s.session_date) || []);
+    // Compute Streak Days
+    const sessionDates = new Set(sessions.map((s) => s.session_date));
     let streakDays = 0;
     const today = new Date();
     for (let i = 0; i < 365; i++) {
@@ -360,76 +584,75 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       if (sessionDates.has(dateStr)) {
         streakDays++;
       } else if (i === 0) {
-        // Today might not have session yet, check yesterday
-        continue;
+        continue; // Today might not have a session yet
       } else {
         break;
       }
     }
 
-    // 5. Official vs Personal Syllabus Progress
-    // Fetch all topics and user progress
-    const { data: allTopics } = await supabase
-      .from("topics")
-      .select("id, is_official, chapter_id, chapters(subject_id)");
+    // Set of completed topic IDs
+    const completedTopicIds = new Set((userProgressRes.data || []).map((p) => p.topic_id));
 
-    const { data: userProgress } = await supabase
-      .from("student_topic_progress")
-      .select("topic_id, status")
-      .eq("user_id", userId)
-      .eq("status", "completed");
+    // Calculate course-specific official syllabus progress
+    const subjects = courseSubjectsRes.data || [];
+    let courseOfficialTopicsCount = 0;
+    let courseOfficialCompletedCount = 0;
 
-    const completedTopicIds = new Set(userProgress?.map((p) => p.topic_id) || []);
+    const subjectProgress = subjects.map((sub: any) => {
+      let subTotalTopics = 0;
+      let subCompletedTopics = 0;
 
-    const officialTopics = allTopics?.filter((t) => t.is_official) || [];
-    const personalTopics = allTopics?.filter((t) => !t.is_official) || [];
+      const chapters = sub.chapters || [];
+      chapters.forEach((chap: any) => {
+        const topics = chap.topics || [];
+        topics.forEach((top: any) => {
+          if (top.is_official) {
+            subTotalTopics++;
+            courseOfficialTopicsCount++;
+            if (completedTopicIds.has(top.id)) {
+              subCompletedTopics++;
+              courseOfficialCompletedCount++;
+            }
+          }
+        });
+      });
 
-    const completedOfficial = officialTopics.filter((t) => completedTopicIds.has(t.id)).length;
-    const completedPersonal = personalTopics.filter((t) => completedTopicIds.has(t.id)).length;
-
-    const officialProgress =
-      officialTopics.length > 0 ? Math.round((completedOfficial / officialTopics.length) * 100) : 0;
-    const personalProgress =
-      personalTopics.length > 0 ? Math.round((completedPersonal / personalTopics.length) * 100) : 0;
-
-    // 6. Recent Activity
-    const { data: activities } = await supabase
-      .from("student_activity")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(6);
-
-    // 7. Subject breakdown
-    const subjects = await getSubjects();
-    const subjectProgress = subjects.map((sub) => {
-      const subTopics =
-        allTopics?.filter((t: any) => t.chapters?.subject_id === sub.id && t.is_official) || [];
-      const subCompleted = subTopics.filter((t) => completedTopicIds.has(t.id)).length;
       return {
         subject_id: sub.id,
         subject_name: sub.name,
-        total_topics: subTopics.length,
-        completed_topics: subCompleted,
-        progress_percentage: subTopics.length > 0 ? Math.round((subCompleted / subTopics.length) * 100) : 0,
+        total_topics: subTotalTopics,
+        completed_topics: subCompletedTopics,
+        progress_percentage: subTotalTopics > 0 ? Math.round((subCompletedTopics / subTotalTopics) * 100) : 0,
       };
     });
 
+    const officialProgress =
+      courseOfficialTopicsCount > 0
+        ? Math.round((courseOfficialCompletedCount / courseOfficialTopicsCount) * 100)
+        : 0;
+
+    // Personal topics progress
+    const personalTopics = personalTopicsRes.data || [];
+    const completedPersonal = personalTopics.filter((t) => completedTopicIds.has(t.id)).length;
+    const personalProgress =
+      personalTopics.length > 0 ? Math.round((completedPersonal / personalTopics.length) * 100) : 0;
+
     return {
       study_hours: studyHours,
-      questions_practiced: questionsCount || 0,
-      mock_tests_completed: mocksCount || 0,
+      questions_practiced: questionsCountRes.count || 0,
+      mock_tests_completed: mocksCountRes.count || 0,
       study_streak_days: streakDays,
       official_progress_percentage: officialProgress,
       personal_progress_percentage: personalProgress,
-      total_official_topics: officialTopics.length,
-      completed_official_topics: completedOfficial,
+      total_official_topics: courseOfficialTopicsCount,
+      completed_official_topics: courseOfficialCompletedCount,
       total_personal_topics: personalTopics.length,
       completed_personal_topics: completedPersonal,
-      recent_activities: (activities || []) as StudentActivity[],
+      recent_activities: (activitiesRes.data || []) as StudentActivity[],
       subject_progress: subjectProgress,
     };
-  } catch {
+  } catch (err) {
+    console.error("getDashboardMetrics error:", err);
     return {
       study_hours: 0,
       questions_practiced: 0,
@@ -444,5 +667,167 @@ export async function getDashboardMetrics(userId: string): Promise<DashboardMetr
       recent_activities: [],
       subject_progress: [],
     };
+  }
+}
+
+/**
+ * Fetch genuine statistics for the Admin Panel Dashboard.
+ * Parallelized for maximum speed.
+ */
+export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
+  if (!isSupabaseConfigured()) {
+    return {
+      total_students: 12,
+      total_courses: SEED_EXAMS.length,
+      total_subjects: SEED_SUBJECTS.length,
+      total_chapters: SEED_CHAPTERS.length,
+      total_topics: SEED_TOPICS.length,
+      total_materials: SEED_MATERIALS.length,
+      total_questions: SEED_QUESTIONS.length,
+      total_mock_tests: SEED_MOCK_TESTS.length,
+      recent_activities: [],
+    };
+  }
+
+  try {
+    const supabase = await createClient();
+
+    const [
+      studentsRes,
+      coursesRes,
+      subjectsRes,
+      chaptersRes,
+      topicsRes,
+      materialsRes,
+      questionsRes,
+      mockTestsRes,
+      activitiesRes,
+    ] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }),
+      supabase.from("exams").select("*", { count: "exact", head: true }),
+      supabase.from("subjects").select("*", { count: "exact", head: true }),
+      supabase.from("chapters").select("*", { count: "exact", head: true }),
+      supabase.from("topics").select("*", { count: "exact", head: true }),
+      supabase.from("study_materials").select("*", { count: "exact", head: true }),
+      supabase.from("questions").select("*", { count: "exact", head: true }),
+      supabase.from("mock_tests").select("*", { count: "exact", head: true }),
+      supabase
+        .from("student_activity")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(10),
+    ]);
+
+    return {
+      total_students: studentsRes.count || 0,
+      total_courses: coursesRes.count || 0,
+      total_subjects: subjectsRes.count || 0,
+      total_chapters: chaptersRes.count || 0,
+      total_topics: topicsRes.count || 0,
+      total_materials: materialsRes.count || 0,
+      total_questions: questionsRes.count || 0,
+      total_mock_tests: mockTestsRes.count || 0,
+      recent_activities: (activitiesRes.data || []) as StudentActivity[],
+    };
+  } catch (err) {
+    console.error("getAdminDashboardStats error:", err);
+    return {
+      total_students: 0,
+      total_courses: 0,
+      total_subjects: 0,
+      total_chapters: 0,
+      total_topics: 0,
+      total_materials: 0,
+      total_questions: 0,
+      total_mock_tests: 0,
+      recent_activities: [],
+    };
+  }
+}
+
+/**
+ * Fetch student directory for Admin Panel.
+ */
+export async function getStudentsList(filters?: {
+  search?: string;
+  targetExamId?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<PaginatedResult<StudentListItem>> {
+  const page = Math.max(1, filters?.page || 1);
+  const pageSize = Math.max(1, Math.min(100, filters?.pageSize || 15));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  if (!isSupabaseConfigured()) {
+    return {
+      data: [
+        {
+          id: "demo-user-1",
+          email: "student@odisharank.in",
+          full_name: "Subrat Pattnaik",
+          target_exam_id: SEED_EXAMS[0].id,
+          target_exam_title: SEED_EXAMS[0].title,
+          target_year: 2026,
+          district: "Khordha (Bhubaneswar)",
+          phone: "9876543210",
+          role: "student",
+          is_profile_completed: true,
+          created_at: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize,
+      totalPages: 1,
+    };
+  }
+
+  try {
+    const supabase = await createClient();
+
+    let query = supabase
+      .from("profiles")
+      .select("*, exams:target_exam_id(title), user_roles(role)", { count: "exact" })
+      .order("created_at", { ascending: false });
+
+    if (filters?.targetExamId) {
+      query = query.eq("target_exam_id", filters.targetExamId);
+    }
+    if (filters?.search) {
+      query = query.or(`full_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,district.ilike.%${filters.search}%`);
+    }
+
+    query = query.range(from, to);
+
+    const { data, count, error } = await query;
+    if (error || !data) {
+      return { data: [], total: 0, page, pageSize, totalPages: 0 };
+    }
+
+    const items: StudentListItem[] = data.map((row: any) => ({
+      id: row.id,
+      email: row.email,
+      full_name: row.full_name,
+      target_exam_id: row.target_exam_id,
+      target_exam_title: row.exams?.title || "Not selected",
+      target_year: row.target_year,
+      district: row.district,
+      phone: row.phone,
+      role: (row.user_roles?.[0]?.role as any) || "student",
+      is_profile_completed: row.is_profile_completed,
+      created_at: row.created_at,
+    }));
+
+    const total = count ?? data.length;
+    return {
+      data: items,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize) || 1,
+    };
+  } catch {
+    return { data: [], total: 0, page, pageSize, totalPages: 0 };
   }
 }

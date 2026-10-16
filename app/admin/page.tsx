@@ -1,179 +1,251 @@
 import React from "react";
 import { Metadata } from "next";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { checkIsAdmin } from "@/lib/admin-auth";
-import { getExams, getSubjects, getQuestions, getMockTests } from "@/lib/data-service";
+import { getAdminDashboardStats } from "@/lib/data-service";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import {
-  ShieldAlert,
-  ShieldCheck,
+  Users,
   Layers,
+  BookOpen,
   HelpCircle,
+  FileText,
   Clock,
-  Database,
-  Lock,
   ArrowRight,
   Plus,
+  ShieldCheck,
+  Activity,
+  FolderTree,
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Administrator Portal — Security & Syllabus Management",
-  description: "Secure, role-based control center for managing official Odisha competitive examinations.",
+  title: "Admin Dashboard Overview",
+  description: "Real-time administrative metrics and content catalog summaries.",
 };
 
-export default async function AdminPage() {
-  const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
+export default async function AdminOverviewPage() {
+  const stats = await getAdminDashboardStats();
 
-  const user = authData.user;
-  const isAdmin = await checkIsAdmin(user?.id);
-
-  const exams = await getExams();
-  const subjects = await getSubjects();
-  const questions = await getQuestions();
-  const mockTests = await getMockTests();
+  const metricCards = [
+    {
+      title: "Registered Students",
+      value: stats.total_students,
+      subtitle: "Verified aspirants",
+      icon: Users,
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+      href: "/admin/students",
+    },
+    {
+      title: "Active Courses",
+      value: stats.total_courses,
+      subtitle: "OSSC, OSSSC, OPSC",
+      icon: Layers,
+      color: "text-indigo-500",
+      bg: "bg-indigo-500/10",
+      href: "/admin/courses",
+    },
+    {
+      title: "Syllabus Streams",
+      value: stats.total_subjects,
+      subtitle: `${stats.total_chapters} Chapters &bull; ${stats.total_topics} Topics`,
+      icon: FolderTree,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+      href: "/admin/syllabus",
+    },
+    {
+      title: "Question Bank",
+      value: stats.total_questions,
+      subtitle: "Verified MCQs",
+      icon: HelpCircle,
+      color: "text-amber-500",
+      bg: "bg-amber-500/10",
+      href: "/admin/questions",
+    },
+    {
+      title: "Study Materials / PDFs",
+      value: stats.total_materials,
+      subtitle: "Official notes & PDFs",
+      icon: FileText,
+      color: "text-cyan-500",
+      bg: "bg-cyan-500/10",
+      href: "/admin/materials",
+    },
+    {
+      title: "Mock Tests",
+      value: stats.total_mock_tests,
+      subtitle: "Timed simulations",
+      icon: Clock,
+      color: "text-rose-500",
+      bg: "bg-rose-500/10",
+      href: "/admin/mock-tests",
+    },
+  ];
 
   return (
-    <div className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Admin Header */}
-      <div className="bg-slate-900 text-white rounded-2xl p-8 mb-8 border border-slate-800 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Top Banner */}
+      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs uppercase tracking-wider font-mono text-blue-400 font-bold">
-              Production Admin Portal
+            <span className="text-xs font-mono uppercase tracking-wider text-blue-400 font-bold">
+              Mission Control
             </span>
             <Badge variant="blue" size="sm">
-              Role: {isAdmin ? "SYSTEM ADMINISTRATOR" : "STUDENT DEMO / READ ONLY"}
+              Odisha Recruitment Catalog
             </Badge>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">
-            OdishaRank Curriculum Control Center
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            Curriculum & Examination Administration
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
-            Authorized administrative panel. Manages official state exam catalogs, subjects, verified question banks, and mock tests via strict database RLS policies.
+            Live catalog statistics powered by Supabase. Manage courses, official syllabi, question banks, study PDFs, and mock tests with strict Row Level Security.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Badge variant={isAdmin ? "emerald" : "amber"} size="md" className="gap-1 py-1">
-            {isAdmin ? (
-              <>
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>Authorized Admin</span>
-              </>
-            ) : (
-              <>
-                <Lock className="w-4 h-4 text-amber-600" />
-                <span>Protected Role Mode</span>
-              </>
-            )}
-          </Badge>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link href="/admin/questions">
+            <Button size="sm" className="gap-1.5">
+              <Plus className="w-4 h-4" />
+              <span>Add Question</span>
+            </Button>
+          </Link>
+          <Link href="/admin/courses">
+            <Button size="sm" variant="outline" className="gap-1.5 border-slate-700 text-slate-300 hover:bg-slate-800">
+              <Layers className="w-4 h-4" />
+              <span>Manage Courses</span>
+            </Button>
+          </Link>
         </div>
       </div>
 
-      {/* Security Architecture Notice */}
-      <div className="p-4 bg-blue-50/80 border border-blue-200 rounded-xl mb-8 flex items-start gap-3 text-xs text-blue-900 leading-relaxed">
-        <ShieldCheck className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" />
-        <div>
-          <strong>Security Architecture Implementation:</strong> In compliance with prompt requirements, administrative privileges are governed strictly through the isolated <code className="bg-blue-100 px-1 py-0.5 rounded text-blue-950 font-mono">public.user_roles</code> table and database RLS policy <code className="bg-blue-100 px-1 py-0.5 rounded text-blue-950 font-mono">public.is_admin()</code>. They are <strong>never</strong> granted based on client-editable profile attributes.
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {metricCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <Link key={card.title} href={card.href} className="group">
+              <Card className="p-5 bg-slate-950 border-slate-800 hover:border-slate-700 transition-all duration-150">
+                <div className="flex items-start justify-between">
+                  <div className={`p-3 rounded-xl ${card.bg} ${card.color}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs text-slate-500 group-hover:text-blue-400 flex items-center gap-1 transition-colors">
+                    <span>Manage</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+
+                <div className="mt-4">
+                  <div className="text-3xl font-extrabold text-white tracking-tight">
+                    {card.value}
+                  </div>
+                  <div className="text-xs font-bold text-slate-300 mt-0.5">{card.title}</div>
+                  <div
+                    className="text-[11px] text-slate-500 mt-1"
+                    dangerouslySetInnerHTML={{ __html: card.subtitle }}
+                  />
+                </div>
+              </Card>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Quick Launch & Content Hierarchy Guidance */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Workflow Overview (2 cols) */}
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="p-6 bg-slate-950 border-slate-800">
+            <h3 className="text-base font-bold text-white mb-2">Curriculum Content Architecture</h3>
+            <p className="text-xs text-slate-400 leading-relaxed mb-4">
+              Content strictly follows the hierarchical state model to guarantee personalization and course isolation:
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                <div className="text-xs font-mono font-bold text-blue-400 mb-1">Level 1</div>
+                <div className="text-sm font-bold text-white">Course / Exam</div>
+                <p className="text-[11px] text-slate-400 mt-1">OSSC CGL, OSSSC CRE, OPSC OAS</p>
+              </div>
+              <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                <div className="text-xs font-mono font-bold text-indigo-400 mb-1">Level 2</div>
+                <div className="text-sm font-bold text-white">Subject</div>
+                <p className="text-[11px] text-slate-400 mt-1">General Studies, Arithmetic, Reasoning</p>
+              </div>
+              <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                <div className="text-xs font-mono font-bold text-emerald-400 mb-1">Level 3</div>
+                <div className="text-sm font-bold text-white">Chapter</div>
+                <p className="text-[11px] text-slate-400 mt-1">Odisha Geography, Percentages</p>
+              </div>
+              <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                <div className="text-xs font-mono font-bold text-amber-400 mb-1">Level 4</div>
+                <div className="text-sm font-bold text-white">Topic & Notes</div>
+                <p className="text-[11px] text-slate-400 mt-1">Rivers, Climate, MCQs, PDFs</p>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <span>Publication Flow: Draft &rarr; Review &rarr; Published &rarr; Archived</span>
+              </div>
+              <Link href="/admin/syllabus" className="text-blue-400 hover:underline font-semibold">
+                Open Syllabus Hierarchy &rarr;
+              </Link>
+            </div>
+          </Card>
         </div>
-      </div>
 
-      {/* Catalog Metric Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <Card className="p-5 border-slate-200">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-            <span>Official Exams</span>
-            <Layers className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="text-3xl font-extrabold text-slate-900">{exams.length}</div>
-          <p className="text-xs text-slate-500 mt-1">OSSC, OSSSC, OPSC active</p>
-        </Card>
+        {/* Quick Management Links (1 col) */}
+        <Card className="p-6 bg-slate-950 border-slate-800 space-y-3">
+          <h3 className="text-base font-bold text-white mb-2">Administrative Actions</h3>
 
-        <Card className="p-5 border-slate-200">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-            <span>Official Subjects</span>
-            <Database className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-3xl font-extrabold text-slate-900">{subjects.length}</div>
-          <p className="text-xs text-slate-500 mt-1">Configured syllabus streams</p>
-        </Card>
+          <Link
+            href="/admin/courses"
+            className="flex items-center justify-between p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-colors"
+          >
+            <div>
+              <div className="text-xs font-bold text-white">Manage Examination Courses</div>
+              <p className="text-[11px] text-slate-400">Create, edit, or publish exams</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-400" />
+          </Link>
 
-        <Card className="p-5 border-slate-200">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-            <span>Verified MCQs</span>
-            <HelpCircle className="w-4 h-4 text-indigo-600" />
-          </div>
-          <div className="text-3xl font-extrabold text-slate-900">{questions.length}</div>
-          <p className="text-xs text-slate-500 mt-1">Verified sample seed items</p>
-        </Card>
+          <Link
+            href="/admin/questions"
+            className="flex items-center justify-between p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-colors"
+          >
+            <div>
+              <div className="text-xs font-bold text-white">Import / Add MCQs</div>
+              <p className="text-[11px] text-slate-400">Bulk CSV import or manual editor</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-400" />
+          </Link>
 
-        <Card className="p-5 border-slate-200">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-            <span>Mock Tests</span>
-            <Clock className="w-4 h-4 text-amber-600" />
-          </div>
-          <div className="text-3xl font-extrabold text-slate-900">{mockTests.length}</div>
-          <p className="text-xs text-slate-500 mt-1">Published simulations</p>
-        </Card>
-      </div>
+          <Link
+            href="/admin/materials"
+            className="flex items-center justify-between p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-colors"
+          >
+            <div>
+              <div className="text-xs font-bold text-white">Study Materials & PDFs</div>
+              <p className="text-[11px] text-slate-400">Manage notes and downloadable PDFs</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-400" />
+          </Link>
 
-      {/* Management Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Exams Catalog */}
-        <Card className="p-6 border-slate-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-bold text-slate-900">Official Exams Catalog</h3>
-            <Badge variant="blue" size="sm">{exams.length} Registered</Badge>
-          </div>
-          <div className="space-y-3">
-            {exams.map((ex) => (
-              <div key={ex.id} className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
-                      {ex.conducting_body}
-                    </span>
-                    <h4 className="text-sm font-bold text-slate-900">{ex.title}</h4>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1 line-clamp-1">{ex.description}</p>
-                </div>
-                <Link href={`/exams/${ex.slug}`} className="text-xs font-bold text-blue-600 hover:underline shrink-0 ml-3">
-                  View
-                </Link>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Mock Tests Catalog */}
-        <Card className="p-6 border-slate-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-bold text-slate-900">Published Mock Tests</h3>
-            <Badge variant="emerald" size="sm">{mockTests.length} Live</Badge>
-          </div>
-          <div className="space-y-3">
-            {mockTests.map((t) => (
-              <div key={t.id} className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">{t.title}</h4>
-                  <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                    <span>{t.duration_minutes} Mins</span>
-                    <span>&bull;</span>
-                    <span>{t.total_marks} Marks</span>
-                    <span>&bull;</span>
-                    <span>Pass: {t.pass_percentage}%</span>
-                  </div>
-                </div>
-                <Link href={`/mock-tests/${t.id}`} className="text-xs font-bold text-blue-600 hover:underline shrink-0 ml-3">
-                  Inspect
-                </Link>
-              </div>
-            ))}
-          </div>
+          <Link
+            href="/admin/mock-tests"
+            className="flex items-center justify-between p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-colors"
+          >
+            <div>
+              <div className="text-xs font-bold text-white">Create Mock Test</div>
+              <p className="text-[11px] text-slate-400">Timed simulations with negative marking</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-400" />
+          </Link>
         </Card>
       </div>
     </div>

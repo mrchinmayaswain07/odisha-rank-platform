@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Subject,
   Chapter,
   Topic,
   StudyMaterial,
+  Exam,
 } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -23,6 +25,7 @@ import {
   ChevronRight,
   Layers,
   Lock,
+  GraduationCap,
 } from "lucide-react";
 
 interface SyllabusExplorerProps {
@@ -30,6 +33,8 @@ interface SyllabusExplorerProps {
   initialChapters: Chapter[];
   initialTopics: Topic[];
   initialMaterials: StudyMaterial[];
+  allExams?: Exam[];
+  activeExam?: Exam | null;
   userId?: string | null;
 }
 
@@ -38,8 +43,11 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
   initialChapters,
   initialTopics,
   initialMaterials,
+  allExams = [],
+  activeExam,
   userId,
 }) => {
+  const router = useRouter();
   const [subjects] = useState<Subject[]>(initialSubjects);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
     initialSubjects[0]?.id || ""
@@ -154,7 +162,42 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Course Selector Bar */}
+      {allExams && allExams.length > 0 && (
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+              <GraduationCap className="w-4 h-4" />
+            </span>
+            <div>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Target Exam Course
+              </span>
+              <span className="text-xs font-bold text-slate-800">
+                {activeExam?.title || "All Courses"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+            {allExams.map((ex) => (
+              <button
+                key={ex.id}
+                onClick={() => router.push(`/syllabus?exam=${ex.id}`)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  ex.id === activeExam?.id
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                {ex.conducting_body}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Subject Filter Tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
         {subjects.map((sub) => {

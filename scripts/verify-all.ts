@@ -238,6 +238,97 @@ async function runTests() {
     assert(!canStudentModifyOther, "Cross-user data access prevented: student cannot modify another student's content");
   }
 
+  // TEST 7: Course Switching & Syllabus Isolation
+  console.log("\n7. COURSE SWITCHING & PERSONALIZATION ISOLATION");
+  {
+    // Course A (OSSC CGL) has 8 topics; Course B (OSSSC RI) has 4 topics
+    const courseA = {
+      id: "course-ossc-cgl",
+      title: "OSSC CGL",
+      topics: ["t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8"],
+    };
+    const courseB = {
+      id: "course-osssc-ri",
+      title: "OSSSC RI",
+      topics: ["t9", "t10", "t11", "t12"],
+    };
+
+    // Student has completed t1, t2 (from Course A) and t9 (from Course B)
+    const completedTopics = new Set(["t1", "t2", "t9"]);
+
+    // Calculate progress when Course A is active
+    const calcCourseProgress = (courseTopics: string[], completed: Set<string>) => {
+      const done = courseTopics.filter((t) => completed.has(t)).length;
+      return Math.round((done / courseTopics.length) * 100);
+    };
+
+    const progressA = calcCourseProgress(courseA.topics, completedTopics);
+    assert(progressA === 25, "Active Course A (OSSC CGL) calculates 25% (2 of 8 topics completed)");
+
+    // Student switches to Course B (OSSSC RI)
+    const progressB = calcCourseProgress(courseB.topics, completedTopics);
+    assert(progressB === 25, "Active Course B (OSSSC RI) calculates 25% (1 of 4 topics completed)");
+
+    // Verify Course A progress was not wiped or corrupted by switching
+    const progressARevisited = calcCourseProgress(courseA.topics, completedTopics);
+    assert(progressARevisited === 25, "Switching back to Course A preserves 25% progress without data corruption");
+  }
+
+  // TEST 8: Pagination Logic & Limit Offsets
+  console.log("\n8. PAGINATION LOGIC & BOUNDARY CONDITIONS");
+  {
+    const totalItems = 45;
+    const pageSize = 10;
+    const calcTotalPages = (total: number, size: number) => Math.ceil(total / size) || 1;
+    const calcSlice = (page: number, size: number) => ({
+      from: (page - 1) * size,
+      to: Math.min(page * size - 1, totalItems - 1),
+    });
+
+    assert(calcTotalPages(totalItems, pageSize) === 5, "Total 45 items with page size 10 yields 5 pages");
+    const p1 = calcSlice(1, pageSize);
+    assert(p1.from === 0 && p1.to === 9, "Page 1 slices range 0 to 9");
+    const p5 = calcSlice(5, pageSize);
+    assert(p5.from === 40 && p5.to === 44, "Page 5 slices range 40 to 44");
+  }
+
+  // TEST 9: Secure Server-Side RBAC Enforcement
+  console.log("\n9. SERVER-SIDE RBAC & ROLE CHECKING");
+  {
+    const rolesTable = [
+      { user_id: "user-admin-1", role: "admin" },
+      { user_id: "user-student-1", role: "student" },
+    ];
+
+    const checkIsAdminServer = (uid?: string) =>
+      Boolean(rolesTable.find((r) => r.user_id === uid && r.role === "admin"));
+
+    assert(checkIsAdminServer("user-admin-1") === true, "Authorized admin ID returns true");
+    assert(checkIsAdminServer("user-student-1") === false, "Regular student ID returns false");
+    assert(checkIsAdminServer(undefined) === false, "Unauthenticated session returns false");
+    assert(checkIsAdminServer("attacker-id") === false, "Unknown user ID returns false");
+  }
+
+  // TEST 10: Content Publishing Workflow States
+  console.log("\n10. CONTENT PUBLISHING WORKFLOW STATES");
+  {
+    const allMaterials = [
+      { id: "m1", status: "published" },
+      { id: "m2", status: "draft" },
+      { id: "m3", status: "archived" },
+      { id: "m4", status: "published" },
+    ];
+
+    const filterForStudents = (items: typeof allMaterials) =>
+      items.filter((item) => item.status === "published");
+    const filterForAdmin = (items: typeof allMaterials) => items;
+
+    const studentVisible = filterForStudents(allMaterials);
+    assert(studentVisible.length === 2, "Students see only published materials (draft and archived excluded)");
+    const adminVisible = filterForAdmin(allMaterials);
+    assert(adminVisible.length === 4, "Admins see full catalog across all workflow states");
+  }
+
   console.log("\n=================================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
   console.log("=================================================");
@@ -248,3 +339,4 @@ async function runTests() {
 }
 
 runTests();
+

@@ -1,6 +1,6 @@
 import React from "react";
 import { Metadata } from "next";
-import { getSubjects, getChapters, getTopics, getStudyMaterials } from "@/lib/data-service";
+import { getExams, getSubjects, getChapters, getTopics, getStudyMaterials, getStudentProfile } from "@/lib/data-service";
 import { SyllabusExplorer } from "./SyllabusExplorer";
 import { createClient } from "@/lib/supabase/server";
 
@@ -9,7 +9,11 @@ export const metadata: Metadata = {
   description: "Browse verified Odisha Government exam subjects, chapters, topics, notes, and create personal custom study modules.",
 };
 
-export default async function SyllabusPage() {
+export default async function SyllabusPage({
+  searchParams,
+}: {
+  searchParams?: { exam?: string; subject?: string };
+}) {
   let user = null;
   try {
     const supabase = await createClient();
@@ -19,13 +23,24 @@ export default async function SyllabusPage() {
     user = null;
   }
 
-  const subjects = await getSubjects();
-  const firstSubjectId = subjects[0]?.id || "";
-  const chapters = await getChapters(firstSubjectId, user?.id);
+  // Parallel fetch: all active courses & student profile
+  const [allExams, profile] = await Promise.all([
+    getExams(),
+    user ? getStudentProfile(user.id) : null,
+  ]);
+
+  // Determine active course (URL param > student's selected course > first available)
+  const activeExamId = searchParams?.exam || profile?.target_exam_id || allExams[0]?.id || "";
+  const activeExam = allExams.find((e) => e.id === activeExamId) || allExams[0] || null;
+
+  // Fetch subjects strictly for this course
+  const subjects = await getSubjects(activeExamId);
+  const firstSubjectId = searchParams?.subject || subjects[0]?.id || "";
+  const chapters = firstSubjectId ? await getChapters(firstSubjectId, user?.id) : [];
   const firstChapterId = chapters[0]?.id || "";
-  const topics = await getTopics(firstChapterId, user?.id);
+  const topics = firstChapterId ? await getTopics(firstChapterId, user?.id) : [];
   const firstTopicId = topics[0]?.id || "";
-  const materials = await getStudyMaterials(firstTopicId);
+  const materials = firstTopicId ? await getStudyMaterials({ topicId: firstTopicId }) : [];
 
   return (
     <div className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -44,6 +59,8 @@ export default async function SyllabusPage() {
         initialChapters={chapters}
         initialTopics={topics}
         initialMaterials={materials}
+        allExams={allExams}
+        activeExam={activeExam}
         userId={user?.id}
       />
     </div>

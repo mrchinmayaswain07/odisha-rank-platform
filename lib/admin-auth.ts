@@ -18,3 +18,17 @@ export async function checkIsAdmin(userId?: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function requireAdmin(): Promise<{ user: any; isAdmin: boolean }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { user: null, isAdmin: false };
+  }
+
+  const isAdmin = await checkIsAdmin(user.id);
+  return { user, isAdmin };
+}

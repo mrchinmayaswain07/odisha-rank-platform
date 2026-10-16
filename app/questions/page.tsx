@@ -1,7 +1,8 @@
 import React from "react";
 import { Metadata } from "next";
-import { getQuestions, getSubjects } from "@/lib/data-service";
+import { getQuestions, getSubjects, getExams, getStudentProfile } from "@/lib/data-service";
 import { QuestionBankClient } from "./QuestionBankClient";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "Question Bank & Interactive Practice",
@@ -13,12 +14,34 @@ export default async function QuestionsPage({
 }: {
   searchParams?: { exam?: string; subject?: string; difficulty?: string };
 }) {
-  const subjects = await getSubjects(searchParams?.exam);
-  const questions = await getQuestions({
-    examId: searchParams?.exam,
-    subjectId: searchParams?.subject,
-    difficulty: searchParams?.difficulty,
-  });
+  let user = null;
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+    user = data?.user;
+  } catch {
+    user = null;
+  }
+
+  // Parallel fetch: all exams & student profile
+  const [allExams, profile] = await Promise.all([
+    getExams(),
+    user ? getStudentProfile(user.id) : null,
+  ]);
+
+  // Determine active course
+  const activeExamId = searchParams?.exam || profile?.target_exam_id || allExams[0]?.id || "";
+  const activeExam = allExams.find((e) => e.id === activeExamId) || allExams[0] || null;
+
+  // Parallel fetch: subjects and questions for active exam
+  const [subjects, questions] = await Promise.all([
+    getSubjects(activeExamId),
+    getQuestions({
+      examId: activeExamId,
+      subjectId: searchParams?.subject,
+      difficulty: searchParams?.difficulty,
+    }),
+  ]);
 
   return (
     <div className="py-12 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -32,7 +55,12 @@ export default async function QuestionsPage({
         </p>
       </div>
 
-      <QuestionBankClient initialQuestions={questions} subjects={subjects} />
+      <QuestionBankClient
+        initialQuestions={questions}
+        subjects={subjects}
+        allExams={allExams}
+        activeExam={activeExam}
+      />
     </div>
   );
 }
