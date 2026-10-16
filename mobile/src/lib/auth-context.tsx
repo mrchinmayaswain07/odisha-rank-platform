@@ -56,7 +56,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const email = userObj.email?.toLowerCase();
-    if (email === SITE_CONFIG.admin.rootEmail.toLowerCase()) {
+    const adminEmails = [
+      SITE_CONFIG.admin.rootEmail.toLowerCase(),
+      "cchinmaya071@gmail.com",
+      "cchinmaya8018@gmail.com",
+    ];
+
+    if (email && adminEmails.includes(email)) {
       setIsAdmin(true);
       return true;
     }

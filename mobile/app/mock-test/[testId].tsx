@@ -120,9 +120,9 @@ export default function MockTestSimulationScreen() {
     try {
       const evaluation = await submitMockTest(test.id, answers, timeSpent, user.id);
       router.replace({
-        pathname: `/mock-test/${test.id}/result`,
-        params: { resultData: JSON.stringify(evaluation) },
-      });
+        pathname: "/mock-test/[testId]/result",
+        params: { testId: test.id, resultData: JSON.stringify(evaluation) },
+      } as any);
     } catch (err) {
       console.warn("Failed to submit test:", err);
       Alert.alert("Submission Error", "Failed to submit test. Please retry.");

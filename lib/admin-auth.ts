@@ -16,7 +16,13 @@ export async function checkIsAdmin(userId?: string, userEmail?: string | null): 
     }
 
     // 1. If this is the root platform administrator, automatically grant access immediately
-    if (userEmail && userEmail.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase()) {
+    const adminEmails = [
+      ROOT_ADMIN_EMAIL.toLowerCase(),
+      "cchinmaya071@gmail.com",
+      "cchinmaya8018@gmail.com",
+    ];
+
+    if (userEmail && adminEmails.includes(userEmail.toLowerCase())) {
       // Asynchronously ensure database record without blocking page rendering
       supabase.from("user_roles").upsert(
         {
