@@ -232,7 +232,7 @@ export const StudentManagerClient: React.FC<StudentManagerClientProps> = ({
         {/* Pagination Footer */}
         <div className="p-4 bg-slate-900/60 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
           <div>
-            Showing <strong>{(result.page - 1) * result.pageSize + 1}</strong> to{" "}
+            Showing <strong>{result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1}</strong> to{" "}
             <strong>{Math.min(result.page * result.pageSize, result.total)}</strong> of{" "}
             <strong>{result.total}</strong> students
           </div>

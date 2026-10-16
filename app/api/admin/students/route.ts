@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { checkIsAdmin } from "@/lib/admin-auth";
 import { getStudentsList } from "@/lib/data-service";
 
@@ -7,7 +8,7 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -26,7 +27,7 @@ export async function PATCH(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -39,8 +40,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Valid userId and role are required" }, { status: 400 });
     }
 
+    let client: any;
+    try {
+      client = createAdminClient();
+    } catch {
+      client = supabase;
+    }
+
     // Upsert role into user_roles
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from("user_roles")
       .upsert(
         {

@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { checkIsAdmin } from "@/lib/admin-auth";
 import { getPaginatedQuestions } from "@/lib/data-service";
+
+function getClient(userClient: any) {
+  try {
+    return createAdminClient();
+  } catch {
+    return userClient;
+  }
+}
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -38,13 +47,14 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
 
   try {
     const body = await request.json();
+    const client = getClient(supabase);
 
     // Check if this is a bulk import batch
     if (body.bulk && Array.isArray(body.questions)) {
@@ -64,7 +74,7 @@ export async function POST(request: NextRequest) {
         created_by: authData.user?.id || null,
       }));
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("questions")
         .insert(questionsToInsert)
         .select();
@@ -96,7 +106,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Correct option index must be between 0 and 3" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from("questions")
       .insert({
         exam_id: exam_id || null,
@@ -127,7 +137,7 @@ export async function PATCH(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -155,7 +165,9 @@ export async function PATCH(request: NextRequest) {
     if (updates.marks !== undefined) updatePayload.marks = updates.marks;
     if (updates.negative_marks !== undefined) updatePayload.negative_marks = updates.negative_marks;
 
-    const { data, error } = await supabase
+    const client = getClient(supabase);
+
+    const { data, error } = await client
       .from("questions")
       .update(updatePayload)
       .eq("id", id)
@@ -173,7 +185,7 @@ export async function DELETE(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -184,7 +196,9 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) return NextResponse.json({ error: "Question ID is required" }, { status: 400 });
 
-    const { error } = await supabase.from("questions").delete().eq("id", id);
+    const client = getClient(supabase);
+
+    const { error } = await client.from("questions").delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ success: true, message: "Question deleted successfully" });

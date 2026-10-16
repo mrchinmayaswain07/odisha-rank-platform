@@ -1,5 +1,4 @@
-import React from "react";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 interface BadgeProps {
   children: React.ReactNode;
@@ -33,7 +32,7 @@ export const Badge: React.FC<BadgeProps> = ({
   return (
     <span
       onClick={onClick}
-      className={clsx(
+      className={cn(
         "inline-flex items-center font-medium rounded-full border",
         variants[variant],
         sizes[size],

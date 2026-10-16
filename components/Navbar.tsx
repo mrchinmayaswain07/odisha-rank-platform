@@ -44,6 +44,11 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Suppress public student navigation on administrative routes to prevent layout collision
+  if (pathname?.startsWith("/admin")) {
+    return null;
+  }
+
   // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

@@ -1,8 +1,18 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { GraduationCap, ShieldCheck, Mail, MapPin, ExternalLink } from "lucide-react";
 
 export const Footer: React.FC = () => {
+  const pathname = usePathname();
+
+  // Suppress public student footer on administrative routes
+  if (pathname?.startsWith("/admin")) {
+    return null;
+  }
+
   return (
     <footer className="bg-slate-900 text-slate-300 pt-16 pb-12 border-t border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

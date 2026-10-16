@@ -1,17 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { checkIsAdmin } from "@/lib/admin-auth";
+
+function getClient(userClient: any) {
+  try {
+    return createAdminClient();
+  } catch {
+    return userClient;
+  }
+}
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
 
-  const { data, error } = await supabase
+  const client = getClient(supabase);
+
+  const { data, error } = await client
     .from("mock_tests")
     .select("*, exams(title, conducting_body), mock_test_questions(count)")
     .order("created_at", { ascending: false });
@@ -24,7 +35,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -46,7 +57,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Exam ID, Title, Description, Duration, and Total Marks are required" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const client = getClient(supabase);
+
+    const { data, error } = await client
       .from("mock_tests")
       .insert({
         exam_id,
@@ -73,7 +86,7 @@ export async function PATCH(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -93,7 +106,9 @@ export async function PATCH(request: NextRequest) {
       updatePayload.is_published = updates.status === "published";
     }
 
-    const { data, error } = await supabase
+    const client = getClient(supabase);
+
+    const { data, error } = await client
       .from("mock_tests")
       .update(updatePayload)
       .eq("id", id)
@@ -111,7 +126,7 @@ export async function DELETE(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -121,8 +136,10 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Mock Test ID is required" }, { status: 400 });
 
+    const client = getClient(supabase);
+
     // Set to archived rather than deleting so student history remains intact
-    const { error } = await supabase
+    const { error } = await client
       .from("mock_tests")
       .update({ status: "archived", is_published: false })
       .eq("id", id);

@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { checkIsAdmin } from "@/lib/admin-auth";
+
+function getClient(userClient: any) {
+  try {
+    return createAdminClient();
+  } catch {
+    return userClient;
+  }
+}
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -15,7 +24,9 @@ export async function GET(request: NextRequest) {
   const examId = searchParams.get("examId");
   const status = searchParams.get("status");
 
-  let query = supabase
+  const client = getClient(supabase);
+
+  let query = client
     .from("study_materials")
     .select("*, topics(title, chapters(title, subjects(name, exams(title))))")
     .order("created_at", { ascending: false });
@@ -32,7 +43,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -43,8 +54,6 @@ export async function POST(request: NextRequest) {
       title,
       description,
       category,
-      material_type,
-      content,
       file_url,
       file_size,
       exam_id,
@@ -54,27 +63,26 @@ export async function POST(request: NextRequest) {
       status,
     } = body;
 
-    if (!title || !topic_id) {
-      return NextResponse.json({ error: "Title and Topic ID are required" }, { status: 400 });
+    if (!title || !file_url) {
+      return NextResponse.json({ error: "Title and file URL are required" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const client = getClient(supabase);
+
+    const { data, error } = await client
       .from("study_materials")
       .insert({
         title,
         description: description || null,
         category: category || "notes",
-        material_type: material_type || "pdf",
-        content: content || "Official document repository file",
-        file_url: file_url || null,
+        file_url,
         file_size: file_size || 0,
         exam_id: exam_id || null,
         subject_id: subject_id || null,
         chapter_id: chapter_id || null,
-        topic_id,
+        topic_id: topic_id || null,
         status: status || "published",
-        is_official: true,
-        created_by: authData.user?.id || null,
+        published_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -82,7 +90,7 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, data });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to create material" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Failed to create study material" }, { status: 500 });
   }
 }
 
@@ -90,7 +98,7 @@ export async function PATCH(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -106,7 +114,9 @@ export async function PATCH(request: NextRequest) {
       ...updates,
     };
 
-    const { data, error } = await supabase
+    const client = getClient(supabase);
+
+    const { data, error } = await client
       .from("study_materials")
       .update(updatePayload)
       .eq("id", id)
@@ -124,7 +134,7 @@ export async function DELETE(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -134,7 +144,9 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get("id");
     if (!id) return NextResponse.json({ error: "Material ID is required" }, { status: 400 });
 
-    const { error } = await supabase
+    const client = getClient(supabase);
+
+    const { error } = await client
       .from("study_materials")
       .update({ status: "archived" })
       .eq("id", id);

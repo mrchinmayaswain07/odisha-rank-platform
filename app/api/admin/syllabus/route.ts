@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { checkIsAdmin } from "@/lib/admin-auth";
+
+function getClient(userClient: any) {
+  try {
+    return createAdminClient();
+  } catch {
+    return userClient;
+  }
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -14,6 +23,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { entityType } = body; // 'subject' | 'chapter' | 'topic'
+    const client = getClient(supabase);
 
     if (entityType === "subject") {
       const { exam_id, name, code, description, order_index, status } = body;
@@ -21,7 +31,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Exam ID and Subject Name are required" }, { status: 400 });
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("subjects")
         .insert({
           exam_id,
@@ -44,7 +54,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Subject ID and Chapter Title are required" }, { status: 400 });
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("chapters")
         .insert({
           subject_id,
@@ -67,7 +77,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Chapter ID and Topic Title are required" }, { status: 400 });
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("topics")
         .insert({
           chapter_id,
@@ -95,7 +105,7 @@ export async function PATCH(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -118,7 +128,9 @@ export async function PATCH(request: NextRequest) {
     if (body.status !== undefined) updatePayload.status = body.status;
     if (body.estimated_minutes !== undefined) updatePayload.estimated_minutes = body.estimated_minutes;
 
-    const { data, error } = await supabase
+    const client = getClient(supabase);
+
+    const { data, error } = await client
       .from(table)
       .update(updatePayload)
       .eq("id", id)
@@ -136,7 +148,7 @@ export async function DELETE(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const isAdmin = await checkIsAdmin(authData.user?.id);
+  const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
   if (!isAdmin) {
     return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
   }
@@ -151,9 +163,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     const table = entityType === "subject" ? "subjects" : entityType === "chapter" ? "chapters" : "topics";
+    const client = getClient(supabase);
 
     // Archive rather than delete to preserve consistency
-    const { error } = await supabase
+    const { error } = await client
       .from(table)
       .update({ status: "archived" })
       .eq("id", id);

@@ -1,4 +1,5 @@
 import { createClient } from "./supabase/server";
+import { createAdminClient } from "./supabase/admin";
 import {
   Exam,
   Subject,
@@ -690,7 +691,12 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
   }
 
   try {
-    const supabase = await createClient();
+    let supabase: any;
+    try {
+      supabase = createAdminClient();
+    } catch {
+      supabase = await createClient();
+    }
 
     const [
       studentsRes,
@@ -784,11 +790,16 @@ export async function getStudentsList(filters?: {
   }
 
   try {
-    const supabase = await createClient();
+    let supabase: any;
+    try {
+      supabase = createAdminClient();
+    } catch {
+      supabase = await createClient();
+    }
 
     let query = supabase
       .from("profiles")
-      .select("*, exams:target_exam_id(title), user_roles(role)", { count: "exact" })
+      .select("*, exams:target_exam_id(title)", { count: "exact" })
       .order("created_at", { ascending: false });
 
     if (filters?.targetExamId) {
@@ -802,7 +813,27 @@ export async function getStudentsList(filters?: {
 
     const { data, count, error } = await query;
     if (error || !data) {
+      console.error("getStudentsList query error:", error);
       return { data: [], total: 0, page, pageSize, totalPages: 0 };
+    }
+
+    // Fetch corresponding roles for users
+    const userIds = data.map((row: any) => row.id).filter(Boolean);
+    let rolesMap: Record<string, string> = {};
+
+    if (userIds.length > 0) {
+      try {
+        const { data: roleRows } = await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", userIds);
+
+        if (roleRows && Array.isArray(roleRows)) {
+          rolesMap = Object.fromEntries(roleRows.map((r: any) => [r.user_id, r.role]));
+        }
+      } catch (roleErr) {
+        console.warn("Could not query user roles, defaulting to student:", roleErr);
+      }
     }
 
     const items: StudentListItem[] = data.map((row: any) => ({
@@ -814,7 +845,7 @@ export async function getStudentsList(filters?: {
       target_year: row.target_year,
       district: row.district,
       phone: row.phone,
-      role: (row.user_roles?.[0]?.role as any) || "student",
+      role: (rolesMap[row.id] as any) || "student",
       is_profile_completed: row.is_profile_completed,
       created_at: row.created_at,
     }));
@@ -827,7 +858,8 @@ export async function getStudentsList(filters?: {
       pageSize,
       totalPages: Math.ceil(total / pageSize) || 1,
     };
-  } catch {
+  } catch (err) {
+    console.error("getStudentsList caught error:", err);
     return { data: [], total: 0, page, pageSize, totalPages: 0 };
   }
 }

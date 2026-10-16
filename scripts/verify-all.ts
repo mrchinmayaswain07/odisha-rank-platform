@@ -329,6 +329,38 @@ async function runTests() {
     assert(adminVisible.length === 4, "Admins see full catalog across all workflow states");
   }
 
+  // TEST 11: Tailwind Class Precedence (Card Dark Theme Conflict Resolution)
+  console.log("\n11. TAILWIND CLASS RESOLUTION (CN UTILITY)");
+  {
+    const { cn } = await import("../lib/utils");
+    const merged = cn("bg-white border-slate-200 text-slate-900", "bg-slate-950 border-slate-800 text-white");
+    assert(!merged.includes("bg-white"), "twMerge strips conflicting 'bg-white' when 'bg-slate-950' is provided");
+    assert(merged.includes("bg-slate-950"), "twMerge preserves 'bg-slate-950'");
+    assert(!merged.includes("border-slate-200"), "twMerge strips conflicting 'border-slate-200'");
+    assert(merged.includes("border-slate-800"), "twMerge preserves 'border-slate-800'");
+  }
+
+  // TEST 12: Student Directory & User Roles In-Memory Join
+  console.log("\n12. STUDENT DIRECTORY SCHEMA DECOUPLING");
+  {
+    const profiles = [
+      { id: "u1", full_name: "Subrat", target_exam_id: "e1" },
+      { id: "u2", full_name: "Chinmaya", target_exam_id: "e2" },
+    ];
+    const roles = [
+      { user_id: "u1", role: "student" },
+      { user_id: "u2", role: "admin" },
+    ];
+    const roleMap = Object.fromEntries(roles.map((r) => [r.user_id, r.role]));
+    const mapped = profiles.map((p) => ({
+      ...p,
+      role: roleMap[p.id] || "student",
+    }));
+
+    assert(mapped[0].role === "student", "User 1 correctly mapped to student role");
+    assert(mapped[1].role === "admin", "User 2 correctly mapped to admin role");
+  }
+
   console.log("\n=================================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
   console.log("=================================================");

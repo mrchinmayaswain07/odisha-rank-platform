@@ -125,13 +125,23 @@ function LoginForm() {
         </div>
 
         <div className="space-y-2 pt-2">
-          {isAdmin && (
+          {isAdmin ? (
             <Button
               onClick={() => (window.location.href = "/admin")}
               className="w-full justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
               <span>Enter Administrator Panel</span>
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          ) : (
+            <Button
+              onClick={() => (window.location.href = "/admin")}
+              variant="outline"
+              className="w-full justify-center gap-2 border-slate-300 text-slate-700 hover:bg-slate-50 text-xs"
+            >
+              <ShieldCheck className="w-4 h-4 text-blue-600" />
+              <span>Administrator Portal / Initial Setup</span>
               <ArrowRight className="w-4 h-4" />
             </Button>
           )}
