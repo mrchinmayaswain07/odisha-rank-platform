@@ -1,6 +1,10 @@
 import { createClient } from "./supabase/server";
 import { createAdminClient } from "./supabase/admin";
 
+export const PRIMARY_ADMIN_EMAILS = [
+  "mrchinmayaswain07@gmail.com",
+];
+
 export async function getAdminCount(): Promise<number> {
   try {
     let supabase: any;
@@ -15,10 +19,10 @@ export async function getAdminCount(): Promise<number> {
       .select("*", { count: "exact", head: true })
       .eq("role", "admin");
 
-    if (error) return 0;
-    return count ?? 0;
+    if (error) return PRIMARY_ADMIN_EMAILS.length;
+    return count ?? PRIMARY_ADMIN_EMAILS.length;
   } catch {
-    return 0;
+    return PRIMARY_ADMIN_EMAILS.length;
   }
 }
 
@@ -42,22 +46,28 @@ export async function checkIsAdmin(userId?: string, userEmail?: string | null): 
 
     if (!error && data?.role === "admin") return true;
 
-    // Check optional ADMIN_EMAILS environment variable
-    if (userEmail && process.env.ADMIN_EMAILS) {
-      const allowed = process.env.ADMIN_EMAILS.split(",").map((e) => e.trim().toLowerCase());
-      if (allowed.includes(userEmail.toLowerCase())) {
-        try {
-          await supabase.from("user_roles").upsert(
-            {
-              user_id: userId,
-              role: "admin",
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id" }
-          );
-        } catch {}
-        return true;
+    // Check pre-configured primary admin emails or ADMIN_EMAILS environment variable
+    const envEmails = process.env.ADMIN_EMAILS
+      ? process.env.ADMIN_EMAILS.split(",").map((e) => e.trim().toLowerCase())
+      : [];
+    const allAdminEmails = Array.from(
+      new Set([...PRIMARY_ADMIN_EMAILS.map((e) => e.toLowerCase()), ...envEmails])
+    );
+
+    if (userEmail && allAdminEmails.includes(userEmail.toLowerCase())) {
+      try {
+        await supabase.from("user_roles").upsert(
+          {
+            user_id: userId,
+            role: "admin",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
+      } catch (err) {
+        console.warn("Could not upsert admin role for primary admin:", err);
       }
+      return true;
     }
 
     return false;

@@ -3,6 +3,7 @@ import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { createClient } from "@/lib/supabase/server";
+import { checkIsAdmin } from "@/lib/admin-auth";
 
 export const metadata: Metadata = {
   title: {
@@ -55,9 +56,9 @@ export default async function RootLayout({
     const user = data?.user;
 
     if (user) {
-      const [{ data: prof }, { data: roleData }] = await Promise.all([
+      const [{ data: prof }, isAdmin] = await Promise.all([
         supabase.from("profiles").select("full_name, target_exam_id").eq("id", user.id).maybeSingle(),
-        supabase.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").maybeSingle(),
+        checkIsAdmin(user.id, user.email),
       ]);
 
       navUser = {
@@ -65,7 +66,7 @@ export default async function RootLayout({
         email: user.email || null,
         fullName: prof?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "Aspirant",
         targetExamId: prof?.target_exam_id || null,
-        isAdmin: Boolean(roleData),
+        isAdmin,
       };
     }
   } catch {
