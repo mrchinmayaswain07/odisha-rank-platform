@@ -50,8 +50,7 @@ export default function RegisterPage() {
         setAuthError(error.message);
       } else if (signUpData.user && signUpData.session) {
         // Logged in immediately
-        router.push("/profile");
-        router.refresh();
+        window.location.href = "/profile";
       } else {
         // Confirmation email sent
         setIsSuccess(true);
