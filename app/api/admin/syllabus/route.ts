@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkIsAdmin } from "@/lib/admin-auth";
+import { resilientInsert, resilientUpdate } from "@/lib/db-resilient";
 
 function getClient(userClient: any) {
   try {
@@ -31,18 +32,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Exam ID and Subject Name are required" }, { status: 400 });
       }
 
-      const { data, error } = await client
-        .from("subjects")
-        .insert({
-          exam_id,
-          name,
-          code: code || null,
-          description: description || null,
-          order_index: order_index || 0,
-          status: status || "published",
-        })
-        .select()
-        .single();
+      const { data, error } = await resilientInsert(client, "subjects", {
+        exam_id,
+        name,
+        code: code || null,
+        description: description || null,
+        order_index: order_index || 0,
+        status: status || "published",
+      });
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ success: true, data });
@@ -54,18 +51,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Subject ID and Chapter Title are required" }, { status: 400 });
       }
 
-      const { data, error } = await client
-        .from("chapters")
-        .insert({
-          subject_id,
-          title,
-          description: description || null,
-          order_index: order_index || 0,
-          is_official: true,
-          status: status || "published",
-        })
-        .select()
-        .single();
+      const { data, error } = await resilientInsert(client, "chapters", {
+        subject_id,
+        title,
+        description: description || null,
+        order_index: order_index || 0,
+        is_official: true,
+        status: status || "published",
+      });
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ success: true, data });
@@ -77,19 +70,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Chapter ID and Topic Title are required" }, { status: 400 });
       }
 
-      const { data, error } = await client
-        .from("topics")
-        .insert({
-          chapter_id,
-          title,
-          description: description || null,
-          estimated_minutes: estimated_minutes || 45,
-          order_index: order_index || 0,
-          is_official: true,
-          status: status || "published",
-        })
-        .select()
-        .single();
+      const { data, error } = await resilientInsert(client, "topics", {
+        chapter_id,
+        title,
+        description: description || null,
+        estimated_minutes: estimated_minutes || 45,
+        order_index: order_index || 0,
+        is_official: true,
+        status: status || "published",
+      });
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ success: true, data });
@@ -130,12 +119,7 @@ export async function PATCH(request: NextRequest) {
 
     const client = getClient(supabase);
 
-    const { data, error } = await client
-      .from(table)
-      .update(updatePayload)
-      .eq("id", id)
-      .select()
-      .single();
+    const { data, error } = await resilientUpdate(client, table, id, updatePayload);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, data });

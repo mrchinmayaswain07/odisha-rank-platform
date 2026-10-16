@@ -367,6 +367,63 @@ async function runTests() {
     assert(mapped[1].role === "admin", "User 2 correctly mapped to admin role");
   }
 
+  // TEST 13: Resilient Schema Cache Recovery (Database Auto-Healing)
+  console.log("\n13. RESILIENT DATABASE OPERATIONS & SCHEMA CACHE RECOVERY");
+  {
+    const { resilientInsert, resilientUpdate } = await import("../lib/db-resilient");
+
+    // Simulate PostgREST throwing "Could not find the 'marks' column of 'questions' in the schema cache"
+    let callCount = 0;
+    const mockClient = {
+      from: (table: string) => ({
+        insert: (payload: any) => ({
+          select: () => ({
+            single: async () => {
+              callCount++;
+              if (payload.marks !== undefined) {
+                return { data: null, error: { message: "Could not find the 'marks' column of 'questions' in the schema cache" } };
+              }
+              if (payload.negative_marks !== undefined) {
+                return { data: null, error: { message: "Could not find the 'negative_marks' column of 'questions' in the schema cache" } };
+              }
+              return { data: { id: "new-q-1", ...payload }, error: null };
+            },
+          }),
+        }),
+        update: (payload: any) => ({
+          eq: (col: string, val: any) => ({
+            select: () => ({
+              single: async () => {
+                if (payload.marks !== undefined) {
+                  return { data: null, error: { message: "Could not find the 'marks' column of 'questions' in the schema cache" } };
+                }
+                return { data: { id: val, ...payload }, error: null };
+              },
+            }),
+          }),
+        }),
+      }),
+    };
+
+    const payload = {
+      question_text: "What is the capital of Odisha?",
+      options: ["Cuttack", "Bhubaneswar", "Puri", "Rourkela"],
+      correct_option_index: 1,
+      marks: 1.0,
+      negative_marks: 0.25,
+    };
+
+    const res = await resilientInsert(mockClient, "questions", payload);
+    assert(res.data !== null, "resilientInsert successfully recovers from missing 'marks' and 'negative_marks'");
+    assert(res.data?.marks === undefined, "'marks' property cleanly stripped from insert payload");
+    assert(res.data?.negative_marks === undefined, "'negative_marks' property cleanly stripped from insert payload");
+    assert(callCount === 3, "resilientInsert retried exactly until unsupported columns were stripped");
+
+    const updateRes = await resilientUpdate(mockClient, "questions", "q-1", { marks: 2.0, question_text: "Updated text" });
+    assert(updateRes.data !== null, "resilientUpdate successfully recovers from missing 'marks'");
+    assert(updateRes.data?.question_text === "Updated text", "resilientUpdate preserved valid fields");
+  }
+
   console.log("\n=================================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
   console.log("=================================================");

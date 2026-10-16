@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkIsAdmin } from "@/lib/admin-auth";
+import { resilientInsert, resilientUpdate } from "@/lib/db-resilient";
 
 function getClient(userClient: any) {
   try {
@@ -69,23 +70,22 @@ export async function POST(request: NextRequest) {
 
     const client = getClient(supabase);
 
-    const { data, error } = await client
-      .from("study_materials")
-      .insert({
-        title,
-        description: description || null,
-        category: category || "notes",
-        file_url,
-        file_size: file_size || 0,
-        exam_id: exam_id || null,
-        subject_id: subject_id || null,
-        chapter_id: chapter_id || null,
-        topic_id: topic_id || null,
-        status: status || "published",
-        published_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    const { data, error } = await resilientInsert(client, "study_materials", {
+      title,
+      description: description || null,
+      content: description || title,
+      category: category || "notes",
+      material_type: category?.toLowerCase().includes("pdf") ? "link" : "note",
+      url: file_url,
+      file_url,
+      file_size: file_size || 0,
+      exam_id: exam_id || null,
+      subject_id: subject_id || null,
+      chapter_id: chapter_id || null,
+      topic_id: topic_id || null,
+      status: status || "published",
+      published_at: new Date().toISOString(),
+    });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, data });
@@ -114,14 +114,16 @@ export async function PATCH(request: NextRequest) {
       ...updates,
     };
 
+    if (updates.file_url) {
+      updatePayload.url = updates.file_url;
+    }
+    if (updates.description) {
+      updatePayload.content = updates.description;
+    }
+
     const client = getClient(supabase);
 
-    const { data, error } = await client
-      .from("study_materials")
-      .update(updatePayload)
-      .eq("id", id)
-      .select()
-      .single();
+    const { data, error } = await resilientUpdate(client, "study_materials", id, updatePayload);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, data });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkIsAdmin } from "@/lib/admin-auth";
+import { resilientInsert, resilientUpdate } from "@/lib/db-resilient";
 
 function getClient(userClient: any) {
   try {
@@ -85,20 +86,16 @@ export async function POST(request: NextRequest) {
 
     const client = getClient(supabase);
 
-    const { data, error } = await client
-      .from("exams")
-      .insert({
-        title,
-        conducting_body,
-        description,
-        eligibility: eligibility || null,
-        slug: finalSlug,
-        status: status || "published",
-        is_active: is_active ?? true,
-        stages: body.stages || [],
-      })
-      .select()
-      .single();
+    const { data, error } = await resilientInsert(client, "exams", {
+      title,
+      conducting_body,
+      description,
+      eligibility: eligibility || null,
+      slug: finalSlug,
+      status: status || "published",
+      is_active: is_active ?? true,
+      stages: body.stages || [],
+    });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -141,12 +138,7 @@ export async function PATCH(request: NextRequest) {
 
     const client = getClient(supabase);
 
-    const { data, error } = await client
-      .from("exams")
-      .update(updatePayload)
-      .eq("id", id)
-      .select()
-      .single();
+    const { data, error } = await resilientUpdate(client, "exams", id, updatePayload);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

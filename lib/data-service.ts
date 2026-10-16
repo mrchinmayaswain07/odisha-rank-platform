@@ -230,7 +230,16 @@ export async function getStudyMaterials(filters?: {
       query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+    if (error && (error.message.includes("status") || error.message.includes("description") || error.message.includes("exam_id") || error.message.includes("subject_id"))) {
+      let fallbackQuery = supabase.from("study_materials").select("*").order("created_at", { ascending: false });
+      if (filters?.topicId) fallbackQuery = fallbackQuery.eq("topic_id", filters.topicId);
+      if (filters?.search) fallbackQuery = fallbackQuery.or(`title.ilike.%${filters.search}%,content.ilike.%${filters.search}%`);
+      const fallbackRes = await fallbackQuery;
+      data = fallbackRes.data;
+      error = fallbackRes.error;
+    }
+
     if (error || !data || data.length === 0) {
       return filters?.topicId ? SEED_MATERIALS.filter((m) => m.topic_id === filters.topicId) : SEED_MATERIALS;
     }
@@ -338,7 +347,23 @@ export async function getPaginatedQuestions(filters?: {
 
     query = query.range(from, to);
 
-    const { data, count, error } = await query;
+    let { data, count, error } = await query;
+    if (error && (error.message.includes("status") || error.message.includes("chapter_id"))) {
+      let retryQuery = supabase
+        .from("questions")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false });
+      if (filters?.examId) retryQuery = retryQuery.eq("exam_id", filters.examId);
+      if (filters?.subjectId) retryQuery = retryQuery.eq("subject_id", filters.subjectId);
+      if (filters?.difficulty) retryQuery = retryQuery.eq("difficulty", filters.difficulty);
+      if (filters?.search) retryQuery = retryQuery.ilike("question_text", `%${filters.search}%`);
+      retryQuery = retryQuery.range(from, to);
+      const res = await retryQuery;
+      data = res.data;
+      count = res.count;
+      error = res.error;
+    }
+
     if (error || !data) {
       return {
         data: SEED_QUESTIONS.slice(0, pageSize),

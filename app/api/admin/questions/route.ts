@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkIsAdmin } from "@/lib/admin-auth";
 import { getPaginatedQuestions } from "@/lib/data-service";
+import { resilientInsert, resilientUpdate } from "@/lib/db-resilient";
 
 function getClient(userClient: any) {
   try {
@@ -74,13 +75,10 @@ export async function POST(request: NextRequest) {
         created_by: authData.user?.id || null,
       }));
 
-      const { data, error } = await client
-        .from("questions")
-        .insert(questionsToInsert)
-        .select();
+      const { data, error } = await resilientInsert(client, "questions", questionsToInsert);
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ success: true, count: data.length, data });
+      return NextResponse.json({ success: true, count: data?.length || 0, data });
     }
 
     // Single Question Create
@@ -106,25 +104,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Correct option index must be between 0 and 3" }, { status: 400 });
     }
 
-    const { data, error } = await client
-      .from("questions")
-      .insert({
-        exam_id: exam_id || null,
-        subject_id: subject_id || null,
-        topic_id: topic_id || null,
-        question_text,
-        options,
-        correct_option_index,
-        explanation: explanation || null,
-        difficulty: difficulty || "medium",
-        marks: marks || 1.0,
-        negative_marks: negative_marks || 0.25,
-        status: status || "published",
-        is_sample: false,
-        created_by: authData.user?.id || null,
-      })
-      .select()
-      .single();
+    const { data, error } = await resilientInsert(client, "questions", {
+      exam_id: exam_id || null,
+      subject_id: subject_id || null,
+      topic_id: topic_id || null,
+      question_text,
+      options,
+      correct_option_index,
+      explanation: explanation || null,
+      difficulty: difficulty || "medium",
+      marks: marks || 1.0,
+      negative_marks: negative_marks || 0.25,
+      status: status || "published",
+      is_sample: false,
+      created_by: authData.user?.id || null,
+    });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, data });
@@ -167,12 +161,7 @@ export async function PATCH(request: NextRequest) {
 
     const client = getClient(supabase);
 
-    const { data, error } = await client
-      .from("questions")
-      .update(updatePayload)
-      .eq("id", id)
-      .select()
-      .single();
+    const { data, error } = await resilientUpdate(client, "questions", id, updatePayload);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, data });
