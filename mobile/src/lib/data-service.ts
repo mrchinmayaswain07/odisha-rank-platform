@@ -398,6 +398,239 @@ export async function getAdminOverviewStats() {
 }
 
 /**
+ * Fetch Questions for Admin Management
+ */
+export async function getAdminQuestionsList(): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from("questions")
+      .select("id, question_text, options, correct_option_index, difficulty, explanation, exam_id, created_at, exams(title)")
+      .order("created_at", { ascending: false })
+      .limit(60);
+    if (error || !data) return [];
+    return data;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Create a new question in the Question Bank
+ */
+export async function createAdminQuestion(payload: {
+  exam_id?: string;
+  question_text: string;
+  options: string[];
+  correct_option_index: number;
+  explanation?: string;
+  difficulty: "easy" | "medium" | "hard";
+}) {
+  const { data, error } = await supabase
+    .from("questions")
+    .insert([
+      {
+        question_text: payload.question_text,
+        options: payload.options,
+        correct_option_index: payload.correct_option_index,
+        explanation: payload.explanation || null,
+        difficulty: payload.difficulty || "medium",
+        exam_id: payload.exam_id || null,
+        is_sample: true,
+        status: "published",
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Delete a question from the question bank
+ */
+export async function deleteAdminQuestion(id: string) {
+  const { error } = await supabase.from("questions").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Fetch Courses for Admin Management
+ */
+export async function getAdminCoursesList(): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from("exams")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error || !data) return [];
+    return data;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Create a new examination / course
+ */
+export async function createAdminCourse(payload: {
+  title: string;
+  conducting_body: string;
+  slug: string;
+  description: string;
+}) {
+  const { data, error } = await supabase
+    .from("exams")
+    .insert([
+      {
+        title: payload.title,
+        conducting_body: payload.conducting_body,
+        slug: payload.slug,
+        description: payload.description,
+        is_active: true,
+        status: "published",
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Fetch Mock Tests for Admin Management
+ */
+export async function getAdminMockTestsList(): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from("mock_tests")
+      .select("*, exams(title)")
+      .order("created_at", { ascending: false });
+    if (error || !data) return [];
+    return data;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Create a new Mock Test simulation
+ */
+export async function createAdminMockTest(payload: {
+  exam_id: string;
+  title: string;
+  description: string;
+  duration_minutes: number;
+  total_marks: number;
+  negative_marking: number;
+  pass_percentage: number;
+}) {
+  const { data, error } = await supabase
+    .from("mock_tests")
+    .insert([
+      {
+        exam_id: payload.exam_id,
+        title: payload.title,
+        description: payload.description,
+        duration_minutes: payload.duration_minutes,
+        total_marks: payload.total_marks,
+        negative_marking: payload.negative_marking,
+        pass_percentage: payload.pass_percentage,
+        is_published: true,
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Fetch Study Materials for Admin Management
+ */
+export async function getAdminMaterialsList(): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from("study_materials")
+      .select("*, topics(title)")
+      .order("created_at", { ascending: false });
+    if (error || !data) return [];
+    return data;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Create a new Study Material / Notes / PDF
+ */
+export async function createAdminMaterial(payload: {
+  topic_id: string;
+  title: string;
+  material_type: string;
+  content: string;
+  url?: string;
+}) {
+  const { data, error } = await supabase
+    .from("study_materials")
+    .insert([
+      {
+        topic_id: payload.topic_id,
+        title: payload.title,
+        material_type: payload.material_type,
+        content: payload.content,
+        url: payload.url || null,
+        is_official: true,
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Fetch Students and their Administrative Roles
+ */
+export async function getAdminStudentsList(): Promise<any[]> {
+  try {
+    const { data: profs, error: profErr } = await supabase
+      .from("profiles")
+      .select("id, email, full_name, district, phone, target_year, created_at")
+      .order("created_at", { ascending: false });
+    if (profErr || !profs) return [];
+
+    const { data: roles } = await supabase.from("user_roles").select("user_id, role");
+    const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
+
+    return profs.map((p) => ({
+      ...p,
+      role: roleMap.get(p.id) || "student",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Update Student Role (Promote / Demote)
+ */
+export async function updateAdminStudentRole(userId: string, newRole: "admin" | "student") {
+  const { error } = await supabase.from("user_roles").upsert(
+    {
+      user_id: userId,
+      role: newRole,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" }
+  );
+  if (error) throw error;
+}
+
+/**
  * Fetch Dashboard Metrics for Student, scoped strictly to targetExamId
  */
 export async function getDashboardMetrics(

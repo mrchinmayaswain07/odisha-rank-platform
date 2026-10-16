@@ -1,5 +1,5 @@
-import React from "react";
-import { Tabs } from "expo-router";
+import React, { useEffect } from "react";
+import { Tabs, useRouter } from "expo-router";
 import {
   LayoutDashboard,
   Layers,
@@ -8,8 +8,17 @@ import {
   User,
 } from "lucide-react-native";
 import { BRAND_COLORS } from "@odisha-rank/shared";
+import { useAuth } from "../../src/lib/auth-context";
 
 export default function TabLayout() {
+  const { session, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && !session) {
+      router.replace("/(auth)/login");
+    }
+  }, [session, isLoading]);
   return (
     <Tabs
       screenOptions={{

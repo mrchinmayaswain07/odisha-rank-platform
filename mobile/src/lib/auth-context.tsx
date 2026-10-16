@@ -21,7 +21,7 @@ interface AuthContextType {
     bio?: string | null;
   }) => Promise<void>;
   signIn: (email: string, pass: string) => Promise<{ error: any }>;
-  signUp: (fullName: string, email: string, pass: string) => Promise<{ error: any }>;
+  signUp: (fullName: string, email: string, pass: string) => Promise<{ data?: any; error: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -60,10 +60,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       SITE_CONFIG.admin.rootEmail.toLowerCase(),
       "cchinmaya071@gmail.com",
       "cchinmaya8018@gmail.com",
+      "cchinmayaff@gmail.com",
     ];
 
     if (email && adminEmails.includes(email)) {
       setIsAdmin(true);
+      // Ensure user_roles has admin record so PostgreSQL is_admin() RLS policy succeeds
+      try {
+        await supabase
+          .from("user_roles")
+          .upsert(
+            {
+              user_id: userObj.id,
+              role: "admin",
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" }
+          );
+      } catch {
+        // Non-blocking
+      }
       return true;
     }
 
@@ -182,7 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setIsLoading(false);
-    return { error };
+    return { data, error };
   };
 
   const signOut = async () => {

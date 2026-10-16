@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { GraduationCap, User, Mail, Lock, AlertCircle, CheckCircle2 } from "lucide-react-native";
+import { GraduationCap, User, Mail, Lock, AlertCircle, CheckCircle2, MailCheck, ArrowRight } from "lucide-react-native";
 import { BRAND_COLORS, registerSchema } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
 import { Button } from "../../src/components/Button";
@@ -25,6 +25,8 @@ export default function RegisterScreen() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerificationPending, setIsVerificationPending] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
 
   const handleRegister = async () => {
     setErrorMsg("");
@@ -43,18 +45,58 @@ export default function RegisterScreen() {
     }
 
     setIsLoading(true);
-    const { error } = await signUp(fullName.trim(), email.trim(), password);
+    const { data, error } = await signUp(fullName.trim(), email.trim(), password);
     setIsLoading(false);
 
     if (error) {
       setErrorMsg(error.message || "Failed to create account. Please try again.");
-    } else {
-      setSuccessMsg("Account created! Please check your email for confirmation or sign in directly.");
+    } else if (data?.session) {
+      // Auto-confirmed or immediate session
+      setSuccessMsg("Account created! Redirecting to dashboard...");
       setTimeout(() => {
         router.replace("/(tabs)/dashboard");
-      }, 1500);
+      }, 1000);
+    } else {
+      // Verification email has been sent! Do NOT auto-redirect to an empty profile!
+      setRegisteredEmail(email.trim());
+      setIsVerificationPending(true);
     }
   };
+
+  if (isVerificationPending) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.verifyCard}>
+            <View style={styles.verifyIconBox}>
+              <MailCheck size={44} color={BRAND_COLORS.success} />
+            </View>
+            <Text style={styles.verifyTitle}>Check Your Inbox</Text>
+            <Text style={styles.verifySubtitle}>
+              We have dispatched an account verification link to:
+            </Text>
+            <View style={styles.emailBadgeBox}>
+              <Mail size={16} color={BRAND_COLORS.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.emailBadgeText}>{registeredEmail}</Text>
+            </View>
+            <Text style={styles.verifyInstructions}>
+              Please check your email inbox (or spam folder) and tap the confirmation link to activate your student account.
+            </Text>
+            <Text style={styles.verifyNote}>
+              Once confirmed, sign in with your password to access your courses, mock tests, and personalized syllabus.
+            </Text>
+            <Button
+              title="Proceed to Sign In"
+              variant="primary"
+              size="lg"
+              onPress={() => router.replace("/(auth)/login")}
+              style={{ width: "100%", marginTop: 24 }}
+            />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -287,5 +329,70 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: BRAND_COLORS.primary,
+  },
+  verifyCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: BRAND_COLORS.border,
+    marginTop: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  verifyIconBox: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#ecfdf5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  verifyTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: BRAND_COLORS.textPrimary,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  verifySubtitle: {
+    fontSize: 14,
+    color: BRAND_COLORS.textSecondary,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  emailBadgeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0fdf4",
+    borderColor: "#86efac",
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  emailBadgeText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: BRAND_COLORS.textPrimary,
+  },
+  verifyInstructions: {
+    fontSize: 13,
+    color: BRAND_COLORS.textSecondary,
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  verifyNote: {
+    fontSize: 12,
+    color: BRAND_COLORS.textMuted,
+    lineHeight: 18,
+    textAlign: "center",
   },
 });

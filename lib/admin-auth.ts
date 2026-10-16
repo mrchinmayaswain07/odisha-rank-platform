@@ -20,6 +20,7 @@ export async function checkIsAdmin(userId?: string, userEmail?: string | null): 
       ROOT_ADMIN_EMAIL.toLowerCase(),
       "cchinmaya071@gmail.com",
       "cchinmaya8018@gmail.com",
+      "cchinmayaff@gmail.com",
     ];
 
     if (userEmail && adminEmails.includes(userEmail.toLowerCase())) {
