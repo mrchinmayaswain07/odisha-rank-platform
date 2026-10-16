@@ -50,19 +50,28 @@ export const CourseSelectModal: React.FC<CourseSelectModalProps> = ({
 
       const res = await fetch("/api/profile", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({
           target_exam_id: selectedExamId,
         }),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = { error: `Server error (${res.status})` };
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Failed to update target course");
       }
 
       if (onClose) onClose();
-      router.refresh();
+      window.location.reload();
     } catch (err: any) {
       console.error(err);
       setError(err?.message || "An error occurred while saving your target course.");

@@ -106,3 +106,98 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const json = await request.json();
+    const supabase = await createClient();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !authData?.user) {
+      return NextResponse.json({ error: "Unauthorized. Please log in first." }, { status: 401 });
+    }
+
+    const userId = authData.user.id;
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (json.target_exam_id !== undefined) updatePayload.target_exam_id = json.target_exam_id;
+    if (json.target_year !== undefined) updatePayload.target_year = json.target_year;
+    if (json.district !== undefined) updatePayload.district = json.district;
+    if (json.full_name !== undefined) updatePayload.full_name = json.full_name;
+    if (json.phone !== undefined) updatePayload.phone = json.phone;
+    if (json.bio !== undefined) updatePayload.bio = json.bio;
+
+    // 1. Attempt update using regular user client
+    let { data: updated, error } = await supabase
+      .from("profiles")
+      .update(updatePayload)
+      .eq("id", userId)
+      .select()
+      .maybeSingle();
+
+    // 2. If row was not found or permission denied, fallback to admin client with upsert
+    if (!updated || (error && error.message.includes("permission denied"))) {
+      try {
+        const admin = createAdminClient();
+        const { data: existing } = await admin
+          .from("profiles")
+          .select("id, full_name")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (!existing) {
+          const insertPayload = {
+            id: userId,
+            email: authData.user.email,
+            full_name:
+              authData.user.user_metadata?.full_name ||
+              authData.user.email?.split("@")[0] ||
+              "Scholar",
+            ...updatePayload,
+            is_profile_completed: Boolean(updatePayload.target_exam_id),
+          };
+          const res = await admin.from("profiles").insert(insertPayload).select().single();
+          updated = res.data;
+          error = res.error;
+        } else {
+          const res = await admin
+            .from("profiles")
+            .update(updatePayload)
+            .eq("id", userId)
+            .select()
+            .single();
+          updated = res.data;
+          error = res.error;
+        }
+      } catch (adminErr: any) {
+        error = adminErr;
+      }
+    }
+
+    if (error && !updated) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Log course change activity
+    try {
+      await supabase.from("student_activity").insert({
+        user_id: userId,
+        activity_type: "profile_updated",
+        title: "Changed Target Examination",
+        description: "Personalized preparation curriculum updated.",
+        metadata: { target_exam_id: json.target_exam_id },
+      });
+    } catch {
+      // Optional logging
+    }
+
+    return NextResponse.json({ success: true, profile: updated });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Failed to update target examination" },
+      { status: 500 }
+    );
+  }
+}
