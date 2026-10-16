@@ -3,7 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GraduationCap, ShieldCheck, Mail, MapPin, ExternalLink } from "lucide-react";
+import { GraduationCap, Mail, MapPin, ExternalLink } from "lucide-react";
+import { SITE_CONFIG } from "@/lib/constants";
 
 export const Footer: React.FC = () => {
   const pathname = usePathname();
@@ -17,27 +18,34 @@ export const Footer: React.FC = () => {
     <footer className="bg-slate-900 text-slate-300 pt-16 pb-12 border-t border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-slate-800">
-          {/* Brand Info */}
+          {/* Brand Info & Accurate Verified Contact Details */}
           <div className="lg:col-span-2 space-y-4">
             <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white">
+              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
                 <GraduationCap className="w-5 h-5" />
               </div>
-              <span className="text-xl font-bold tracking-tight text-white">
+              <span className="text-xl font-extrabold tracking-tight text-white">
                 Odisha<span className="text-blue-400">Rank</span>
               </span>
             </Link>
             <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
-              OdishaRank is a structured, production-oriented competitive examination preparation platform designed specifically for aspirants appearing in Odisha Government recruitments.
+              {SITE_CONFIG.description}
             </p>
-            <div className="pt-2 text-xs text-slate-400 space-y-1">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
-                <span>Bhubaneswar, Odisha, India</span>
+            <div className="pt-2 text-xs text-slate-400 space-y-2">
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <span className="text-slate-300 font-medium">
+                  {SITE_CONFIG.contact.location}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-blue-400 shrink-0" />
-                <span>support@odisharank.in</span>
+                <a
+                  href={`mailto:${SITE_CONFIG.contact.email}`}
+                  className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors font-medium"
+                >
+                  {SITE_CONFIG.contact.email}
+                </a>
               </div>
             </div>
           </div>
@@ -64,7 +72,7 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <Link href="/exams" className="text-blue-400 hover:text-blue-300 transition-colors">
+                <Link href="/exams" className="text-blue-400 hover:text-blue-300 transition-colors font-medium">
                   Browse All Exams &rarr;
                 </Link>
               </li>
@@ -90,6 +98,11 @@ export const Footer: React.FC = () => {
               <li>
                 <Link href="/mock-tests" className="hover:text-white transition-colors">
                   Timed Mock Tests
+                </Link>
+              </li>
+              <li>
+                <Link href="/materials" className="hover:text-white transition-colors">
+                  Study Materials
                 </Link>
               </li>
               <li>
@@ -146,7 +159,7 @@ export const Footer: React.FC = () => {
         {/* Disclaimer & Copyright */}
         <div className="pt-8 flex flex-col md:flex-row items-center justify-between text-xs text-slate-400 gap-4">
           <p className="max-w-2xl leading-relaxed text-slate-400">
-            <strong>Disclaimer:</strong> OdishaRank is an independent educational technology platform providing study materials and practice tests for students. It is neither affiliated with, authorized by, nor endorsed by the Government of Odisha, OSSC, OSSSC, or OPSC.
+            <strong className="text-slate-300">Disclaimer:</strong> OdishaRank is an independent educational technology platform providing study materials and practice tests for students. It is neither affiliated with, authorized by, nor endorsed by the Government of Odisha, OSSC, OSSSC, or OPSC.
           </p>
           <div className="flex items-center gap-6 shrink-0">
             <Link href="/about" className="hover:text-white transition-colors">

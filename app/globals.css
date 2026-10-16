@@ -10,7 +10,29 @@
 body {
   color: var(--foreground);
   background: var(--background);
-  font-feature-settings: "rlig" 1, "calt" 1;
+  font-feature-settings: "rlig" 1, "calt" 1, "cv02" 1, "cv03" 1, "cv04" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Premium Typography System Hierarchy */
+@layer base {
+  h1, .h1 {
+    @apply tracking-tight font-extrabold text-slate-900;
+  }
+  h2, .h2 {
+    @apply tracking-tight font-bold text-slate-900;
+  }
+  h3, .h3 {
+    @apply tracking-tight font-semibold text-slate-900;
+  }
+  h4, .h4 {
+    @apply font-semibold text-slate-900;
+  }
+  p {
+    @apply leading-relaxed;
+  }
 }
 
 /* Custom scrollbars for question palette and content tables */
@@ -27,4 +49,11 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Clean interactive transitions */
+button, a, input, select, textarea {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }

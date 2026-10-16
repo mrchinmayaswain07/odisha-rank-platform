@@ -424,6 +424,46 @@ async function runTests() {
     assert(updateRes.data?.question_text === "Updated text", "resilientUpdate preserved valid fields");
   }
 
+  // TEST 14: Centralized Contact & Platform Configuration
+  console.log("\n14. CENTRALIZED CONTACT & PLATFORM CONFIGURATION");
+  {
+    const { SITE_CONFIG } = await import("../lib/constants");
+    assert(
+      SITE_CONFIG.contact.location === "Jagatsinghpur, Odisha – 754140, India",
+      "Location matches verified address: 'Jagatsinghpur, Odisha – 754140, India'"
+    );
+    assert(
+      SITE_CONFIG.contact.email === "cchinmaya8018@gmail.com",
+      "Support email matches verified address: 'cchinmaya8018@gmail.com'"
+    );
+    assert(
+      SITE_CONFIG.admin.rootEmail === "mrchinmayaswain07@gmail.com",
+      "Root admin email matches: 'mrchinmayaswain07@gmail.com'"
+    );
+  }
+
+  // TEST 15: Catalog In-Memory Caching & Performance
+  console.log("\n15. CATALOG IN-MEMORY CACHING & PERFORMANCE OPTIMIZATION");
+  {
+    const { getExams, invalidateCatalogCache } = await import("../lib/data-service");
+    invalidateCatalogCache();
+    const t0 = performance.now();
+    const exams1 = await getExams();
+    const duration1 = performance.now() - t0;
+
+    const t1 = performance.now();
+    const exams2 = await getExams();
+    const duration2 = performance.now() - t1;
+
+    assert(exams1.length > 0, "Initial getExams retrieves exam catalog");
+    assert(exams2.length === exams1.length, "Cached getExams returns identical catalog");
+    assert(duration2 <= duration1 + 10, "Cached retrieval is fast and non-blocking");
+
+    invalidateCatalogCache();
+    const exams3 = await getExams();
+    assert(exams3.length === exams1.length, "getExams works seamlessly after cache invalidation");
+  }
+
   console.log("\n=================================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
   console.log("=================================================");

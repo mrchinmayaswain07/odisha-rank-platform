@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { Mail, MapPin, Phone, Send, CheckCircle2 } from "lucide-react";
+import { Mail, MapPin, Clock, Send, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { SITE_CONFIG } from "@/lib/constants";
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
@@ -24,16 +25,16 @@ export default function ContactPage() {
   return (
     <div className="py-16 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="text-center max-w-2xl mx-auto mb-12">
-        <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
           Contact Odisha<span className="text-blue-600">Rank</span>
         </h1>
-        <p className="text-slate-600 text-sm">
-          Have feedback on syllabus items, found a question clarification, or need support? Reach out to our team.
+        <p className="text-slate-600 text-sm leading-relaxed">
+          Have feedback on syllabus items, found a question clarification, or need support? Reach out directly to our team.
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Contact Details */}
+        {/* Verified Contact Details Cards */}
         <div className="space-y-6">
           <Card className="p-6">
             <div className="flex items-start gap-4">
@@ -41,11 +42,11 @@ export default function ContactPage() {
                 <MapPin className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-slate-900">Registered Office</h4>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Infocity Educational Corridor,<br />
-                  Patia, Bhubaneswar, Odisha 751024
+                <h4 className="text-sm font-bold text-slate-900">Platform Location</h4>
+                <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">
+                  {SITE_CONFIG.contact.location}
                 </p>
+                <p className="text-[11px] text-slate-400 mt-1">Odisha, India</p>
               </div>
             </div>
           </Card>
@@ -56,9 +57,14 @@ export default function ContactPage() {
                 <Mail className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-slate-900">Email Support</h4>
-                <p className="text-xs text-slate-500 mt-1">support@odisharank.in</p>
-                <p className="text-xs text-slate-500">academic@odisharank.in</p>
+                <h4 className="text-sm font-bold text-slate-900">Official Inquiries & Support</h4>
+                <a
+                  href={`mailto:${SITE_CONFIG.contact.email}`}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium underline underline-offset-2 block mt-1 transition-colors"
+                >
+                  {SITE_CONFIG.contact.email}
+                </a>
+                <p className="text-[11px] text-slate-400 mt-1">Direct academic & portal queries</p>
               </div>
             </div>
           </Card>
@@ -66,12 +72,16 @@ export default function ContactPage() {
           <Card className="p-6">
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                <Phone className="w-5 h-5" />
+                <Clock className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-slate-900">Academic Helpline</h4>
-                <p className="text-xs text-slate-500 mt-1">+91 (0674) 274-8900</p>
-                <p className="text-xs text-slate-400">Mon-Fri: 10:00 AM - 6:00 PM IST</p>
+                <h4 className="text-sm font-bold text-slate-900">Working Hours</h4>
+                <p className="text-xs text-slate-600 mt-1 font-medium">
+                  {SITE_CONFIG.contact.supportHours}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Response within 24 business hours
+                </p>
               </div>
             </div>
           </Card>
@@ -86,7 +96,8 @@ export default function ContactPage() {
               </div>
               <h3 className="text-lg font-bold text-slate-900">Message Received</h3>
               <p className="text-sm text-slate-600 max-w-md mx-auto">
-                Thank you for contacting OdishaRank support. Our academic team will respond to your inquiry within 24 business hours.
+                Thank you for contacting OdishaRank. Your inquiry has been logged and our team will follow up at{" "}
+                <strong className="text-slate-800">{formData.email}</strong>.
               </p>
               <Button
                 variant="outline"
@@ -134,7 +145,7 @@ export default function ContactPage() {
                 <textarea
                   rows={5}
                   required
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-all"
                   placeholder="Describe your inquiry, question feedback, or platform suggestion..."
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}

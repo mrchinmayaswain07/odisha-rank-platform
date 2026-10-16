@@ -15,20 +15,17 @@ export async function checkIsAdmin(userId?: string, userEmail?: string | null): 
       supabase = await createClient();
     }
 
-    // 1. If this is the root platform administrator, automatically ensure role and grant access
+    // 1. If this is the root platform administrator, automatically grant access immediately
     if (userEmail && userEmail.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase()) {
-      try {
-        await supabase.from("user_roles").upsert(
-          {
-            user_id: userId,
-            role: "admin",
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" }
-        );
-      } catch (err) {
-        console.warn("Could not sync root admin role:", err);
-      }
+      // Asynchronously ensure database record without blocking page rendering
+      supabase.from("user_roles").upsert(
+        {
+          user_id: userId,
+          role: "admin",
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      ).then(() => {}).catch(() => {});
       return true;
     }
 

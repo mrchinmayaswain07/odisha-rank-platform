@@ -177,9 +177,9 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             <span>Study Hours</span>
             <Clock className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900">
+          <div className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
             {currentMetrics.study_hours}{" "}
-            <span className="text-sm font-medium text-slate-400">hrs</span>
+            <span className="text-sm font-medium text-slate-400 font-sans">hrs</span>
           </div>
           <p className="text-xs text-slate-500 mt-1">Derived from logged study sessions</p>
         </Card>
@@ -190,7 +190,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             <span>Questions Practiced</span>
             <HelpCircle className="w-4 h-4 text-indigo-600" />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900">
+          <div className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
             {currentMetrics.questions_practiced}
           </div>
           <p className="text-xs text-slate-500 mt-1">Recorded question attempts</p>
@@ -202,7 +202,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             <span>Mock Tests</span>
             <Award className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900">
+          <div className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
             {currentMetrics.mock_tests_completed}
           </div>
           <p className="text-xs text-slate-500 mt-1">Full simulations submitted</p>
@@ -214,9 +214,9 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             <span>Study Streak</span>
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900">
+          <div className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
             {currentMetrics.study_streak_days}{" "}
-            <span className="text-sm font-medium text-slate-400">days</span>
+            <span className="text-sm font-medium text-slate-400 font-sans">days</span>
           </div>
           <p className="text-xs text-emerald-600 font-medium mt-1">
             {currentMetrics.study_streak_days > 0 ? "Active daily consistency" : "Start your streak today"}

@@ -34,12 +34,40 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(url && key && !url.includes("placeholder"));
 }
 
+// In-memory catalog cache with 60-second TTL to eliminate redundant Supabase fetches
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const catalogCache = new Map<string, CacheEntry<any>>();
+const CATALOG_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+export function invalidateCatalogCache(pattern?: string) {
+  if (!pattern) {
+    catalogCache.clear();
+  } else {
+    catalogCache.forEach((_, key) => {
+      if (key.includes(pattern)) {
+        catalogCache.delete(key);
+      }
+    });
+  }
+}
+
 /**
  * Fetch all registered exams / competitive courses.
  * Optionally includes inactive/draft exams for admin views.
  */
 export async function getExams(includeInactive: boolean = false): Promise<Exam[]> {
+  const cacheKey = `exams_${includeInactive}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CATALOG_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   if (!isSupabaseConfigured()) {
+    catalogCache.set(cacheKey, { data: SEED_EXAMS, timestamp: Date.now() });
     return SEED_EXAMS;
   }
 
@@ -53,6 +81,7 @@ export async function getExams(includeInactive: boolean = false): Promise<Exam[]
 
     const { data: exams, error } = await query;
     if (error || !exams || exams.length === 0) {
+      catalogCache.set(cacheKey, { data: SEED_EXAMS, timestamp: Date.now() });
       return SEED_EXAMS;
     }
 
@@ -69,15 +98,21 @@ export async function getExams(includeInactive: boolean = false): Promise<Exam[]
         }
       });
 
-      return exams.map((ex: any) => ({
+      const result = exams.map((ex: any) => ({
         ...ex,
         status: ex.status || "published",
         students_count: countMap[ex.id] || 0,
       })) as Exam[];
+
+      catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      return result;
     } catch {
-      return exams as Exam[];
+      const result = exams as Exam[];
+      catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
+      return result;
     }
   } catch {
+    catalogCache.set(cacheKey, { data: SEED_EXAMS, timestamp: Date.now() });
     return SEED_EXAMS;
   }
 }
@@ -96,9 +131,16 @@ export async function getExamById(id: string): Promise<Exam | null> {
  * Fetch subjects filtered by course/exam with parallel counts.
  */
 export async function getSubjects(examId?: string, includeAllStatus: boolean = false): Promise<Subject[]> {
+  const cacheKey = `subjects_${examId || "all"}_${includeAllStatus}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CATALOG_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   if (!isSupabaseConfigured()) {
-    if (examId) return SEED_SUBJECTS.filter((s) => s.exam_id === examId);
-    return SEED_SUBJECTS;
+    const fallback = examId ? SEED_SUBJECTS.filter((s) => s.exam_id === examId) : SEED_SUBJECTS;
+    catalogCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+    return fallback;
   }
 
   try {
@@ -114,11 +156,16 @@ export async function getSubjects(examId?: string, includeAllStatus: boolean = f
 
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
-      return examId ? SEED_SUBJECTS.filter((s) => s.exam_id === examId) : SEED_SUBJECTS;
+      const fallback = examId ? SEED_SUBJECTS.filter((s) => s.exam_id === examId) : SEED_SUBJECTS;
+      catalogCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+      return fallback;
     }
+    catalogCache.set(cacheKey, { data: data as Subject[], timestamp: Date.now() });
     return data as Subject[];
   } catch {
-    return examId ? SEED_SUBJECTS.filter((s) => s.exam_id === examId) : SEED_SUBJECTS;
+    const fallback = examId ? SEED_SUBJECTS.filter((s) => s.exam_id === examId) : SEED_SUBJECTS;
+    catalogCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+    return fallback;
   }
 }
 
