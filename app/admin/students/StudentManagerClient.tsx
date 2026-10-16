@@ -21,15 +21,22 @@ import {
 } from "lucide-react";
 
 interface StudentManagerClientProps {
-  initialResult: PaginatedResult<StudentListItem>;
-  exams: Exam[];
+  initialResult?: PaginatedResult<StudentListItem>;
+  exams?: Exam[];
 }
 
 export const StudentManagerClient: React.FC<StudentManagerClientProps> = ({
   initialResult,
-  exams,
+  exams = [],
 }) => {
-  const [result, setResult] = useState<PaginatedResult<StudentListItem>>(initialResult);
+  const safeInitialResult: PaginatedResult<StudentListItem> = {
+    data: initialResult?.data || [],
+    total: initialResult?.total || 0,
+    page: initialResult?.page || 1,
+    pageSize: initialResult?.pageSize || 15,
+    totalPages: initialResult?.totalPages || 1,
+  };
+  const [result, setResult] = useState<PaginatedResult<StudentListItem>>(safeInitialResult);
   const [search, setSearch] = useState("");
   const [selectedExamId, setSelectedExamId] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
@@ -104,7 +111,7 @@ export const StudentManagerClient: React.FC<StudentManagerClientProps> = ({
         </div>
 
         <Badge variant="blue" size="md">
-          Total: {result.total} Aspirants
+          Total: {result?.total ?? 0} Aspirants
         </Badge>
       </div>
 
@@ -133,7 +140,7 @@ export const StudentManagerClient: React.FC<StudentManagerClientProps> = ({
               className="text-xs px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-300"
             >
               <option value="all">All Courses</option>
-              {exams.map((ex) => (
+              {(exams || []).map((ex) => (
                 <option key={ex.id} value={ex.id}>
                   {ex.conducting_body} — {ex.title}
                 </option>
@@ -161,7 +168,7 @@ export const StudentManagerClient: React.FC<StudentManagerClientProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {result.data.map((student) => {
+              {(result?.data || []).map((student) => {
                 const isUpdating = updatingUserId === student.id;
                 return (
                   <tr key={student.id} className="hover:bg-slate-900/50 transition-colors">
@@ -218,7 +225,7 @@ export const StudentManagerClient: React.FC<StudentManagerClientProps> = ({
                 );
               })}
 
-              {result.data.length === 0 && (
+              {(result?.data || []).length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-slate-500">
                     No students found matching your criteria.
@@ -232,29 +239,29 @@ export const StudentManagerClient: React.FC<StudentManagerClientProps> = ({
         {/* Pagination Footer */}
         <div className="p-4 bg-slate-900/60 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
           <div>
-            Showing <strong>{result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1}</strong> to{" "}
-            <strong>{Math.min(result.page * result.pageSize, result.total)}</strong> of{" "}
-            <strong>{result.total}</strong> students
+            Showing <strong>{(result?.total ?? 0) === 0 ? 0 : ((result?.page ?? 1) - 1) * (result?.pageSize ?? 15) + 1}</strong> to{" "}
+            <strong>{Math.min((result?.page ?? 1) * (result?.pageSize ?? 15), result?.total ?? 0)}</strong> of{" "}
+            <strong>{result?.total ?? 0}</strong> students
           </div>
 
           <div className="flex items-center gap-2">
             <Button
               size="sm"
               variant="outline"
-              disabled={result.page <= 1 || isLoading}
-              onClick={() => fetchStudents(result.page - 1)}
+              disabled={(result?.page ?? 1) <= 1 || isLoading}
+              onClick={() => fetchStudents((result?.page ?? 1) - 1)}
               className="text-xs h-7 px-2 border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </Button>
             <span className="font-mono text-slate-300">
-              Page {result.page} of {result.totalPages || 1}
+              Page {result?.page ?? 1} of {result?.totalPages || 1}
             </span>
             <Button
               size="sm"
               variant="outline"
-              disabled={result.page >= result.totalPages || isLoading}
-              onClick={() => fetchStudents(result.page + 1)}
+              disabled={(result?.page ?? 1) >= (result?.totalPages ?? 1) || isLoading}
+              onClick={() => fetchStudents((result?.page ?? 1) + 1)}
               className="text-xs h-7 px-2 border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               <ChevronRight className="w-3.5 h-3.5" />
