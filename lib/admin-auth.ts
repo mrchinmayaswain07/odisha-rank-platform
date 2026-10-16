@@ -3,6 +3,7 @@ import { createAdminClient } from "./supabase/admin";
 
 export const PRIMARY_ADMIN_EMAILS = [
   "mrchinmayaswain07@gmail.com",
+  "cchinmaya071@gmail.com",
 ];
 
 export async function getAdminCount(): Promise<number> {

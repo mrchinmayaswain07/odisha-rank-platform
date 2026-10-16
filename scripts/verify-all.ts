@@ -313,6 +313,10 @@ async function runTests() {
       PRIMARY_ADMIN_EMAILS.includes("mrchinmayaswain07@gmail.com"),
       "mrchinmayaswain07@gmail.com is configured as primary platform administrator"
     );
+    assert(
+      PRIMARY_ADMIN_EMAILS.includes("cchinmaya071@gmail.com"),
+      "cchinmaya071@gmail.com is configured as primary platform administrator"
+    );
   }
 
   // TEST 10: Content Publishing Workflow States

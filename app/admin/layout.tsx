@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-auth";
 import { isSupabaseConfigured } from "@/lib/data-service";
 import { AdminLayoutClient } from "./AdminLayoutClient";
-import { InitialAdminSetupClient } from "./InitialAdminSetupClient";
 
 export const metadata: Metadata = {
   title: {
@@ -20,21 +19,16 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const isConfigured = isSupabaseConfigured();
-  const { user, isAdmin, adminCount } = await requireAdmin();
+  const { user, isAdmin } = await requireAdmin();
 
-  // If live database is configured and user is not signed in
+  // If unauthenticated, redirect to login
   if (isConfigured && !user) {
     redirect("/login?redirectTo=/admin");
   }
 
-  // If live database is configured and user is signed in but not an admin
+  // Normal students are directly redirected to their student dashboard (no access-denied or admin setup screen exposed)
   if (isConfigured && user && !isAdmin) {
-    return (
-      <InitialAdminSetupClient
-        userEmail={user.email || "aspirant@odisharank.in"}
-        adminCount={adminCount}
-      />
-    );
+    redirect("/dashboard");
   }
 
   const userEmail = user?.email || "admin@odisharank.gov.in";

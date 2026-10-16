@@ -33,6 +33,8 @@ function LoginForm() {
   const [loggedInUser, setLoggedInUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const ADMIN_EMAILS = ["mrchinmayaswain07@gmail.com", "cchinmaya071@gmail.com"];
+
   // Check if user is already signed in
   useEffect(() => {
     const supabase = createClient();
@@ -47,10 +49,12 @@ function LoginForm() {
           .eq("role", "admin")
           .maybeSingle();
 
-        const isUserAdmin = Boolean(roleData) || data.user.email?.toLowerCase() === "mrchinmayaswain07@gmail.com";
-        setIsAdmin(isUserAdmin);
+        const isUserAdmin =
+          Boolean(roleData) ||
+          (data.user.email && ADMIN_EMAILS.includes(data.user.email.toLowerCase()));
+        setIsAdmin(Boolean(isUserAdmin));
 
-        // If explicitly requested a redirect or already logged in, redirect to target
+        // If explicitly requested a redirect, redirect to target
         if (searchParams.get("redirectTo")) {
           window.location.href = redirectTo;
         }
@@ -89,7 +93,9 @@ function LoginForm() {
           .eq("role", "admin")
           .maybeSingle();
 
-        const isUserAdmin = Boolean(roleData) || signInData.user.email?.toLowerCase() === "mrchinmayaswain07@gmail.com";
+        const isUserAdmin =
+          Boolean(roleData) ||
+          (signInData.user.email && ADMIN_EMAILS.includes(signInData.user.email.toLowerCase()));
         const target = searchParams.get("redirectTo") || (isUserAdmin ? "/admin" : "/dashboard");
         // Hard redirect guarantees Next.js layout re-mounts and reads updated cookies
         window.location.href = target;
@@ -102,9 +108,6 @@ function LoginForm() {
 
   // If already logged in, show convenient direct entry buttons
   if (loggedInUser) {
-    const displayName =
-      loggedInUser.user_metadata?.full_name || loggedInUser.email?.split("@")[0] || "Scholar";
-
     return (
       <Card className="p-8 border-slate-200 text-center space-y-5">
         <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
@@ -127,23 +130,13 @@ function LoginForm() {
         </div>
 
         <div className="space-y-2 pt-2">
-          {isAdmin ? (
+          {isAdmin && (
             <Button
               onClick={() => (window.location.href = "/admin")}
               className="w-full justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
               <span>Enter Administrator Panel</span>
-              <ArrowRight className="w-4 h-4" />
-            </Button>
-          ) : (
-            <Button
-              onClick={() => (window.location.href = "/admin")}
-              variant="outline"
-              className="w-full justify-center gap-2 border-slate-300 text-slate-700 hover:bg-slate-50 text-xs"
-            >
-              <ShieldCheck className="w-4 h-4 text-blue-600" />
-              <span>Administrator Portal / Initial Setup</span>
               <ArrowRight className="w-4 h-4" />
             </Button>
           )}
