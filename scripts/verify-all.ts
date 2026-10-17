@@ -348,24 +348,65 @@ async function runTests() {
     );
   }
 
-  // TEST 10: Content Publishing Workflow States
-  console.log("\n10. CONTENT PUBLISHING WORKFLOW STATES");
+  // TEST 10: Content Publishing Workflow States & Study Materials System
+  console.log("\n10. CONTENT PUBLISHING WORKFLOW STATES & STUDY MATERIALS SYSTEM");
   {
-    const allMaterials = [
-      { id: "m1", status: "published" },
-      { id: "m2", status: "draft" },
-      { id: "m3", status: "archived" },
-      { id: "m4", status: "published" },
-    ];
+    const { getStudyMaterials, saveRuntimeMaterial, updateRuntimeMaterialStatus } = await import("../lib/data-service");
 
-    const filterForStudents = (items: typeof allMaterials) =>
-      items.filter((item) => item.status === "published");
-    const filterForAdmin = (items: typeof allMaterials) => items;
+    const testMat = {
+      id: "mat-test-verification-1",
+      topic_id: "top-modern-history",
+      subject_id: "sub-general-studies",
+      exam_id: "exam-cgl",
+      title: "Odisha Freedom Struggle & Paika Rebellion Notes",
+      description: "Official summary of 1817 Paika Rebellion led by Bakshi Jagabandhu.",
+      material_type: "notes" as const,
+      category: "notes" as const,
+      file_url: "",
+      file_size: 154000,
+      content: "# Paika Rebellion 1817\nLed by Bakshi Jagabandhu in Khurda.",
+      status: "published" as const,
+      download_count: 0,
+      created_at: new Date().toISOString(),
+    };
 
-    const studentVisible = filterForStudents(allMaterials);
-    assert(studentVisible.length === 2, "Students see only published materials (draft and archived excluded)");
-    const adminVisible = filterForAdmin(allMaterials);
-    assert(adminVisible.length === 4, "Admins see full catalog across all workflow states");
+    saveRuntimeMaterial(testMat);
+
+    // 1. Verify students see published
+    const studentMats = await getStudyMaterials({ status: "published", examId: "exam-cgl" });
+    assert(
+      studentMats.some((m) => m.id === "mat-test-verification-1"),
+      "Published material appears in student catalog for eligible exam"
+    );
+
+    // 2. Verify category filter works
+    const formulaMats = await getStudyMaterials({ status: "published", category: "formulas" });
+    assert(
+      !formulaMats.some((m) => m.id === "mat-test-verification-1"),
+      "Category filter correctly isolates formula sheets from notes"
+    );
+
+    // 3. Verify search filter works
+    const searchedMats = await getStudyMaterials({ status: "published", search: "Bakshi Jagabandhu" });
+    assert(
+      searchedMats.some((m) => m.id === "mat-test-verification-1"),
+      "Real-time search matches keywords within title, description, and content"
+    );
+
+    // 4. Verify admin archiving immediately hides material from students
+    updateRuntimeMaterialStatus("mat-test-verification-1", "archived");
+    const studentMatsAfterArchive = await getStudyMaterials({ status: "published", examId: "exam-cgl" });
+    assert(
+      !studentMatsAfterArchive.some((m) => m.id === "mat-test-verification-1"),
+      "Archiving material immediately hides it from student view"
+    );
+
+    // 5. Verify admin still sees archived materials when requesting all
+    const adminMatsAfterArchive = await getStudyMaterials({ status: "all" });
+    assert(
+      adminMatsAfterArchive.some((m) => m.id === "mat-test-verification-1"),
+      "Administrator retains visibility of archived materials for audit and restoration"
+    );
   }
 
   // TEST 11: Tailwind Class Precedence (Card Dark Theme Conflict Resolution)

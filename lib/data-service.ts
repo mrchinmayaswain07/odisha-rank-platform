@@ -206,10 +206,11 @@ export async function getChapters(subjectId: string, userId?: string, includeAll
 }
 
 /**
- * Fetch topics for a chapter.
+ * Fetch topics for a chapter or all topics if chapterId not specified.
  */
-export async function getTopics(chapterId: string, userId?: string, includeAllStatus: boolean = false): Promise<Topic[]> {
+export async function getTopics(chapterId?: string, userId?: string, includeAllStatus: boolean = false): Promise<Topic[]> {
   if (!isSupabaseConfigured()) {
+    if (!chapterId) return SEED_TOPICS;
     return SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
   }
 
@@ -218,8 +219,11 @@ export async function getTopics(chapterId: string, userId?: string, includeAllSt
     let query = supabase
       .from("topics")
       .select("*")
-      .eq("chapter_id", chapterId)
       .order("order_index", { ascending: true });
+
+    if (chapterId) {
+      query = query.eq("chapter_id", chapterId);
+    }
 
     if (userId) {
       query = query.or(`is_official.eq.true,created_by.eq.${userId}`);
@@ -233,12 +237,101 @@ export async function getTopics(chapterId: string, userId?: string, includeAllSt
 
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
+      if (!chapterId) return SEED_TOPICS;
       return SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
     }
     return data as Topic[];
   } catch {
+    if (!chapterId) return SEED_TOPICS;
     return SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
   }
+}
+
+// In-memory runtime materials cache for instant dynamic reflection and offline resilience
+let RUNTIME_MATERIALS: StudyMaterial[] = [...SEED_MATERIALS];
+
+export function getRuntimeMaterials(): StudyMaterial[] {
+  return RUNTIME_MATERIALS;
+}
+
+export function saveRuntimeMaterial(mat: StudyMaterial): StudyMaterial {
+  const existingIdx = RUNTIME_MATERIALS.findIndex((m) => m.id === mat.id);
+  if (existingIdx >= 0) {
+    RUNTIME_MATERIALS[existingIdx] = { ...RUNTIME_MATERIALS[existingIdx], ...mat };
+    return RUNTIME_MATERIALS[existingIdx];
+  } else {
+    RUNTIME_MATERIALS.unshift(mat);
+    return mat;
+  }
+}
+
+export function updateRuntimeMaterialStatus(id: string, status: "draft" | "published" | "archived"): boolean {
+  const existingIdx = RUNTIME_MATERIALS.findIndex((m) => m.id === id);
+  if (existingIdx >= 0) {
+    RUNTIME_MATERIALS[existingIdx].status = status;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Filter helper for study materials across both Supabase fallback and in-memory catalogs
+ */
+function applyMaterialFilters(
+  list: StudyMaterial[],
+  filters?: {
+    topicId?: string;
+    subjectId?: string;
+    examId?: string;
+    status?: string;
+    category?: string;
+    search?: string;
+  }
+): StudyMaterial[] {
+  return list.filter((m) => {
+    // 1. Status Filter:
+    // If status === "all", admin sees everything (published, draft, archived)
+    // If status is specified, must match exactly
+    // If status is undefined (student default), ONLY published items are visible
+    if (filters?.status === "all") {
+      // Allow all
+    } else if (filters?.status) {
+      if ((m.status || "published") !== filters.status) return false;
+    } else {
+      if ((m.status || "published") !== "published") return false;
+    }
+
+    // 2. Exam Filter
+    if (filters?.examId && filters.examId !== "all") {
+      if (m.exam_id && m.exam_id !== filters.examId) return false;
+    }
+
+    // 3. Subject Filter
+    if (filters?.subjectId && filters.subjectId !== "all") {
+      if (m.subject_id && m.subject_id !== filters.subjectId) return false;
+    }
+
+    // 4. Topic Filter
+    if (filters?.topicId && filters.topicId !== "all") {
+      if (m.topic_id !== filters.topicId) return false;
+    }
+
+    // 5. Category Filter
+    if (filters?.category && filters.category !== "all") {
+      if (m.category !== filters.category) return false;
+    }
+
+    // 6. Search Filter
+    if (filters?.search && filters.search.trim()) {
+      const q = filters.search.toLowerCase().trim();
+      const inTitle = m.title?.toLowerCase().includes(q);
+      const inDesc = m.description?.toLowerCase().includes(q);
+      const inContent = m.content?.toLowerCase().includes(q);
+      if (!inTitle && !inDesc && !inContent) return false;
+    }
+
+    return true;
+  });
 }
 
 /**
@@ -249,50 +342,46 @@ export async function getStudyMaterials(filters?: {
   subjectId?: string;
   examId?: string;
   status?: string;
+  category?: string;
   search?: string;
 }): Promise<StudyMaterial[]> {
   if (!isSupabaseConfigured()) {
-    let result = SEED_MATERIALS;
-    if (filters?.topicId) result = result.filter((m) => m.topic_id === filters.topicId);
-    if (filters?.search) {
-      const q = filters.search.toLowerCase();
-      result = result.filter((m) => m.title.toLowerCase().includes(q) || m.content.toLowerCase().includes(q));
-    }
-    return result;
+    return applyMaterialFilters(RUNTIME_MATERIALS, filters);
   }
 
   try {
     const supabase = await createClient();
     let query = supabase.from("study_materials").select("*").order("created_at", { ascending: false });
 
-    if (filters?.topicId) query = query.eq("topic_id", filters.topicId);
-    if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
-    if (filters?.examId) query = query.eq("exam_id", filters.examId);
-    if (filters?.status) {
+    if (filters?.topicId && filters.topicId !== "all") query = query.eq("topic_id", filters.topicId);
+    if (filters?.subjectId && filters.subjectId !== "all") query = query.eq("subject_id", filters.subjectId);
+    if (filters?.examId && filters.examId !== "all") query = query.eq("exam_id", filters.examId);
+    if (filters?.category && filters.category !== "all") query = query.eq("category", filters.category);
+
+    if (filters?.status === "all") {
+      // Don't filter status
+    } else if (filters?.status) {
       query = query.eq("status", filters.status);
     } else {
-      query = query.neq("status", "archived");
+      query = query.eq("status", "published");
     }
+
     if (filters?.search) {
       query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
     }
 
     let { data, error } = await query;
-    if (error && (error.message.includes("status") || error.message.includes("description") || error.message.includes("exam_id") || error.message.includes("subject_id"))) {
-      let fallbackQuery = supabase.from("study_materials").select("*").order("created_at", { ascending: false });
-      if (filters?.topicId) fallbackQuery = fallbackQuery.eq("topic_id", filters.topicId);
-      if (filters?.search) fallbackQuery = fallbackQuery.or(`title.ilike.%${filters.search}%,content.ilike.%${filters.search}%`);
-      const fallbackRes = await fallbackQuery;
-      data = fallbackRes.data;
-      error = fallbackRes.error;
+    if (error) {
+      return applyMaterialFilters(RUNTIME_MATERIALS, filters);
     }
 
-    if (error || !data || data.length === 0) {
-      return filters?.topicId ? SEED_MATERIALS.filter((m) => m.topic_id === filters.topicId) : SEED_MATERIALS;
+    if (!data || data.length === 0) {
+      return applyMaterialFilters(RUNTIME_MATERIALS, filters);
     }
+
     return data as StudyMaterial[];
   } catch {
-    return filters?.topicId ? SEED_MATERIALS.filter((m) => m.topic_id === filters.topicId) : SEED_MATERIALS;
+    return applyMaterialFilters(RUNTIME_MATERIALS, filters);
   }
 }
 

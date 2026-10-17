@@ -87,7 +87,7 @@ export interface Topic {
 
 export interface StudyMaterial {
   id: string;
-  topic_id: string;
+  topic_id?: string | null;
   title: string;
   material_type: "text" | "link" | "summary" | "note" | "pdf";
   content: string;
