@@ -15,37 +15,41 @@ export async function checkIsAdmin(userId?: string, userEmail?: string | null): 
       supabase = await createClient();
     }
 
-    // 1. If this is the root platform administrator, automatically grant access immediately
-    const adminEmails = [
-      ROOT_ADMIN_EMAIL.toLowerCase(),
-      "cchinmaya071@gmail.com",
-      "cchinmaya8018@gmail.com",
-      "cchinmayaff@gmail.com",
-    ];
+    // 1. Resolve user email if not directly provided
+    if (!userEmail) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", userId)
+        .maybeSingle();
+      if (profile?.email) {
+        userEmail = profile.email;
+      }
+    }
 
-    if (userEmail && adminEmails.includes(userEmail.toLowerCase())) {
+    // 2. Strictly ROOT_ADMIN_EMAIL is authorized as platform administrator
+    const isRootAdmin = Boolean(
+      userEmail && userEmail.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase()
+    );
+
+    if (isRootAdmin) {
       // Asynchronously ensure database record without blocking page rendering
-      supabase.from("user_roles").upsert(
-        {
-          user_id: userId,
-          role: "admin",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" }
-      ).then(() => {}).catch(() => {});
+      supabase
+        .from("user_roles")
+        .upsert(
+          {
+            user_id: userId,
+            role: "admin",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        )
+        .then(() => {})
+        .catch(() => {});
       return true;
     }
 
-    // 2. For all other users, access is ONLY granted if explicitly promoted by root admin in user_roles table
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    if (!error && data?.role === "admin") return true;
-
+    // No other user has administrator privileges
     return false;
   } catch {
     return false;

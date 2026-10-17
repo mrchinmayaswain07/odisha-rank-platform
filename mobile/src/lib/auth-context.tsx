@@ -56,14 +56,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const email = userObj.email?.toLowerCase();
-    const adminEmails = [
-      SITE_CONFIG.admin.rootEmail.toLowerCase(),
-      "cchinmaya071@gmail.com",
-      "cchinmaya8018@gmail.com",
-      "cchinmayaff@gmail.com",
-    ];
+    const isRootAdmin = email === SITE_CONFIG.admin.rootEmail.toLowerCase();
 
-    if (email && adminEmails.includes(email)) {
+    if (isRootAdmin) {
       setIsAdmin(true);
       // Ensure user_roles has admin record so PostgreSQL is_admin() RLS policy succeeds
       try {
@@ -83,21 +78,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     }
 
-    try {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userObj.id)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      const admin = data?.role === "admin";
-      setIsAdmin(admin);
-      return admin;
-    } catch {
-      setIsAdmin(false);
-      return false;
-    }
+    setIsAdmin(false);
+    return false;
   };
 
   // Sync profile and active target exam

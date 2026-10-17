@@ -66,6 +66,14 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
+
+  if (pathname === "/register" && user) {
+    const isRootAdmin = user.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
+    const targetUrl = new URL(isRootAdmin ? "/admin" : "/dashboard", request.url);
+    return NextResponse.redirect(targetUrl);
+  }
+
   if (isProtectedRoute && !user) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirectTo", pathname);

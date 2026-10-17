@@ -339,6 +339,14 @@ export default function AdminScreen() {
 
   // Toggle Student Role
   const handleToggleStudentRole = (student: any) => {
+    if (student.email?.toLowerCase() === SITE_CONFIG.admin.rootEmail.toLowerCase()) {
+      Alert.alert(
+        "Action Prohibited",
+        "The root administrator profile is permanent and cannot be demoted or removed."
+      );
+      return;
+    }
+
     const isCurrentlyAdmin = student.role === "admin";
     const newRole = isCurrentlyAdmin ? "student" : "admin";
     const actionText = isCurrentlyAdmin ? "Revoke Admin privileges from" : "Promote to Admin";
@@ -893,12 +901,20 @@ export default function AdminScreen() {
               <ActivityIndicator size="large" color={BRAND_COLORS.primary} style={{ marginVertical: 32 }} />
             ) : (
               students.map((st, idx) => {
-                const isStudentAdmin = st.role === "admin";
+                const isRootAdmin =
+                  st.email?.toLowerCase() === SITE_CONFIG.admin.rootEmail.toLowerCase();
+                const isStudentAdmin = st.role === "admin" || isRootAdmin;
                 return (
                   <View key={st.id || idx} style={styles.itemCard}>
                     <View style={styles.itemHeader}>
                       <Badge
-                        label={isStudentAdmin ? "ADMIN" : "STUDENT"}
+                        label={
+                          isRootAdmin
+                            ? "ROOT ADMIN (PERMANENT)"
+                            : isStudentAdmin
+                            ? "ADMIN"
+                            : "STUDENT"
+                        }
                         variant={isStudentAdmin ? "emerald" : "slate"}
                         size="sm"
                       />
@@ -912,25 +928,39 @@ export default function AdminScreen() {
                     )}
 
                     <View style={styles.roleActionRow}>
-                      <TouchableOpacity
-                        style={[
-                          styles.roleToggleBtn,
-                          isStudentAdmin ? styles.roleToggleRevoke : styles.roleTogglePromote,
-                        ]}
-                        onPress={() => handleToggleStudentRole(st)}
-                      >
-                        {isStudentAdmin ? (
-                          <>
-                            <UserX size={14} color="#dc2626" style={{ marginRight: 4 }} />
-                            <Text style={styles.roleToggleRevokeText}>Demote to Student</Text>
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck size={14} color="#059669" style={{ marginRight: 4 }} />
-                            <Text style={styles.roleTogglePromoteText}>Promote to Admin</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
+                      {isRootAdmin ? (
+                        <View
+                          style={[
+                            styles.roleToggleBtn,
+                            { backgroundColor: "#064e3b", borderColor: "#059669" },
+                          ]}
+                        >
+                          <ShieldCheck size={14} color="#34d399" style={{ marginRight: 4 }} />
+                          <Text style={{ color: "#34d399", fontSize: 12, fontWeight: "600" }}>
+                            Protected Admin
+                          </Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={[
+                            styles.roleToggleBtn,
+                            isStudentAdmin ? styles.roleToggleRevoke : styles.roleTogglePromote,
+                          ]}
+                          onPress={() => handleToggleStudentRole(st)}
+                        >
+                          {isStudentAdmin ? (
+                            <>
+                              <UserX size={14} color="#dc2626" style={{ marginRight: 4 }} />
+                              <Text style={styles.roleToggleRevokeText}>Demote to Student</Text>
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck size={14} color="#059669" style={{ marginRight: 4 }} />
+                              <Text style={styles.roleTogglePromoteText}>Promote to Admin</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 );

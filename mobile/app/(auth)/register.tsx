@@ -18,7 +18,14 @@ import { useAuth } from "../../src/lib/auth-context";
 import { Button } from "../../src/components/Button";
 
 export default function RegisterScreen() {
-  const { signUp } = useAuth();
+  const { user, isAdmin, signUp } = useAuth();
+
+  React.useEffect(() => {
+    if (user) {
+      router.replace(isAdmin ? "/admin" : "/(tabs)/dashboard");
+    }
+  }, [user, isAdmin]);
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

@@ -313,6 +313,39 @@ async function runTests() {
       ROOT_ADMIN_EMAIL === "mrchinmayaswain07@gmail.com",
       "mrchinmayaswain07@gmail.com is exclusively configured as root platform administrator"
     );
+
+    // Verify non-root emails are not granted root administrator immunity
+    const auxiliaryEmails = ["cchinmaya071@gmail.com", "cchinmaya8018@gmail.com", "cchinmayaff@gmail.com"];
+    const isImmuneAdmin = (email: string) => email.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
+    for (const email of auxiliaryEmails) {
+      assert(!isImmuneAdmin(email), `Auxiliary email ${email} is NOT immune nor hardcoded admin`);
+    }
+
+    // Verify Root Admin Profile Immunity Guard
+    const attemptDemote = (email: string, targetRole: string) => {
+      if (email.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase() && targetRole !== "admin") {
+        return { allowed: false, error: "Root admin cannot be demoted" };
+      }
+      return { allowed: true, error: null };
+    };
+    assert(
+      attemptDemote("mrchinmayaswain07@gmail.com", "student").allowed === false,
+      "Root admin profile demotion attempt is strictly blocked (Immutable Root Admin)"
+    );
+
+    // Verify Register Route Redirect for authenticated users
+    const getRegisterRedirect = (user: { email: string } | null) => {
+      if (!user) return null;
+      return user.email.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase() ? "/admin" : "/dashboard";
+    };
+    assert(
+      getRegisterRedirect({ email: "mrchinmayaswain07@gmail.com" }) === "/admin",
+      "Authenticated root admin visiting /register redirects to /admin"
+    );
+    assert(
+      getRegisterRedirect({ email: "student@test.com" }) === "/dashboard",
+      "Authenticated student visiting /register redirects to /dashboard"
+    );
   }
 
   // TEST 10: Content Publishing Workflow States

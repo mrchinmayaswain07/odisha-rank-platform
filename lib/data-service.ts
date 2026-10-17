@@ -932,19 +932,23 @@ export async function getStudentsList(filters?: {
       }
     }
 
-    const items: StudentListItem[] = data.map((row: any) => ({
-      id: row.id,
-      email: row.email,
-      full_name: row.full_name,
-      target_exam_id: row.target_exam_id,
-      target_exam_title: row.exams?.title || "Not selected",
-      target_year: row.target_year,
-      district: row.district,
-      phone: row.phone,
-      role: (rolesMap[row.id] as any) || "student",
-      is_profile_completed: row.is_profile_completed,
-      created_at: row.created_at,
-    }));
+    const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
+    const items: StudentListItem[] = data.map((row: any) => {
+      const isRootAdmin = row.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
+      return {
+        id: row.id,
+        email: row.email,
+        full_name: row.full_name,
+        target_exam_id: row.target_exam_id,
+        target_exam_title: row.exams?.title || "Not selected",
+        target_year: row.target_year,
+        district: row.district,
+        phone: row.phone,
+        role: isRootAdmin ? "admin" : "student",
+        is_profile_completed: row.is_profile_completed,
+        created_at: row.created_at,
+      };
+    });
 
     const total = count ?? data.length;
     return {

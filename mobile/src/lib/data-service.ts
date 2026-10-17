@@ -12,6 +12,7 @@ import {
   evaluateMockTestScoring,
   calculateProgress,
   calculateStudyStreak,
+  SITE_CONFIG,
 } from "@odisha-rank/shared";
 
 /**
@@ -603,12 +604,10 @@ export async function getAdminStudentsList(): Promise<any[]> {
       .order("created_at", { ascending: false });
     if (profErr || !profs) return [];
 
-    const { data: roles } = await supabase.from("user_roles").select("user_id, role");
-    const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
-
+    const rootEmail = SITE_CONFIG.admin.rootEmail.toLowerCase();
     return profs.map((p) => ({
       ...p,
-      role: roleMap.get(p.id) || "student",
+      role: p.email?.toLowerCase() === rootEmail ? "admin" : "student",
     }));
   } catch {
     return [];
@@ -619,6 +618,20 @@ export async function getAdminStudentsList(): Promise<any[]> {
  * Update Student Role (Promote / Demote)
  */
 export async function updateAdminStudentRole(userId: string, newRole: "admin" | "student") {
+  // Guard: Root platform administrator cannot be demoted or removed
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (
+    profile?.email?.toLowerCase() === SITE_CONFIG.admin.rootEmail.toLowerCase() &&
+    newRole !== "admin"
+  ) {
+    throw new Error("Root platform administrator profile is permanent and cannot be demoted or removed.");
+  }
+
   const { error } = await supabase.from("user_roles").upsert(
     {
       user_id: userId,

@@ -18,6 +18,7 @@ import {
   MapPin,
   Loader2,
   AlertCircle,
+  Lock,
 } from "lucide-react";
 
 interface StudentManagerClientProps {
@@ -68,7 +69,14 @@ export const StudentManagerClient: React.FC<StudentManagerClientProps> = ({
     fetchStudents(1);
   };
 
+  const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
+
   const handleRoleChange = async (student: StudentListItem, newRole: UserRole) => {
+    if (student.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase() && newRole !== "admin") {
+      alert("The root platform administrator profile is permanent and cannot be demoted or removed.");
+      return;
+    }
+
     if (!confirm(`Are you sure you want to change ${student.full_name}'s role to ${newRole.toUpperCase()}?`)) {
       return;
     }
@@ -194,17 +202,29 @@ export const StudentManagerClient: React.FC<StudentManagerClientProps> = ({
                       {student.target_year || 2026}
                     </td>
                     <td className="py-3.5 px-4">
-                      <Badge
-                        variant={student.role === "admin" ? "emerald" : "blue"}
-                        size="sm"
-                        className="capitalize"
-                      >
-                        {student.role === "admin" ? "System Admin" : "Student"}
-                      </Badge>
+                      {student.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase() ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-500/40">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Root Admin (Permanent)</span>
+                        </span>
+                      ) : (
+                        <Badge
+                          variant={student.role === "admin" ? "emerald" : "blue"}
+                          size="sm"
+                          className="capitalize"
+                        >
+                          {student.role === "admin" ? "System Admin" : "Student"}
+                        </Badge>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       {isUpdating ? (
                         <Loader2 className="w-4 h-4 animate-spin text-blue-400 inline" />
+                      ) : student.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase() ? (
+                        <div className="inline-flex items-center gap-1.5 text-xs text-emerald-400/90 font-medium select-none bg-emerald-950/40 px-2.5 py-1 rounded-md border border-emerald-800/40">
+                          <Lock className="w-3 h-3 text-emerald-400" />
+                          <span>Protected</span>
+                        </div>
                       ) : student.role === "admin" ? (
                         <button
                           onClick={() => handleRoleChange(student, "student")}

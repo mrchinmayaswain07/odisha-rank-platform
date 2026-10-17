@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkIsAdmin } from "@/lib/admin-auth";
+import { checkIsAdmin, ROOT_ADMIN_EMAIL } from "@/lib/admin-auth";
 import { getStudentsList } from "@/lib/data-service";
 
 export async function GET(request: NextRequest) {
@@ -27,9 +27,15 @@ export async function PATCH(request: NextRequest) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
+  const isCallerRootAdmin =
+    authData.user?.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
+
   const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Unauthorized: Administrator access required" }, { status: 403 });
+  if (!isAdmin || !isCallerRootAdmin) {
+    return NextResponse.json(
+      { error: "Unauthorized: Only the root platform administrator can modify platform roles" },
+      { status: 403 }
+    );
   }
 
   try {
@@ -45,6 +51,27 @@ export async function PATCH(request: NextRequest) {
       client = createAdminClient();
     } catch {
       client = supabase;
+    }
+
+    // Immutable root administrator guard: never allow demoting or removing root admin
+    const { data: targetProfile } = await client
+      .from("profiles")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const isTargetRootAdmin =
+      targetProfile?.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase() ||
+      userId === authData.user?.id;
+
+    if (isTargetRootAdmin && newRole !== "admin") {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: The root platform administrator profile is permanent and cannot be demoted or removed.",
+        },
+        { status: 403 }
+      );
     }
 
     // Upsert role into user_roles

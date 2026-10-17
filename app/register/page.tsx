@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -12,7 +12,15 @@ import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { GraduationCap, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
+import {
+  GraduationCap,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight,
+  ShieldCheck,
+  LayoutDashboard,
+  Loader2,
+} from "lucide-react";
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
@@ -21,6 +29,31 @@ export default function RegisterPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loggedInUser, setLoggedInUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
+
+  // Check if user is already signed in
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (data?.user) {
+        setLoggedInUser(data.user);
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+
+        const isUserAdmin =
+          Boolean(roleData) ||
+          data.user.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
+        setIsAdmin(Boolean(isUserAdmin));
+      }
+    });
+  }, []);
 
   const {
     register,
@@ -78,14 +111,73 @@ export default function RegisterPage() {
             />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Create Student Account
+            {loggedInUser ? "Active Session Detected" : "Create Student Account"}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-2">
-            Join OdishaRank and begin tracking your competitive examination progress.
+            {loggedInUser
+              ? "You are currently signed in to OdishaRank. Continue to your dashboard or switch accounts."
+              : "Join OdishaRank and begin tracking your competitive examination progress."}
           </p>
         </div>
 
-        <Card className="p-8 border-slate-200">
+        {loggedInUser ? (
+          <Card className="p-8 border-slate-200 text-center space-y-5">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                Already Signed In
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                You are currently logged in as <strong className="text-slate-800">{loggedInUser.email}</strong>
+              </p>
+              {isAdmin && (
+                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>System Administrator Account</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2 pt-2">
+              {isAdmin && (
+                <Button
+                  onClick={() => (window.location.href = "/admin")}
+                  className="w-full justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white"
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Enter Administrator Panel</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              )}
+
+              <Button
+                onClick={() => (window.location.href = "/dashboard")}
+                variant="primary"
+                className="w-full justify-center gap-2"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Go to Student Dashboard</span>
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+
+              <Button
+                onClick={async () => {
+                  const supabase = createClient();
+                  await supabase.auth.signOut();
+                  window.location.reload();
+                }}
+                variant="outline"
+                className="w-full justify-center text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
+              >
+                Log Out & Switch Account
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-8 border-slate-200">
           {isSuccess ? (
             <div className="text-center py-6 space-y-4">
               <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">
@@ -182,6 +274,7 @@ export default function RegisterPage() {
             </>
           )}
         </Card>
+        )}
       </div>
     </div>
   );
