@@ -27,6 +27,7 @@ export interface Exam {
   slug: string;
   title: string;
   conducting_body: string;
+  code?: string;
   description: string;
   eligibility: string | null;
   stages: ExamStage[];
@@ -207,7 +208,10 @@ export interface StudentActivity {
 
 export interface DashboardMetrics {
   study_hours: number;
+  study_hours_today?: number;
   questions_practiced: number;
+  questions_practiced_today?: number;
+  accuracy_percentage?: number;
   mock_tests_completed: number;
   study_streak_days: number;
   official_progress_percentage: number;
@@ -223,6 +227,19 @@ export interface DashboardMetrics {
     total_topics: number;
     completed_topics: number;
     progress_percentage: number;
+  }[];
+  weekly_stats?: {
+    date: string;
+    dayLabel: string;
+    questionsCount: number;
+    accuracyPercentage: number;
+  }[];
+  recommended_topics?: {
+    topic_id: string;
+    topic_title: string;
+    subject_id: string;
+    subject_name: string;
+    estimated_minutes: number;
   }[];
 }
 
