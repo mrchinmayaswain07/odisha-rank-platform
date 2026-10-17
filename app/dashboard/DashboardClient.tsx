@@ -10,12 +10,16 @@ import {
   Exam,
 } from "@/lib/types";
 import { CourseSelectModal } from "@/components/CourseSelectModal";
+import { TodayGoalModal } from "@/components/TodayGoalModal";
+import { StudyTimerModal } from "@/components/StudyTimerModal";
+import { getStoredDailyGoal, DailyGoal } from "@/lib/goal-storage";
 import { createClient } from "@/lib/supabase/client";
 import {
   LayoutDashboard,
   GraduationCap,
   HelpCircle,
   Clock,
+  Timer,
   BookOpen,
   BarChart3,
   Calendar,
@@ -85,6 +89,37 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   const [accuracyFilter, setAccuracyFilter] = useState<"Today" | "Total">("Today");
   const [weeklyFilter, setWeeklyFilter] = useState<"Last 7 Days" | "Last 30 Days">("Last 7 Days");
 
+  // Modals state
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [showTimerModal, setShowTimerModal] = useState(false);
+  const [dailyGoal, setDailyGoal] = useState<DailyGoal>(getStoredDailyGoal());
+
+  // Listen for goal and study session updates
+  React.useEffect(() => {
+    const handleGoalUpdate = (e: any) => {
+      if (e.detail) setDailyGoal(e.detail);
+    };
+    const handleSessionLogged = (e: any) => {
+      if (e.detail?.minutes) {
+        const addedHours = Math.round((e.detail.minutes / 60) * 10) / 10;
+        setCurrentMetrics((prev) => ({
+          ...prev,
+          study_hours: Math.round((prev.study_hours + addedHours) * 10) / 10,
+          study_hours_today: Math.round(((prev.study_hours_today || 0) + addedHours) * 10) / 10,
+          study_streak_days: prev.study_streak_days === 0 ? 1 : prev.study_streak_days,
+        }));
+      }
+    };
+
+    window.addEventListener("daily-goal-updated", handleGoalUpdate);
+    window.addEventListener("study-session-logged", handleSessionLogged);
+
+    return () => {
+      window.removeEventListener("daily-goal-updated", handleGoalUpdate);
+      window.removeEventListener("study-session-logged", handleSessionLogged);
+    };
+  }, []);
+
   // Study Session Log Modal
   const [showLogModal, setShowLogModal] = useState(false);
   const [logMinutes, setLogMinutes] = useState(60);
@@ -94,12 +129,12 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   // Dynamic study plan checklist derived from active course topics
   const initialStudyPlan = useMemo(() => {
     if (metrics.recommended_topics && metrics.recommended_topics.length > 0) {
-      return metrics.recommended_topics.map((t, idx) => ({
+      return metrics.recommended_topics.map((t) => ({
         id: `sp-${t.topic_id}`,
         title: `${t.subject_name} – ${t.topic_title}`,
         description: `Read official syllabus notes & complete practice questions`,
         duration: `${t.estimated_minutes} min`,
-        completed: idx < 2,
+        completed: false,
         href: `/syllabus?subject=${t.subject_id}`,
       }));
     }
@@ -111,7 +146,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
         title: `${examCode} General Studies – Indian Polity`,
         description: "Read notes and complete practice questions",
         duration: "60 min",
-        completed: true,
+        completed: false,
         href: `/syllabus${targetExam ? `?exam=${targetExam.id}` : ""}`,
       },
       {
@@ -119,7 +154,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
         title: "Odisha Special – History & Geography of Odisha",
         description: "Complete topic reading and review key dates",
         duration: "45 min",
-        completed: true,
+        completed: false,
         href: `/syllabus${targetExam ? `?exam=${targetExam.id}` : ""}`,
       },
       {
@@ -207,17 +242,13 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   }, [currentMetrics.subject_progress]);
 
   // Overall progress percentage
-  const overallProgressPct = currentMetrics.official_progress_percentage > 0
-    ? currentMetrics.official_progress_percentage
-    : 25;
+  const overallProgressPct = currentMetrics.official_progress_percentage ?? 0;
 
   const totalTopicsCount = currentMetrics.total_official_topics > 0
     ? currentMetrics.total_official_topics
     : dynamicSubjects.reduce((acc, s) => acc + s.total_topics, 0);
 
-  const completedTopicsCount = currentMetrics.completed_official_topics > 0
-    ? currentMetrics.completed_official_topics
-    : dynamicSubjects.reduce((acc, s) => acc + s.completed_topics, 0);
+  const completedTopicsCount = currentMetrics.completed_official_topics ?? 0;
 
   // Search filter results
   const searchResults = useMemo(() => {
@@ -428,7 +459,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             </Link>
 
             <Link
-              href="/exams"
+              href="/courses"
               className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
             >
               <GraduationCap className="w-4 h-4 text-slate-400" />
@@ -452,7 +483,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             </Link>
 
             <Link
-              href="/syllabus"
+              href="/materials"
               className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
             >
               <BookOpen className="w-4 h-4 text-slate-400" />
@@ -460,23 +491,23 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             </Link>
 
             <Link
-              href="/dashboard#performance"
+              href="/performance"
               className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
             >
               <BarChart3 className="w-4 h-4 text-slate-400" />
               <span>Performance</span>
             </Link>
 
-            <button
-              onClick={() => setShowLogModal(true)}
-              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors text-left"
+            <Link
+              href="/planner"
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
             >
               <Calendar className="w-4 h-4 text-slate-400" />
               <span>Study Planner</span>
-            </button>
+            </Link>
 
             <Link
-              href="/questions?tab=bookmarks"
+              href="/bookmarks"
               className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
             >
               <Bookmark className="w-4 h-4 text-slate-400" />
@@ -484,7 +515,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             </Link>
 
             <Link
-              href="/contact"
+              href="/doubts"
               className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
             >
               <MessageSquare className="w-4 h-4 text-slate-400" />
@@ -591,8 +622,18 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             </div>
           </div>
 
-          {/* Right Header: Notification + User Profile */}
-          <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+          {/* Right Header: Stopwatch + Notification + User Profile */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Stopwatch & Study Focus Timer Button */}
+            <button
+              onClick={() => setShowTimerModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all border border-blue-200/70 shadow-2xs"
+              title="Open Study Stopwatch & Focus Timer"
+            >
+              <Timer className="w-4 h-4 text-blue-600" />
+              <span className="hidden sm:inline">Stopwatch</span>
+            </button>
+
             {/* Notification Bell */}
             <button className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors">
               <Bell className="w-5 h-5" />
@@ -693,19 +734,26 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                 Stay consistent with your preparation for {targetExamTitle}. Keep learning, keep practicing, and achieve your goal!
               </p>
 
-              {/* Today's Goal Pill */}
-              <div className="mt-4 inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-amber-50/90 border border-amber-200/70 shadow-2xs">
-                <div className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0">
+              {/* Today's Goal Pill (Dynamic & Clickable to Set/Customize) */}
+              <div
+                onClick={() => setShowGoalModal(true)}
+                className="mt-4 inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/70 shadow-2xs cursor-pointer transition-all group"
+                title="Click to customize today's goal"
+              >
+                <div className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                   <Target className="w-3.5 h-3.5 text-amber-600" />
                 </div>
-                <div className="text-xs text-slate-700 font-medium">
+                <div className="text-xs text-slate-700 font-medium flex items-center flex-wrap gap-y-1">
                   <strong className="text-amber-900 font-bold">Today&apos;s Goal</strong>
                   <span className="mx-2 text-slate-300">•</span>
-                  <span>Complete 2 subjects</span>
+                  <span>Complete {dailyGoal.targetSubjects} subjects</span>
                   <span className="mx-2 text-slate-300">•</span>
-                  <span>Practice 50 questions</span>
+                  <span>Practice {dailyGoal.targetQuestions} questions</span>
                   <span className="mx-2 text-slate-300">•</span>
-                  <span>Study for 2 hours</span>
+                  <span>Study for {dailyGoal.targetStudyHours} hours</span>
+                  <span className="ml-2 text-[10px] font-bold text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-md hover:bg-amber-300/60 transition-colors">
+                    Set Goal ⚙️
+                  </span>
                 </div>
               </div>
             </div>
@@ -1581,6 +1629,32 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
           </div>
         </div>
       )}
+
+      {/* Today's Goal Modal */}
+      <TodayGoalModal
+        isOpen={showGoalModal}
+        onClose={() => setShowGoalModal(false)}
+        todayStudyHours={currentMetrics.study_hours_today || 0}
+        todayQuestions={currentMetrics.questions_practiced_today || 0}
+        activeCourseTitle={targetExamTitle}
+        onGoalUpdated={(g) => setDailyGoal(g)}
+      />
+
+      {/* Study Stopwatch & Focus Timer Modal */}
+      <StudyTimerModal
+        isOpen={showTimerModal}
+        onClose={() => setShowTimerModal(false)}
+        activeCourseName={targetExamTitle}
+        onSessionSaved={(mins) => {
+          const addedHours = Math.round((mins / 60) * 10) / 10;
+          setCurrentMetrics((prev) => ({
+            ...prev,
+            study_hours: Math.round((prev.study_hours + addedHours) * 10) / 10,
+            study_hours_today: Math.round(((prev.study_hours_today || 0) + addedHours) * 10) / 10,
+            study_streak_days: prev.study_streak_days === 0 ? 1 : prev.study_streak_days,
+          }));
+        }}
+      />
     </div>
   );
 };
