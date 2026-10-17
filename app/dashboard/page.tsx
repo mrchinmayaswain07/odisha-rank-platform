@@ -30,13 +30,11 @@ export default async function DashboardPage() {
   const metrics = await getDashboardMetrics(userId, targetExam?.id);
 
   return (
-    <div className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <DashboardClient
-        profile={profile}
-        metrics={metrics}
-        targetExam={targetExam}
-        allExams={allExams}
-      />
-    </div>
+    <DashboardClient
+      profile={profile}
+      metrics={metrics}
+      targetExam={targetExam}
+      allExams={allExams}
+    />
   );
 }

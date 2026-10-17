@@ -935,6 +935,8 @@ export async function getStudentsList(filters?: {
     const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
     const items: StudentListItem[] = data.map((row: any) => {
       const isRootAdmin = row.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
+      const assignedRole = (rolesMap[row.id] as any) || "student";
+      const role = isRootAdmin ? "admin" : (assignedRole === "admin" ? "admin" : "student");
       return {
         id: row.id,
         email: row.email,
@@ -944,7 +946,7 @@ export async function getStudentsList(filters?: {
         target_year: row.target_year,
         district: row.district,
         phone: row.phone,
-        role: isRootAdmin ? "admin" : "student",
+        role,
         is_profile_completed: row.is_profile_completed,
         created_at: row.created_at,
       };

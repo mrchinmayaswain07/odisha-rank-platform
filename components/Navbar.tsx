@@ -56,9 +56,9 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Suppress public student navigation on administrative routes to prevent layout collision
+  // Suppress public student navigation on administrative routes and dedicated dashboard portal
   // NOTE: Must be evaluated AFTER all React hooks are executed unconditionally to satisfy React Rules of Hooks
-  if (pathname?.startsWith("/admin")) {
+  if (pathname?.startsWith("/admin") || pathname === "/dashboard") {
     return null;
   }
 

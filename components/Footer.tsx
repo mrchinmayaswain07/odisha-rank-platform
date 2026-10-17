@@ -10,8 +10,8 @@ import { SITE_CONFIG } from "@/lib/constants";
 export const Footer: React.FC = () => {
   const pathname = usePathname();
 
-  // Suppress public student footer on administrative routes
-  if (pathname?.startsWith("/admin")) {
+  // Suppress public student footer on administrative routes and dedicated dashboard portal
+  if (pathname?.startsWith("/admin") || pathname === "/dashboard") {
     return null;
   }
 

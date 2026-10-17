@@ -96,9 +96,13 @@ export const StudentManagerClient: React.FC<StudentManagerClientProps> = ({
             item.id === student.id ? { ...item, role: newRole } : item
           ),
         }));
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        alert(errJson.error || "Failed to update student role.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert(err.message || "Network error while updating role.");
     } finally {
       setUpdatingUserId(null);
     }

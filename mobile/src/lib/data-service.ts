@@ -604,11 +604,16 @@ export async function getAdminStudentsList(): Promise<any[]> {
       .order("created_at", { ascending: false });
     if (profErr || !profs) return [];
 
+    const { data: roles } = await supabase.from("user_roles").select("user_id, role");
+    const roleMap = new Map((roles || []).map((r) => [r.user_id, r.role]));
     const rootEmail = SITE_CONFIG.admin.rootEmail.toLowerCase();
-    return profs.map((p) => ({
-      ...p,
-      role: p.email?.toLowerCase() === rootEmail ? "admin" : "student",
-    }));
+    return profs.map((p) => {
+      const isRoot = p.email?.toLowerCase() === rootEmail;
+      return {
+        ...p,
+        role: isRoot ? "admin" : (roleMap.get(p.id) || "student"),
+      };
+    });
   } catch {
     return [];
   }

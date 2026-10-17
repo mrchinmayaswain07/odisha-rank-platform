@@ -88,7 +88,18 @@ export async function PATCH(request: NextRequest) {
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error("Error upserting user_roles:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Also sync profiles table if role column exists
+    try {
+      await client.from("profiles").update({ role: newRole }).eq("id", userId);
+    } catch {
+      // Non-blocking
+    }
+
     return NextResponse.json({ success: true, data });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to update role" }, { status: 500 });

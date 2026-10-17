@@ -78,8 +78,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     }
 
-    setIsAdmin(false);
-    return false;
+    try {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userObj.id)
+        .maybeSingle();
+
+      const admin = data?.role === "admin";
+      setIsAdmin(admin);
+      return admin;
+    } catch {
+      setIsAdmin(false);
+      return false;
+    }
   };
 
   // Sync profile and active target exam

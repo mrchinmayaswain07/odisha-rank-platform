@@ -49,7 +49,19 @@ export async function checkIsAdmin(userId?: string, userEmail?: string | null): 
       return true;
     }
 
-    // No other user has administrator privileges
+    // 3. For any other user, verify if explicitly promoted to admin in user_roles
+    const { data: roleRow, error } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (!error && roleRow?.role === "admin") {
+      return true;
+    }
+
+    // When removed/revoked, deny administrator access immediately
     return false;
   } catch {
     return false;
