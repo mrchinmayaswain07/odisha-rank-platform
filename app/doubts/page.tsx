@@ -1,7 +1,7 @@
 import React from "react";
 import { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { getStudentProfile, getDashboardMetrics, getExams } from "@/lib/data-service";
+import { getStudentProfile, getDashboardMetrics, getExams, getStudentDoubts } from "@/lib/data-service";
 import { DoubtsClient } from "./DoubtsClient";
 
 export const metadata: Metadata = {
@@ -15,9 +15,10 @@ export default async function DoubtsPage() {
 
   const userId = authData.user?.id || "demo-student-id";
 
-  const [profile, allExams] = await Promise.all([
+  const [profile, allExams, initialDoubts] = await Promise.all([
     getStudentProfile(userId),
     getExams(),
+    getStudentDoubts({ userId, includePublicAnswered: true }),
   ]);
 
   const targetExam = profile?.target_exam_id
@@ -32,6 +33,8 @@ export default async function DoubtsPage() {
       metrics={metrics}
       targetExam={targetExam}
       allExams={allExams}
+      initialDoubts={initialDoubts}
+      currentUserId={userId}
     />
   );
 }

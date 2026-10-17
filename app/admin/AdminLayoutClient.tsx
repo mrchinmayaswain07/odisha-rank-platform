@@ -19,6 +19,7 @@ import {
   ChevronRight,
   LogOut,
   GraduationCap,
+  MessageSquare,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { createClient } from "@/lib/supabase/client";
@@ -42,6 +43,7 @@ export const AdminLayoutClient: React.FC<AdminLayoutClientProps> = ({
     { name: "Courses & Exams", href: "/admin/courses", icon: Layers },
     { name: "Syllabus Hierarchy", href: "/admin/syllabus", icon: BookOpen },
     { name: "Question Bank", href: "/admin/questions", icon: HelpCircle },
+    { name: "Student Questions & Doubts", href: "/admin/questions?tab=doubts", icon: MessageSquare },
     { name: "Study Materials / PDFs", href: "/admin/materials", icon: FileText },
     { name: "Mock Test Builder", href: "/admin/mock-tests", icon: Clock },
     { name: "Student Directory", href: "/admin/students", icon: Users },

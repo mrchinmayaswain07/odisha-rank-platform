@@ -1,21 +1,21 @@
 import React from "react";
 import { Metadata } from "next";
-import { getPaginatedQuestions, getExams, getSubjects } from "@/lib/data-service";
+import { getPaginatedQuestions, getExams, getSubjects, getStudentDoubts } from "@/lib/data-service";
 import { QuestionManagerClient } from "./QuestionManagerClient";
 
 export const metadata: Metadata = {
-  title: "Question Bank & Evaluation Management",
-  description: "Curate verified multiple-choice questions, difficulty tiers, and manage CSV bulk imports.",
+  title: "Question Bank & Student Doubts Management",
+  description: "Curate verified multiple-choice questions, difficulty tiers, and answer student questions & doubts.",
 };
 
 export default async function AdminQuestionsPage({
   searchParams,
 }: {
-  searchParams?: { page?: string; exam?: string; subject?: string };
+  searchParams?: { page?: string; exam?: string; subject?: string; tab?: string };
 }) {
   const page = searchParams?.page ? Number(searchParams.page) : 1;
 
-  const [initialResult, exams, subjects] = await Promise.all([
+  const [initialResult, exams, subjects, initialDoubts] = await Promise.all([
     getPaginatedQuestions({
       page,
       pageSize: 10,
@@ -24,6 +24,7 @@ export default async function AdminQuestionsPage({
     }),
     getExams(true),
     getSubjects(undefined, true),
+    getStudentDoubts({ isAdmin: true }),
   ]);
 
   return (
@@ -31,6 +32,8 @@ export default async function AdminQuestionsPage({
       initialResult={initialResult}
       exams={exams}
       subjects={subjects}
+      initialDoubts={initialDoubts}
+      initialTab={searchParams?.tab === "doubts" ? "doubts" : "mcqs"}
     />
   );
 }

@@ -1,4 +1,4 @@
-import { Exam, Subject, Chapter, Topic, StudyMaterial, Question, MockTest } from "./types";
+import { Exam, Subject, Chapter, Topic, StudyMaterial, Question, MockTest, StudentDoubt } from "./types";
 
 export const SEED_EXAMS: Exam[] = [
   {
@@ -588,3 +588,93 @@ export const SEED_MOCK_TESTS: MockTest[] = [
     questions_count: 5
   }
 ];
+
+export const SEED_DOUBTS: StudentDoubt[] = [
+  {
+    id: "dbt-0001",
+    user_id: "user-satya-01",
+    student_name: "Satya Ranjan Patra",
+    student_email: "satya.patra@gmail.com",
+    subject: "General Studies & Odisha Special",
+    exam_id: "11111111-1111-1111-1111-111111111111",
+    question: "Which dynasty built the Konark Sun Temple and in which century?",
+    answer: "The Sun Temple at Konark was built in the 13th century (around 1250 CE) by King Narasimhadeva I of the Eastern Ganga Dynasty. It is a UNESCO World Heritage Site dedicated to the Sun God Surya, designed in the shape of a colossal chariot with 24 carved stone wheels.",
+    answered_by: "OdishaRank Academic Expert",
+    answered_at: new Date(Date.now() - 7200000).toISOString(),
+    status: "answered",
+    is_private: false,
+    upvotes: 14,
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 7200000).toISOString(),
+  },
+  {
+    id: "dbt-0002",
+    user_id: "user-priyanka-02",
+    student_name: "Priyanka Mohanty",
+    student_email: "priyanka.mohanty@gmail.com",
+    subject: "Exam Pattern & Scheme",
+    exam_id: "11111111-1111-1111-1111-111111111111",
+    question: "What is the exact negative marking scheme for OSSC CGL Prelims?",
+    answer: "In OSSC CGL Preliminary Examination, each question carries 1.0 mark. For every incorrect answer, 0.25 marks (one-fourth) are deducted. Unattempted questions incur no penalty.",
+    answered_by: "Official Examination Cell",
+    answered_at: new Date(Date.now() - 43200000).toISOString(),
+    status: "answered",
+    is_private: false,
+    upvotes: 28,
+    created_at: new Date(Date.now() - 172800000).toISOString(),
+    updated_at: new Date(Date.now() - 43200000).toISOString(),
+  },
+  {
+    id: "dbt-0003",
+    user_id: "user-rakesh-03",
+    student_name: "Rakesh Nayak",
+    student_email: "rakesh.nayak@gmail.com",
+    subject: "Arithmetic & Quantitative Aptitude",
+    exam_id: "11111111-1111-1111-1111-111111111111",
+    question: "How to quickly calculate compound interest for 3 years without formula?",
+    answer: "Use the ratio method! For 3 years, the compound interest ratio is 3 : 3 : 1. Calculate Simple Interest for 1 year (A), then Interest on A (B), and Interest on B (C). Total CI = 3A + 3B + 1C. This saves more than 60 seconds compared to standard formula substitution.",
+    answered_by: "Quantitative Aptitude Faculty",
+    answered_at: new Date(Date.now() - 86400000).toISOString(),
+    status: "answered",
+    is_private: false,
+    upvotes: 35,
+    created_at: new Date(Date.now() - 259200000).toISOString(),
+    updated_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: "dbt-0004",
+    user_id: "demo-student-id",
+    student_name: "Aspirant Scholar",
+    student_email: "student@odisharank.in",
+    subject: "General Studies & Odisha Special",
+    exam_id: "11111111-1111-1111-1111-111111111111",
+    question: "In the 1817 Paika Rebellion, what was the primary cause of unrest regarding salt manufacturing monopoly and land revenue in Khurda?",
+    answer: null,
+    answered_by: null,
+    answered_at: null,
+    status: "pending",
+    is_private: false,
+    upvotes: 3,
+    created_at: new Date(Date.now() - 1800000).toISOString(),
+    updated_at: new Date(Date.now() - 1800000).toISOString(),
+  },
+  {
+    id: "dbt-0005",
+    user_id: "demo-student-id",
+    student_name: "Aspirant Scholar",
+    student_email: "student@odisharank.in",
+    subject: "Exam Pattern & Scheme",
+    exam_id: "11111111-1111-1111-1111-111111111111",
+    question: "Can I claim SEBC category certificate relaxation if my domicile is Jagatsinghpur district?",
+    answer: "Yes, candidates belonging to SEBC category in Odisha holding a valid certificate issued within the prescribed validity period by the competent Tahsildar / Sub-Collector are eligible for age relaxation and reservation benefits as per GA & PG Department guidelines.",
+    answered_by: "Chief Academic Officer",
+    answered_at: new Date(Date.now() - 3600000).toISOString(),
+    status: "answered",
+    is_private: true,
+    upvotes: 1,
+    is_notified: false,
+    created_at: new Date(Date.now() - 7200000).toISOString(),
+    updated_at: new Date(Date.now() - 3600000).toISOString(),
+  }
+];
+

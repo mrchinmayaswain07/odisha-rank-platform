@@ -22,20 +22,28 @@ import {
   X,
   FileSpreadsheet,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
+import { StudentDoubt } from "@/lib/types";
+import { StudentQuestionsManager } from "./StudentQuestionsManager";
 
 interface QuestionManagerClientProps {
   initialResult: PaginatedResult<Question>;
   exams: Exam[];
   subjects: Subject[];
+  initialDoubts?: StudentDoubt[];
+  initialTab?: "mcqs" | "doubts";
 }
 
 export const QuestionManagerClient: React.FC<QuestionManagerClientProps> = ({
   initialResult,
   exams,
   subjects,
+  initialDoubts = [],
+  initialTab = "mcqs",
 }) => {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"mcqs" | "doubts">(initialTab);
   const [result, setResult] = useState<PaginatedResult<Question>>(initialResult);
 
   // Filters
@@ -263,40 +271,82 @@ export const QuestionManagerClient: React.FC<QuestionManagerClientProps> = ({
     }
   };
 
+  const pendingDoubtsCount = initialDoubts.filter((d) => d.status === "pending").length;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
-            <HelpCircle className="w-6 h-6 text-amber-500" />
-            <span>Question Bank Management</span>
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Curate MCQs with server-side validation, marks & negative marking, options, explanations, and bulk CSV ingestion.
-          </p>
-        </div>
+      {/* Top Nav Tabs */}
+      <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+        <button
+          onClick={() => setActiveTab("mcqs")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+            activeTab === "mcqs"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
+              : "text-slate-400 hover:text-white hover:bg-slate-800"
+          }`}
+        >
+          <HelpCircle className="w-4 h-4" />
+          <span>Curated MCQ Question Bank</span>
+        </button>
 
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => {
-              setImportStatus(null);
-              setShowBulkModal(true);
-            }}
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-slate-700 text-slate-300 hover:bg-slate-800"
-          >
-            <Upload className="w-4 h-4 text-emerald-400" />
-            <span>Bulk CSV Import</span>
-          </Button>
-
-          <Button onClick={openAddModal} size="sm" className="gap-1.5">
-            <Plus className="w-4 h-4" />
-            <span>Add Single MCQ</span>
-          </Button>
-        </div>
+        <button
+          onClick={() => setActiveTab("doubts")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+            activeTab === "doubts"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
+              : "text-slate-400 hover:text-white hover:bg-slate-800"
+          }`}
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span>Student Questions & Doubts</span>
+          {pendingDoubtsCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] animate-pulse">
+              {pendingDoubtsCount} Pending
+            </span>
+          )}
+        </button>
       </div>
+
+      {activeTab === "doubts" ? (
+        <StudentQuestionsManager
+          initialDoubts={initialDoubts}
+          exams={exams}
+          subjects={subjects}
+        />
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
+                <HelpCircle className="w-6 h-6 text-amber-500" />
+                <span>Question Bank Management</span>
+              </h1>
+              <p className="text-xs text-slate-400 mt-1">
+                Curate MCQs with server-side validation, marks & negative marking, options, explanations, and bulk CSV ingestion.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  setImportStatus(null);
+                  setShowBulkModal(true);
+                }}
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                <Upload className="w-4 h-4 text-emerald-400" />
+                <span>Bulk CSV Import</span>
+              </Button>
+
+              <Button onClick={openAddModal} size="sm" className="gap-1.5">
+                <Plus className="w-4 h-4" />
+                <span>Add Single MCQ</span>
+              </Button>
+            </div>
+          </div>
 
       {/* Filter Bar */}
       <Card className="p-4 bg-slate-950 border-slate-800">
@@ -488,6 +538,8 @@ export const QuestionManagerClient: React.FC<QuestionManagerClientProps> = ({
           </div>
         </div>
       </Card>
+      </>
+      )}
 
       {/* Add / Edit Question Modal */}
       {showQuestionModal && (

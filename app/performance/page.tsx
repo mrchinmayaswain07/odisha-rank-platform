@@ -1,7 +1,7 @@
 import React from "react";
 import { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { getStudentProfile, getDashboardMetrics, getExams } from "@/lib/data-service";
+import { getStudentProfile, getDashboardMetrics, getExams, getPerformanceAnalytics } from "@/lib/data-service";
 import { PerformanceClient } from "./PerformanceClient";
 
 export const metadata: Metadata = {
@@ -24,12 +24,16 @@ export default async function PerformancePage() {
     ? allExams.find((e) => e.id === profile.target_exam_id) || null
     : allExams[0] || null;
 
-  const metrics = await getDashboardMetrics(userId, targetExam?.id);
+  const [metrics, analytics] = await Promise.all([
+    getDashboardMetrics(userId, targetExam?.id),
+    getPerformanceAnalytics(userId, targetExam?.id),
+  ]);
 
   return (
     <PerformanceClient
       profile={profile}
       metrics={metrics}
+      analytics={analytics}
       targetExam={targetExam}
       allExams={allExams}
     />

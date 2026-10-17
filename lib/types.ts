@@ -276,3 +276,58 @@ export interface StudentListItem {
   is_profile_completed: boolean;
   created_at: string;
 }
+
+export type DoubtStatus = "pending" | "answered" | "resolved";
+
+export interface StudentDoubt {
+  id: string;
+  user_id: string;
+  student_name: string;
+  student_email?: string;
+  subject: string;
+  exam_id?: string | null;
+  question: string;
+  answer?: string | null;
+  answered_by?: string | null;
+  answered_at?: string | null;
+  status: DoubtStatus;
+  is_private: boolean;
+  upvotes: number;
+  is_notified?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubjectPerformance {
+  subject_id: string;
+  name: string;
+  questions: number;
+  correct: number;
+  accuracy: number;
+  strength: "Strong" | "Moderate" | "Needs Practice" | "Unattempted";
+}
+
+export interface RecommendedFocusItem {
+  title: string;
+  description: string;
+  type: "subject" | "topic";
+  variant: "amber" | "blue";
+}
+
+export interface PerformanceAnalyticsData {
+  overall_accuracy: number | null; // null if 0 attempts
+  total_questions_attempted: number;
+  total_correct: number;
+  exam_readiness_score: number;
+  readiness_label: string;
+  avg_speed_seconds: number | null; // null if 0 attempts with duration
+  speed_label: string;
+  total_study_hours: number;
+  study_hours_label: string;
+  estimated_state_rank: string | null; // null if insufficient data
+  rank_subtitle: string;
+  has_sufficient_data: boolean;
+  subject_breakdown: SubjectPerformance[];
+  recommended_focus: RecommendedFocusItem[];
+}
+

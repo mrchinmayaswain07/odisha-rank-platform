@@ -360,12 +360,15 @@ async function runTests() {
       exam_id: "exam-cgl",
       title: "Odisha Freedom Struggle & Paika Rebellion Notes",
       description: "Official summary of 1817 Paika Rebellion led by Bakshi Jagabandhu.",
-      material_type: "notes" as const,
+      material_type: "note" as const,
       category: "notes" as const,
+      url: "",
       file_url: "",
       file_size: 154000,
       content: "# Paika Rebellion 1817\nLed by Bakshi Jagabandhu in Khurda.",
       status: "published" as const,
+      is_official: true,
+      created_by: null,
       download_count: 0,
       created_at: new Date().toISOString(),
     };
@@ -606,6 +609,136 @@ async function runTests() {
     // Verify client-side Supabase configuration does NOT expose Service Role key
     const mobileSupabaseCode = fs.readFileSync(path.resolve(__dirname, "../mobile/src/lib/supabase.ts"), "utf-8");
     assert(!mobileSupabaseCode.includes("SUPABASE_SERVICE_ROLE_KEY"), "Mobile client never imports or references SUPABASE_SERVICE_ROLE_KEY (Zero leakage)");
+  }
+
+  // TEST 18: Ask Doubts, Admin Answers & Privacy Isolation
+  console.log("\n18. ASK DOUBTS, ADMIN ANSWERS & PRIVACY ISOLATION");
+  {
+    const {
+      getStudentDoubts,
+      createStudentDoubt,
+      updateStudentDoubtAnswer,
+    } = await import("../lib/data-service");
+
+    const student1 = "user-test-student-101";
+    const student2 = "user-test-student-102";
+
+    // 1. Student creates a public doubt
+    const publicDoubt = await createStudentDoubt({
+      user_id: student1,
+      student_name: "Subhashree Mohanty",
+      student_email: "subhashree@test.com",
+      subject: "General Studies & Odisha Special",
+      question: "What is the historical significance of Barabati Fort in Cuttack?",
+      is_private: false,
+    });
+    assert(publicDoubt.status === "pending", "Newly submitted student doubt has status 'pending'");
+
+    // 2. Student creates a private doubt
+    const privateDoubt = await createStudentDoubt({
+      user_id: student1,
+      student_name: "Subhashree Mohanty",
+      student_email: "subhashree@test.com",
+      subject: "Exam Pattern & Scheme",
+      question: "Will non-creamy layer OBC certificate from 2025 be accepted?",
+      is_private: true,
+    });
+    assert(privateDoubt.is_private === true, "Private doubt created with is_private = true");
+
+    // 3. Admin can view both doubts under student questions
+    const adminDoubts = await getStudentDoubts({ isAdmin: true });
+    assert(adminDoubts.some((d) => d.id === publicDoubt.id), "Admin sees public student question in student questions section");
+    assert(adminDoubts.some((d) => d.id === privateDoubt.id), "Admin sees private student question with student details and date");
+
+    // 4. Admin answers the student's question and updates status
+    const answeredDoubt = await updateStudentDoubtAnswer(publicDoubt.id, {
+      answer: "Barabati Fort was built in 987 CE by King Marakata Keshari of the Somavamshi dynasty (and renovated by the Ganga rulers). It served as the capital fortress of Odisha.",
+      answered_by: "OdishaRank Academic Expert",
+      status: "answered",
+    });
+    assert(answeredDoubt?.status === "answered", "Admin successfully answers doubt and updates status to 'answered'");
+    assert(answeredDoubt?.is_notified === false, "Student notification triggered (is_notified set to false upon answering)");
+
+    // 5. Correct student sees their answered question in their doubts section
+    const student1Doubts = await getStudentDoubts({ userId: student1, includePublicAnswered: true });
+    const foundInStudent1 = student1Doubts.find((d) => d.id === publicDoubt.id);
+    assert(foundInStudent1?.answer !== null, "Answer appears in the correct student's Doubts section");
+    assert(student1Doubts.some((d) => d.id === privateDoubt.id), "Student sees their own private doubt");
+
+    // 6. Privacy Isolation: another student CANNOT see student1's private doubt
+    const student2Doubts = await getStudentDoubts({ userId: student2, includePublicAnswered: true });
+    assert(!student2Doubts.some((d) => d.id === privateDoubt.id), "Private doubt is strictly invisible to other students (Privacy Isolation)");
+    assert(student2Doubts.some((d) => d.id === publicDoubt.id), "Other student sees answered public doubt in Recent Answered Doubts");
+  }
+
+  // TEST 19: Authentic Dynamic Performance Analytics Calculations
+  console.log("\n19. AUTHENTIC DYNAMIC PERFORMANCE ANALYTICS CALCULATIONS");
+  {
+    const {
+      getPerformanceAnalytics,
+      saveRuntimeQuestionAttempt,
+      saveRuntimeStudySession,
+    } = await import("../lib/data-service");
+
+    const freshUserId = "user-fresh-student-" + Date.now();
+
+    // 1. Fresh student with 0 attempts has 0% or null accuracy (No fake 78% or fake rankings)
+    const freshAnalytics = await getPerformanceAnalytics(freshUserId);
+    assert(freshAnalytics.overall_accuracy === null, "Overall accuracy is null for student with 0 question attempts");
+    assert(freshAnalytics.total_questions_attempted === 0, "Total questions attempted is 0");
+    assert(freshAnalytics.avg_speed_seconds === null, "Average speed is null for student with 0 attempts");
+    assert(freshAnalytics.total_study_hours === 0, "Total study hours is 0 when no study sessions logged");
+    assert(freshAnalytics.has_sufficient_data === false, "Student with no attempts is flagged with insufficient data");
+    assert(freshAnalytics.estimated_state_rank === null, "State rank is strictly null/unavailable when data is insufficient (No fake rank)");
+
+    // 2. Student attempts 4 questions: 3 correct, 1 incorrect with specific durations
+    saveRuntimeQuestionAttempt({
+      user_id: freshUserId,
+      question_id: "q-11111111-1111-1111-1111-111111111111",
+      selected_option_index: 1,
+      is_correct: true,
+      time_taken_seconds: 30,
+    });
+    saveRuntimeQuestionAttempt({
+      user_id: freshUserId,
+      question_id: "q-22222222-2222-2222-2222-222222222222",
+      selected_option_index: 2,
+      is_correct: true,
+      time_taken_seconds: 40,
+    });
+    saveRuntimeQuestionAttempt({
+      user_id: freshUserId,
+      question_id: "q-33333333-3333-3333-3333-333333333333",
+      selected_option_index: 0,
+      is_correct: false,
+      time_taken_seconds: 50,
+    });
+    saveRuntimeQuestionAttempt({
+      user_id: freshUserId,
+      question_id: "q-44444444-4444-4444-4444-444444444444",
+      selected_option_index: 1,
+      is_correct: true,
+      time_taken_seconds: 60,
+    });
+
+    // 3. Log 120 minutes of verified study session
+    saveRuntimeStudySession({
+      user_id: freshUserId,
+      duration_minutes: 120,
+    });
+
+    // 4. Re-calculate analytics
+    const updatedAnalytics = await getPerformanceAnalytics(freshUserId);
+    assert(updatedAnalytics.total_questions_attempted === 4, "Total questions attempted equals 4");
+    assert(updatedAnalytics.total_correct === 3, "Total correct answers equals 3");
+    assert(updatedAnalytics.overall_accuracy === 75, "Overall accuracy accurately calculates: (3/4) * 100 = 75%");
+    assert(updatedAnalytics.total_study_hours === 2, "Total study hours calculates accurately: 120 mins = 2.0 hrs");
+    assert(updatedAnalytics.avg_speed_seconds === 45, "Average speed per MCQ calculates accurately: (30 + 40 + 50 + 60) / 4 = 45 sec");
+    assert(updatedAnalytics.speed_label === "Fast Pace", "45 sec pace correctly classified as 'Fast Pace'");
+
+    // 5. Subject breakdown reflection
+    assert(Array.isArray(updatedAnalytics.subject_breakdown), "Subject breakdown is array of real subjects");
+    assert(updatedAnalytics.recommended_focus.length > 0, "Recommended focus provides targeted guidance based on actual weak areas");
   }
 
   console.log("\n=================================================");
