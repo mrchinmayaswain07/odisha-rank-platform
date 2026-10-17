@@ -9,6 +9,7 @@ import {
   MockTest,
   Profile,
   DashboardMetrics,
+  StudentDoubt,
   evaluateMockTestScoring,
   calculateProgress,
   calculateStudyStreak,
@@ -656,18 +657,21 @@ export async function getDashboardMetrics(
   targetExamId?: string | null
 ): Promise<DashboardMetrics> {
   try {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const currentMonthPrefix = new Date().toISOString().slice(0, 7);
+
     const [
       sessionsRes,
-      questionsCountRes,
-      mocksCountRes,
+      questionsRes,
+      mocksRes,
       userProgressRes,
       activitiesRes,
       courseSubjectsRes,
       personalTopicsRes,
     ] = await Promise.all([
       supabase.from("study_sessions").select("duration_minutes, session_date").eq("user_id", userId),
-      supabase.from("question_attempts").select("*", { count: "exact", head: true }).eq("user_id", userId),
-      supabase.from("mock_test_attempts").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("status", "completed"),
+      supabase.from("question_attempts").select("id, is_correct, created_at").eq("user_id", userId),
+      supabase.from("mock_test_attempts").select("id, score, accuracy, completed_at, created_at").eq("user_id", userId).eq("status", "completed"),
       supabase.from("student_topic_progress").select("topic_id").eq("user_id", userId).eq("status", "completed"),
       supabase.from("student_activity").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(6),
       targetExamId
@@ -680,6 +684,19 @@ export async function getDashboardMetrics(
     const totalMinutes = sessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
     const studyHours = Math.round((totalMinutes / 60) * 10) / 10;
     const studyStreakDays = calculateStudyStreak(sessions.map((s) => s.session_date));
+
+    const sessionsToday = sessions.filter((s: any) => s.session_date === todayStr);
+    const studyHoursToday = Math.round((sessionsToday.reduce((sum: number, s: any) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10;
+
+    const attempts = questionsRes.data || [];
+    const questionsPracticed = attempts.length;
+    const questionsToday = attempts.filter((a: any) => a.created_at?.startsWith(todayStr)).length;
+    const correctCount = attempts.filter((a: any) => a.is_correct).length;
+    const accuracyPercentage = questionsPracticed > 0 ? Math.round((correctCount / questionsPracticed) * 100) : 0;
+
+    const mockAttempts = mocksRes.data || [];
+    const mockTestsCompleted = mockAttempts.length;
+    const mockTestsThisMonth = mockAttempts.filter((m: any) => (m.completed_at || m.created_at)?.startsWith(currentMonthPrefix)).length;
 
     const completedTopicIds = new Set((userProgressRes.data || []).map((p) => p.topic_id));
     const subjects = courseSubjectsRes.data || [];
@@ -722,8 +739,12 @@ export async function getDashboardMetrics(
 
     return {
       study_hours: studyHours,
-      questions_practiced: questionsCountRes.count ?? 0,
-      mock_tests_completed: mocksCountRes.count ?? 0,
+      study_hours_today: studyHoursToday,
+      questions_practiced: questionsPracticed,
+      questions_practiced_today: questionsToday,
+      accuracy_percentage: accuracyPercentage,
+      mock_tests_completed: mockTestsCompleted,
+      mock_tests_this_month: mockTestsThisMonth,
       study_streak_days: studyStreakDays,
       official_progress_percentage: officialProgressPercentage,
       personal_progress_percentage: personalProgressPercentage,
@@ -738,8 +759,12 @@ export async function getDashboardMetrics(
     console.warn("Failed to load dashboard metrics:", err);
     return {
       study_hours: 0,
+      study_hours_today: 0,
       questions_practiced: 0,
+      questions_practiced_today: 0,
+      accuracy_percentage: 0,
       mock_tests_completed: 0,
+      mock_tests_this_month: 0,
       study_streak_days: 0,
       official_progress_percentage: 0,
       personal_progress_percentage: 0,
@@ -750,5 +775,125 @@ export async function getDashboardMetrics(
       recent_activities: [],
       subject_progress: [],
     };
+  }
+}
+
+/**
+ * Fetch student doubts & questions
+ */
+export async function getStudentDoubts(userId: string): Promise<StudentDoubt[]> {
+  try {
+    const { data, error } = await supabase
+      .from("student_doubts")
+      .select("*")
+      .or(`user_id.eq.${userId},is_private.eq.false`)
+      .order("created_at", { ascending: false });
+
+    if (!error && data && Array.isArray(data)) {
+      return data as StudentDoubt[];
+    }
+  } catch {
+    // Non-blocking
+  }
+
+  // Fallback to study_sessions duration 99999
+  try {
+    const { data: rows } = await supabase
+      .from("study_sessions")
+      .select("id, notes")
+      .eq("duration_minutes", 99999);
+
+    if (rows && Array.isArray(rows)) {
+      const parsedDoubts: StudentDoubt[] = [];
+      for (const row of rows) {
+        try {
+          if (row.notes) {
+            const parsed = JSON.parse(row.notes);
+            if (parsed.type === "student_doubt" && parsed.id) {
+              if (parsed.user_id === userId || !parsed.is_private) {
+                parsedDoubts.push(parsed as StudentDoubt);
+              }
+            }
+          }
+        } catch {}
+      }
+      return parsedDoubts;
+    }
+  } catch {}
+
+  return [];
+}
+
+/**
+ * Create a new student question / doubt
+ */
+export async function createStudentDoubt(payload: {
+  user_id: string;
+  student_name: string;
+  student_email?: string;
+  subject: string;
+  exam_id?: string | null;
+  question: string;
+  is_private?: boolean;
+}): Promise<StudentDoubt | null> {
+  const newDoubt: StudentDoubt = {
+    id: `doubt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    user_id: payload.user_id,
+    student_name: payload.student_name,
+    student_email: payload.student_email,
+    subject: payload.subject,
+    exam_id: payload.exam_id,
+    question: payload.question,
+    status: "pending",
+    is_private: !!payload.is_private,
+    upvotes: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from("student_doubts")
+      .insert(newDoubt)
+      .select()
+      .single();
+
+    if (!error && data) {
+      return data as StudentDoubt;
+    }
+  } catch {}
+
+  // Fallback persistence via study_sessions (duration 99999)
+  try {
+    await supabase.from("study_sessions").insert({
+      user_id: payload.user_id,
+      session_date: new Date().toISOString().split("T")[0],
+      duration_minutes: 99999,
+      notes: JSON.stringify({ type: "student_doubt", ...newDoubt }),
+    });
+  } catch {}
+
+  return newDoubt;
+}
+
+/**
+ * Log a study session
+ */
+export async function logStudySession(payload: {
+  userId: string;
+  durationMinutes: number;
+  notes?: string;
+  sessionDate?: string;
+}): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("study_sessions").insert({
+      user_id: payload.userId,
+      duration_minutes: payload.durationMinutes,
+      notes: payload.notes || "Mobile study revision",
+      session_date: payload.sessionDate || new Date().toISOString().split("T")[0],
+    });
+    return !error;
+  } catch {
+    return false;
   }
 }

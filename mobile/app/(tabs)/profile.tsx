@@ -204,6 +204,14 @@ export default function ProfileScreen() {
               <Text style={styles.contactValue}>{SITE_CONFIG.contact.supportHours}</Text>
             </View>
           </View>
+
+          <TouchableOpacity
+            style={styles.switchButton}
+            onPress={() => router.push("/doubts" as any)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.switchText}>Ask Faculty Doubts & Q&A &rarr;</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Logout Button */}

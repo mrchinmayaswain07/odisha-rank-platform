@@ -1077,20 +1077,98 @@ export async function getStudentProfile(userId: string): Promise<Profile | null>
  * 3. Never leaks or mixes up progress across different courses or custom topics.
  */
 export async function getDashboardMetrics(userId: string, targetExamId?: string | null): Promise<DashboardMetrics> {
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const todayStr = new Date().toISOString().split("T")[0];
+  const yesterday = new Date(Date.now() - 86400000);
+  const yesterdayStr = yesterday.toISOString().split("T")[0];
+  const currentMonthPrefix = new Date().toISOString().slice(0, 7);
+
   if (!isSupabaseConfigured()) {
     const runtimeSessions = getRuntimeStudySessions(userId);
     const runtimeAtts = getRuntimeQuestionAttempts(userId);
     const totalMin = runtimeSessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
     const studyHours = Math.round((totalMin / 60) * 10) / 10;
+
+    const sessionsToday = runtimeSessions.filter((s) => s.session_date === todayStr);
+    const studyHoursToday = Math.round((sessionsToday.reduce((sum, s) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10;
+    const sessionsYesterday = runtimeSessions.filter((s) => s.session_date === yesterdayStr);
+    const studyHoursYesterday = Math.round((sessionsYesterday.reduce((sum, s) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10;
+    const studyHoursDeltaPct =
+      studyHoursYesterday > 0
+        ? Math.round(((studyHoursToday - studyHoursYesterday) / studyHoursYesterday) * 100)
+        : studyHoursToday > 0
+        ? 100
+        : 0;
+
     const questionsPracticed = runtimeAtts.length;
+    const questionsToday = runtimeAtts.filter((a) => a.created_at?.startsWith(todayStr)).length;
+    const questionsYesterday = runtimeAtts.filter((a) => a.created_at?.startsWith(yesterdayStr)).length;
+    const questionsDeltaPct =
+      questionsYesterday > 0
+        ? Math.round(((questionsToday - questionsYesterday) / questionsYesterday) * 100)
+        : questionsToday > 0
+        ? 100
+        : 0;
+
     const correctCount = runtimeAtts.filter((a) => a.is_correct).length;
     const accuracy = questionsPracticed > 0 ? Math.round((correctCount / questionsPracticed) * 100) : 0;
 
+    const weeklyStats = [];
+    const sparklineStudyHours = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateIso = d.toISOString().split("T")[0];
+      const dayAttempts = runtimeAtts.filter((a) => a.created_at?.startsWith(dateIso));
+      const qCount = dayAttempts.length;
+      const dayCorrect = dayAttempts.filter((a) => a.is_correct).length;
+      weeklyStats.push({
+        date: `${monthNames[d.getMonth()]} ${d.getDate()}`,
+        dayLabel: dayNames[d.getDay()][0],
+        questionsCount: qCount,
+        accuracyPercentage: qCount > 0 ? Math.round((dayCorrect / qCount) * 100) : 0,
+      });
+      const daySessions = runtimeSessions.filter((s) => s.session_date === dateIso);
+      const dayHours = Math.round((daySessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10;
+      sparklineStudyHours.push(dayHours);
+    }
+
+    const monthlyStats = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateIso = d.toISOString().split("T")[0];
+      const dayAttempts = runtimeAtts.filter((a) => a.created_at?.startsWith(dateIso));
+      const qCount = dayAttempts.length;
+      const dayCorrect = dayAttempts.filter((a) => a.is_correct).length;
+      monthlyStats.push({
+        date: `${monthNames[d.getMonth()]} ${d.getDate()}`,
+        dayLabel: dayNames[d.getDay()][0],
+        questionsCount: qCount,
+        accuracyPercentage: qCount > 0 ? Math.round((dayCorrect / qCount) * 100) : 0,
+      });
+    }
+
     return {
       study_hours: studyHours,
+      study_hours_today: studyHoursToday,
+      study_hours_yesterday: studyHoursYesterday,
+      study_hours_delta_pct: studyHoursDeltaPct,
       questions_practiced: questionsPracticed,
+      questions_practiced_today: questionsToday,
+      questions_practiced_yesterday: questionsYesterday,
+      questions_delta_pct: questionsDeltaPct,
       accuracy_percentage: accuracy,
+      accuracy_today: accuracy,
+      accuracy_this_week: accuracy,
+      accuracy_last_week: accuracy,
+      accuracy_delta_pct: 0,
       mock_tests_completed: 0,
+      mock_tests_this_month: 0,
+      mock_tests_sparkline: [0, 0, 0, 0, 0, 0, 0],
+      sparkline_study_hours: sparklineStudyHours,
+      sparkline_questions: weeklyStats.map((w) => w.questionsCount),
       study_streak_days: runtimeSessions.length > 0 ? 1 : 0,
       official_progress_percentage: 0,
       personal_progress_percentage: 0,
@@ -1106,6 +1184,8 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
         completed_topics: 0,
         progress_percentage: 0,
       })),
+      weekly_stats: weeklyStats,
+      monthly_stats: monthlyStats,
     };
   }
 
@@ -1116,7 +1196,7 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
     const [
       sessionsRes,
       questionsCountRes,
-      mocksCountRes,
+      mocksRes,
       userProgressRes,
       activitiesRes,
       courseSubjectsRes,
@@ -1134,12 +1214,13 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
         .select("id, is_correct, created_at")
         .eq("user_id", userId),
 
-      // 3. Mock tests completed count
+      // 3. Mock tests completed
       supabase
         .from("mock_test_attempts")
-        .select("*", { count: "exact", head: true })
+        .select("id, score, accuracy, completed_at, created_at")
         .eq("user_id", userId)
-        .eq("status", "completed"),
+        .eq("status", "completed")
+        .order("completed_at", { ascending: false }),
 
       // 4. Student topic progress (completed topics)
       supabase
@@ -1181,6 +1262,25 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
     const sessions = [...(sessionsRes.data || []), ...runtimeSessions];
     const totalMinutes = sessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
     const studyHours = Math.round((totalMinutes / 60) * 10) / 10;
+
+    const sessionsToday = sessions.filter((s: any) => s.session_date === todayStr);
+    const studyHoursToday =
+      sessionsToday.length > 0
+        ? Math.round((sessionsToday.reduce((sum: number, s: any) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10
+        : 0;
+
+    const sessionsYesterday = sessions.filter((s: any) => s.session_date === yesterdayStr);
+    const studyHoursYesterday =
+      sessionsYesterday.length > 0
+        ? Math.round((sessionsYesterday.reduce((sum: number, s: any) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10
+        : 0;
+
+    const studyHoursDeltaPct =
+      studyHoursYesterday > 0
+        ? Math.round(((studyHoursToday - studyHoursYesterday) / studyHoursYesterday) * 100)
+        : studyHoursToday > 0
+        ? 100
+        : 0;
 
     // Compute Streak Days
     const sessionDates = new Set(sessions.map((s) => s.session_date));
@@ -1250,22 +1350,43 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
     const runtimeAtts = getRuntimeQuestionAttempts(userId);
     const attempts = [...(questionsCountRes.data || []), ...runtimeAtts];
     const questionsPracticed = attempts.length;
-    const todayStr = new Date().toISOString().split("T")[0];
     const questionsToday = attempts.filter((a: any) => a.created_at?.startsWith(todayStr)).length;
+    const questionsYesterday = attempts.filter((a: any) => a.created_at?.startsWith(yesterdayStr)).length;
+    const questionsDeltaPct =
+      questionsYesterday > 0
+        ? Math.round(((questionsToday - questionsYesterday) / questionsYesterday) * 100)
+        : questionsToday > 0
+        ? 100
+        : 0;
+
     const correctCount = attempts.filter((a: any) => a.is_correct).length;
     const accuracyPercentage =
       questionsPracticed > 0 ? Math.round((correctCount / questionsPracticed) * 100) : 0;
 
-    const sessionsToday = sessions.filter((s: any) => s.session_date === todayStr);
-    const studyHoursToday =
-      sessionsToday.length > 0
-        ? Math.round((sessionsToday.reduce((sum: number, s: any) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10
-        : studyHours > 0 ? Math.min(studyHours, 1.8) : 0;
+    const todayAttempts = attempts.filter((a: any) => a.created_at?.startsWith(todayStr));
+    const todayCorrect = todayAttempts.filter((a: any) => a.is_correct).length;
+    const accuracyToday =
+      todayAttempts.length > 0 ? Math.round((todayCorrect / todayAttempts.length) * 100) : accuracyPercentage;
+
+    // Week over week accuracy: last 7 days vs previous 7 days
+    const sevenDaysAgoIso = new Date(Date.now() - 7 * 86400000).toISOString();
+    const fourteenDaysAgoIso = new Date(Date.now() - 14 * 86400000).toISOString();
+    const thisWeekAtts = attempts.filter((a: any) => a.created_at >= sevenDaysAgoIso);
+    const lastWeekAtts = attempts.filter((a: any) => a.created_at >= fourteenDaysAgoIso && a.created_at < sevenDaysAgoIso);
+
+    const accThisWeek = thisWeekAtts.length > 0 ? Math.round((thisWeekAtts.filter((a: any) => a.is_correct).length / thisWeekAtts.length) * 100) : 0;
+    const accLastWeek = lastWeekAtts.length > 0 ? Math.round((lastWeekAtts.filter((a: any) => a.is_correct).length / lastWeekAtts.length) * 100) : 0;
+    const accuracyDeltaPct = accLastWeek > 0 ? accThisWeek - accLastWeek : accThisWeek > 0 ? accThisWeek : 0;
+
+    // Mock tests dynamic stats
+    const mockAttempts = mocksRes.data || [];
+    const mockTestsCompleted = mockAttempts.length;
+    const mockTestsThisMonth = mockAttempts.filter((m: any) => (m.completed_at || m.created_at)?.startsWith(currentMonthPrefix)).length;
+    const mockTestsSparkline = mockAttempts.slice(0, 7).reverse().map((m: any) => Math.min(100, Math.max(0, Number(m.accuracy || m.score || 0))));
 
     // Last 7 days weekly performance breakdown
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const weeklyStats = [];
+    const sparklineStudyHours = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
@@ -1275,8 +1396,32 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
       const dayAttempts = attempts.filter((a: any) => a.created_at?.startsWith(dateIso));
       const qCount = dayAttempts.length;
       const dayCorrect = dayAttempts.filter((a: any) => a.is_correct).length;
-      const acc = qCount > 0 ? Math.round((dayCorrect / qCount) * 100) : 70 + ((6 - i) * 2);
+      const acc = qCount > 0 ? Math.round((dayCorrect / qCount) * 100) : 0;
       weeklyStats.push({
+        date: dateLabel,
+        dayLabel,
+        questionsCount: qCount,
+        accuracyPercentage: acc,
+      });
+
+      const daySessions = sessions.filter((s: any) => s.session_date === dateIso);
+      const dayHours = Math.round((daySessions.reduce((sum: number, s: any) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10;
+      sparklineStudyHours.push(dayHours);
+    }
+
+    // Last 30 days monthly performance breakdown
+    const monthlyStats = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateIso = d.toISOString().split("T")[0];
+      const dateLabel = `${monthNames[d.getMonth()]} ${d.getDate()}`;
+      const dayLabel = dayNames[d.getDay()][0];
+      const dayAttempts = attempts.filter((a: any) => a.created_at?.startsWith(dateIso));
+      const qCount = dayAttempts.length;
+      const dayCorrect = dayAttempts.filter((a: any) => a.is_correct).length;
+      const acc = qCount > 0 ? Math.round((dayCorrect / qCount) * 100) : 0;
+      monthlyStats.push({
         date: dateLabel,
         dayLabel,
         questionsCount: qCount,
@@ -1305,10 +1450,22 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
     return {
       study_hours: studyHours,
       study_hours_today: studyHoursToday,
+      study_hours_yesterday: studyHoursYesterday,
+      study_hours_delta_pct: studyHoursDeltaPct,
       questions_practiced: questionsPracticed,
       questions_practiced_today: questionsToday,
+      questions_practiced_yesterday: questionsYesterday,
+      questions_delta_pct: questionsDeltaPct,
       accuracy_percentage: accuracyPercentage,
-      mock_tests_completed: mocksCountRes.count || 0,
+      accuracy_today: accuracyToday,
+      accuracy_this_week: accThisWeek,
+      accuracy_last_week: accLastWeek,
+      accuracy_delta_pct: accuracyDeltaPct,
+      mock_tests_completed: mockTestsCompleted,
+      mock_tests_this_month: mockTestsThisMonth,
+      mock_tests_sparkline: mockTestsSparkline.length > 0 ? mockTestsSparkline : [0, 0, 0, 0, 0, 0, 0],
+      sparkline_study_hours: sparklineStudyHours,
+      sparkline_questions: weeklyStats.map((w) => w.questionsCount),
       study_streak_days: streakDays,
       official_progress_percentage: officialProgress,
       personal_progress_percentage: personalProgress,
@@ -1319,14 +1476,30 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
       recent_activities: (activitiesRes.data || []) as StudentActivity[],
       subject_progress: subjectProgress,
       weekly_stats: weeklyStats,
+      monthly_stats: monthlyStats,
       recommended_topics: recommendedTopics,
     };
   } catch (err) {
     console.error("getDashboardMetrics error:", err);
     return {
       study_hours: 0,
+      study_hours_today: 0,
+      study_hours_yesterday: 0,
+      study_hours_delta_pct: 0,
       questions_practiced: 0,
+      questions_practiced_today: 0,
+      questions_practiced_yesterday: 0,
+      questions_delta_pct: 0,
+      accuracy_percentage: 0,
+      accuracy_today: 0,
+      accuracy_this_week: 0,
+      accuracy_last_week: 0,
+      accuracy_delta_pct: 0,
       mock_tests_completed: 0,
+      mock_tests_this_month: 0,
+      mock_tests_sparkline: [0, 0, 0, 0, 0, 0, 0],
+      sparkline_study_hours: [0, 0, 0, 0, 0, 0, 0],
+      sparkline_questions: [0, 0, 0, 0, 0, 0, 0],
       study_streak_days: 0,
       official_progress_percentage: 0,
       personal_progress_percentage: 0,
@@ -1336,6 +1509,9 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
       completed_personal_topics: 0,
       recent_activities: [],
       subject_progress: [],
+      weekly_stats: [],
+      monthly_stats: [],
+      recommended_topics: [],
     };
   }
 }

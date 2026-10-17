@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -127,10 +127,13 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   const [isLogging, setIsLogging] = useState(false);
 
   // Dynamic study plan checklist derived from active course topics
+  // Dynamic study plan checklist derived from active course topics
   const initialStudyPlan = useMemo(() => {
     if (metrics.recommended_topics && metrics.recommended_topics.length > 0) {
       return metrics.recommended_topics.map((t) => ({
         id: `sp-${t.topic_id}`,
+        topic_id: t.topic_id,
+        subject_id: t.subject_id,
         title: `${t.subject_name} – ${t.topic_title}`,
         description: `Read official syllabus notes & complete practice questions`,
         duration: `${t.estimated_minutes} min`,
@@ -143,6 +146,8 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
     return [
       {
         id: "sp-1",
+        topic_id: "sp-1",
+        subject_id: "s-1",
         title: `${examCode} General Studies – Indian Polity`,
         description: "Read notes and complete practice questions",
         duration: "60 min",
@@ -151,6 +156,8 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
       },
       {
         id: "sp-2",
+        topic_id: "sp-2",
+        subject_id: "s-1",
         title: "Odisha Special – History & Geography of Odisha",
         description: "Complete topic reading and review key dates",
         duration: "45 min",
@@ -159,6 +166,8 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
       },
       {
         id: "sp-3",
+        topic_id: "sp-3",
+        subject_id: "s-2",
         title: "Quantitative Aptitude – Simplification & Number System",
         description: "Practice 25 exam-pattern questions",
         duration: "45 min",
@@ -167,6 +176,8 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
       },
       {
         id: "sp-4",
+        topic_id: "sp-4",
+        subject_id: "s-3",
         title: `Take a Mock Test (${examCode} Sectional)`,
         description: "Attempt full time-bound simulation test",
         duration: "60 min",
@@ -178,12 +189,88 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
 
   const [studyPlan, setStudyPlan] = useState(initialStudyPlan);
 
-  const toggleStudyPlan = (id: string) => {
+  // Sync saved completions from localStorage on client load
+  useEffect(() => {
+    try {
+      const storageKey = `odisha_study_plan_completed_${targetExam?.id || "global"}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const completedIds = new Set(JSON.parse(saved));
+        setStudyPlan((prev) =>
+          prev.map((item) => ({
+            ...item,
+            completed: completedIds.has(item.id) || completedIds.has(item.topic_id),
+          }))
+        );
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [targetExam]);
+
+  const toggleStudyPlan = async (id: string) => {
+    const item = studyPlan.find((i) => i.id === id);
+    if (!item) return;
+
+    const willBeCompleted = !item.completed;
+
+    // 1. Optimistic UI update
     setStudyPlan((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, completed: !item.completed } : item
-      )
+      prev.map((t) => (t.id === id ? { ...t, completed: willBeCompleted } : t))
     );
+
+    // 2. Persist in localStorage
+    try {
+      const storageKey = `odisha_study_plan_completed_${targetExam?.id || "global"}`;
+      const currentCompleted = studyPlan
+        .filter((t) => (t.id === id ? willBeCompleted : t.completed))
+        .map((t) => t.id);
+      localStorage.setItem(storageKey, JSON.stringify(currentCompleted));
+    } catch {
+      // Ignore storage errors
+    }
+
+    // 3. Dynamically update currentMetrics (Donut chart & Subject bars update instantly)
+    setCurrentMetrics((prev) => {
+      const delta = willBeCompleted ? 1 : -1;
+      const newCompleted = Math.max(0, (prev.completed_official_topics || 0) + delta);
+      const totalTopics = Math.max(1, prev.total_official_topics || 1);
+      const newPct = Math.min(100, Math.round((newCompleted / totalTopics) * 100));
+
+      const updatedSubjectProgress = (prev.subject_progress || []).map((s) => {
+        if (item.subject_id && s.subject_id === item.subject_id) {
+          const subCompleted = Math.max(0, (s.completed_topics || 0) + delta);
+          return {
+            ...s,
+            completed_topics: subCompleted,
+            progress_percentage: s.total_topics > 0 ? Math.round((subCompleted / s.total_topics) * 100) : 0,
+          };
+        }
+        return s;
+      });
+
+      return {
+        ...prev,
+        completed_official_topics: newCompleted,
+        official_progress_percentage: newPct,
+        subject_progress: updatedSubjectProgress,
+      };
+    });
+
+    // 4. Send background sync to backend
+    try {
+      await fetch("/api/syllabus/topics/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic_id: item.topic_id,
+          status: willBeCompleted ? "completed" : "not_started",
+          topic_title: item.title,
+        }),
+      });
+    } catch (err) {
+      console.warn("Topic progress API sync error:", err);
+    }
   };
 
   const studentName = profile?.full_name || "chinmaya swain";
@@ -380,6 +467,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   };
 
   // Dynamic Weekly Stats
+  // Dynamic Weekly Stats (7 days)
   const weeklyData = useMemo(() => {
     if (currentMetrics.weekly_stats && currentMetrics.weekly_stats.length === 7) {
       return currentMetrics.weekly_stats;
@@ -393,12 +481,36 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
       items.push({
         date: `${monthNames[d.getMonth()]} ${d.getDate()}`,
         dayLabel: dayNames[d.getDay()][0],
-        questionsCount: [35, 48, 42, 55, 45, 60, 52][6 - i],
-        accuracyPercentage: [72, 75, 71, 76, 70, 78, 82][6 - i],
+        questionsCount: 0,
+        accuracyPercentage: 0,
       });
     }
     return items;
   }, [currentMetrics.weekly_stats]);
+
+  // Dynamic Chart Data (7 Days vs 30 Days based on weeklyFilter)
+  const chartData = useMemo(() => {
+    if (weeklyFilter === "Last 30 Days") {
+      if (currentMetrics.monthly_stats && currentMetrics.monthly_stats.length > 0) {
+        return currentMetrics.monthly_stats;
+      }
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const items = [];
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        items.push({
+          date: `${monthNames[d.getMonth()]} ${d.getDate()}`,
+          dayLabel: dayNames[d.getDay()][0],
+          questionsCount: 0,
+          accuracyPercentage: 0,
+        });
+      }
+      return items;
+    }
+    return weeklyData;
+  }, [weeklyFilter, currentMetrics.monthly_stats, weeklyData]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex font-sans antialiased">
@@ -822,30 +934,40 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               <div className="flex items-baseline gap-1 mt-2">
                 <span className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
                   {studyTimeFilter === "Today"
-                    ? currentMetrics.study_hours_today !== undefined
-                      ? currentMetrics.study_hours_today
-                      : currentMetrics.study_hours
-                    : currentMetrics.study_hours}
+                    ? (currentMetrics.study_hours_today ?? 0)
+                    : (currentMetrics.study_hours ?? 0)}
                 </span>
                 <span className="text-sm font-semibold text-slate-500 font-sans">hrs</span>
               </div>
 
               <div className="flex items-end justify-between mt-3 pt-2 border-t border-slate-100">
-                <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                <div className={`flex items-center gap-1 text-xs font-semibold ${
+                  (currentMetrics.study_hours_delta_pct ?? 0) >= 0 ? "text-emerald-600" : "text-amber-600"
+                }`}>
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>20%</span>
+                  <span>
+                    {(currentMetrics.study_hours_delta_pct ?? 0) >= 0
+                      ? `+${currentMetrics.study_hours_delta_pct ?? 0}%`
+                      : `${currentMetrics.study_hours_delta_pct}%`}
+                  </span>
                   <span className="text-slate-400 font-normal">vs yesterday</span>
                 </div>
-                {/* Dynamic Mini Sparkline Bar Chart */}
+                {/* Dynamic Mini Sparkline Bar Chart for Study Hours */}
                 <div className="flex items-end gap-1 h-7">
-                  {weeklyData.map((d, i) => (
-                    <div
-                      key={i}
-                      style={{ height: `${Math.max(20, Math.min(100, (d.questionsCount / 60) * 100))}%` }}
-                      className="w-1.5 rounded-t-sm bg-blue-400/80 group-hover:bg-blue-600 transition-colors"
-                      title={`${d.date}: ${d.questionsCount} questions`}
-                    />
-                  ))}
+                  {(currentMetrics.sparkline_study_hours || [0, 0, 0, 0, 0, 0, 0]).map((h, i) => {
+                    const maxH = Math.max(1, ...(currentMetrics.sparkline_study_hours || [1]));
+                    const barHeightPct = h > 0 ? Math.max(15, Math.min(100, (h / maxH) * 100)) : 0;
+                    return (
+                      <div
+                        key={i}
+                        style={{ height: `${barHeightPct}%` }}
+                        className={`w-1.5 rounded-t-sm transition-colors ${
+                          h > 0 ? "bg-blue-400/80 group-hover:bg-blue-600" : "bg-slate-100 h-1"
+                        }`}
+                        title={weeklyData[i] ? `${weeklyData[i].date}: ${h} hrs` : `${h} hrs`}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -872,29 +994,39 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               <div className="flex items-baseline gap-1 mt-2">
                 <span className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
                   {questionsFilter === "Today"
-                    ? currentMetrics.questions_practiced_today !== undefined && currentMetrics.questions_practiced_today > 0
-                      ? currentMetrics.questions_practiced_today
-                      : currentMetrics.questions_practiced
-                    : currentMetrics.questions_practiced}
+                    ? (currentMetrics.questions_practiced_today ?? 0)
+                    : (currentMetrics.questions_practiced ?? 0)}
                 </span>
               </div>
 
               <div className="flex items-end justify-between mt-3 pt-2 border-t border-slate-100">
-                <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                <div className={`flex items-center gap-1 text-xs font-semibold ${
+                  (currentMetrics.questions_delta_pct ?? 0) >= 0 ? "text-emerald-600" : "text-amber-600"
+                }`}>
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>12%</span>
+                  <span>
+                    {(currentMetrics.questions_delta_pct ?? 0) >= 0
+                      ? `+${currentMetrics.questions_delta_pct ?? 0}%`
+                      : `${currentMetrics.questions_delta_pct}%`}
+                  </span>
                   <span className="text-slate-400 font-normal">vs yesterday</span>
                 </div>
-                {/* Mini SVG Bars */}
+                {/* Dynamic Mini Sparkline Bar Chart for Question Attempts */}
                 <div className="flex items-end gap-1 h-7">
-                  {weeklyData.map((d, i) => (
-                    <div
-                      key={i}
-                      style={{ height: `${Math.max(25, Math.min(100, (d.questionsCount / 65) * 100))}%` }}
-                      className="w-1.5 rounded-t-sm bg-purple-400/80"
-                      title={`${d.date}: ${d.questionsCount} questions`}
-                    />
-                  ))}
+                  {weeklyData.map((d, i) => {
+                    const maxQ = Math.max(1, ...weeklyData.map((w) => w.questionsCount));
+                    const barHeightPct = d.questionsCount > 0 ? Math.max(15, Math.min(100, (d.questionsCount / maxQ) * 100)) : 0;
+                    return (
+                      <div
+                        key={i}
+                        style={{ height: `${barHeightPct}%` }}
+                        className={`w-1.5 rounded-t-sm ${
+                          d.questionsCount > 0 ? "bg-purple-400/80" : "bg-slate-100 h-1"
+                        }`}
+                        title={`${d.date}: ${d.questionsCount} questions`}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -920,25 +1052,34 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
 
               <div className="flex items-baseline gap-1 mt-2">
                 <span className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
-                  {currentMetrics.mock_tests_completed}
+                  {mockFilter === "This Month"
+                    ? (currentMetrics.mock_tests_this_month ?? 0)
+                    : (currentMetrics.mock_tests_completed ?? 0)}
                 </span>
               </div>
 
               <div className="flex items-end justify-between mt-3 pt-2 border-t border-slate-100">
                 <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>{currentMetrics.mock_tests_completed > 0 ? currentMetrics.mock_tests_completed : 2}</span>
+                  <span>{currentMetrics.mock_tests_this_month ?? 0}</span>
                   <span className="text-slate-400 font-normal">this month</span>
                 </div>
-                {/* Mini SVG Bars */}
+                {/* Dynamic Mini Sparkline Bar Chart for Mock Tests */}
                 <div className="flex items-end gap-1 h-7">
-                  {[20, 35, 50, 65, 80, 95, 85].map((h, i) => (
-                    <div
-                      key={i}
-                      style={{ height: `${h}%` }}
-                      className="w-1.5 rounded-t-sm bg-amber-400/80"
-                    />
-                  ))}
+                  {(currentMetrics.mock_tests_sparkline && currentMetrics.mock_tests_sparkline.some((v) => v > 0)
+                    ? currentMetrics.mock_tests_sparkline
+                    : [0, 0, 0, 0, 0, 0, 0]
+                  ).map((score, i) => {
+                    const barHeightPct = score > 0 ? Math.max(15, Math.min(100, score)) : 0;
+                    return (
+                      <div
+                        key={i}
+                        style={{ height: `${barHeightPct}%` }}
+                        className={`w-1.5 rounded-t-sm ${score > 0 ? "bg-amber-400/80" : "bg-slate-100 h-1"}`}
+                        title={score > 0 ? `Mock score: ${score}%` : "No mock test"}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -964,26 +1105,41 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
 
               <div className="flex items-baseline gap-1 mt-2">
                 <span className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
-                  {currentMetrics.accuracy_percentage ?? 78}%
+                  {accuracyFilter === "Today"
+                    ? (currentMetrics.questions_practiced_today ?? 0) > 0
+                      ? `${currentMetrics.accuracy_today ?? 0}%`
+                      : "0%"
+                    : (currentMetrics.questions_practiced > 0
+                      ? `${currentMetrics.accuracy_percentage ?? 0}%`
+                      : "0%")}
                 </span>
               </div>
 
               <div className="flex items-end justify-between mt-3 pt-2 border-t border-slate-100">
-                <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                <div className={`flex items-center gap-1 text-xs font-semibold ${
+                  (currentMetrics.accuracy_delta_pct ?? 0) >= 0 ? "text-emerald-600" : "text-amber-600"
+                }`}>
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>8%</span>
+                  <span>
+                    {(currentMetrics.accuracy_delta_pct ?? 0) >= 0
+                      ? `+${currentMetrics.accuracy_delta_pct ?? 0}%`
+                      : `${currentMetrics.accuracy_delta_pct}%`}
+                  </span>
                   <span className="text-slate-400 font-normal">vs last week</span>
                 </div>
-                {/* Mini SVG Bars */}
+                {/* Dynamic Mini Sparkline Bar Chart for Accuracy */}
                 <div className="flex items-end gap-1 h-7">
-                  {weeklyData.map((d, i) => (
-                    <div
-                      key={i}
-                      style={{ height: `${Math.max(30, Math.min(100, d.accuracyPercentage))}%` }}
-                      className="w-1.5 rounded-t-sm bg-teal-400/80"
-                      title={`${d.date}: ${d.accuracyPercentage}%`}
-                    />
-                  ))}
+                  {weeklyData.map((d, i) => {
+                    const barHeightPct = d.questionsCount > 0 ? Math.max(15, Math.min(100, d.accuracyPercentage)) : 0;
+                    return (
+                      <div
+                        key={i}
+                        style={{ height: `${barHeightPct}%` }}
+                        className={`w-1.5 rounded-t-sm ${d.questionsCount > 0 ? "bg-teal-400/80" : "bg-slate-100 h-1"}`}
+                        title={`${d.date}: ${d.questionsCount > 0 ? `${d.accuracyPercentage}%` : "No attempts"}`}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1180,20 +1336,25 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                   <text x="303" y="112" fontSize="8" fill="#94a3b8">0%</text>
 
                   {/* Dynamic Bars for Questions Attempted */}
-                  {weeklyData.map((d, i) => {
-                    const barX = 35 + i * 40;
-                    const barHeight = Math.max(15, Math.min(85, (d.questionsCount / 70) * 85));
+                  {chartData.map((d, i) => {
+                    const step = 268 / Math.max(1, chartData.length);
+                    const barW = Math.max(2.5, Math.min(14, step * 0.55));
+                    const barX = 26 + i * step + (step - barW) / 2;
+                    const maxQ = Math.max(1, ...chartData.map((c) => c.questionsCount));
+                    const barHeight = d.questionsCount > 0 ? Math.max(8, Math.min(85, (d.questionsCount / maxQ) * 85)) : 0;
                     const barY = 110 - barHeight;
                     return (
                       <rect
                         key={i}
                         x={barX}
                         y={barY}
-                        width="12"
+                        width={barW}
                         height={barHeight}
-                        rx="2"
+                        rx="1.5"
                         fill="#bfdbfe"
-                      />
+                      >
+                        <title>{`${d.date}: ${d.questionsCount} questions`}</title>
+                      </rect>
                     );
                   })}
 
@@ -1202,9 +1363,10 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                     fill="none"
                     stroke="#2563eb"
                     strokeWidth="2"
-                    points={weeklyData
+                    points={chartData
                       .map((d, i) => {
-                        const px = 41 + i * 40;
+                        const step = 268 / Math.max(1, chartData.length);
+                        const px = 26 + i * step + step / 2;
                         const py = 110 - (d.accuracyPercentage / 100) * 80;
                         return `${px},${py}`;
                       })
@@ -1212,28 +1374,38 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                   />
 
                   {/* Line Dots */}
-                  {weeklyData.map((d, i) => {
-                    const cx = 41 + i * 40;
+                  {chartData.map((d, i) => {
+                    const step = 268 / Math.max(1, chartData.length);
+                    const cx = 26 + i * step + step / 2;
                     const cy = 110 - (d.accuracyPercentage / 100) * 80;
+                    if (chartData.length > 7 && d.questionsCount === 0) return null;
                     return (
                       <circle
                         key={i}
                         cx={cx}
                         cy={cy}
-                        r="3"
+                        r={chartData.length > 7 ? "2" : "3"}
                         fill="#2563eb"
                         stroke="#ffffff"
                         strokeWidth="1.5"
-                      />
+                      >
+                        <title>{`${d.date}: ${d.accuracyPercentage}% accuracy`}</title>
+                      </circle>
                     );
                   })}
                 </svg>
 
                 {/* X-Axis Dates */}
                 <div className="flex justify-between text-[9px] text-slate-400 px-6 mt-1">
-                  {weeklyData.map((d, i) => (
-                    <span key={i}>{d.date}</span>
-                  ))}
+                  {chartData.length <= 7
+                    ? chartData.map((d, i) => (
+                        <span key={i}>{d.date}</span>
+                      ))
+                    : chartData
+                        .filter((_, idx) => idx % 6 === 0 || idx === chartData.length - 1)
+                        .map((d, idx) => (
+                          <span key={idx}>{d.date}</span>
+                        ))}
                 </div>
               </div>
             </div>

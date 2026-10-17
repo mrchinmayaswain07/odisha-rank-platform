@@ -920,6 +920,80 @@ async function runTests() {
     assert(answeredInStudent?.answered_by === "Prof. S. Das, Odisha History Faculty", "Faculty details appear on student view");
   }
 
+  // 23. AUTHENTIC DASHBOARD METRICS, DELTAS & DYNAMIC TOPIC PROGRESS
+  {
+    console.log("\n23. AUTHENTIC DASHBOARD METRICS, DELTAS & DYNAMIC TOPIC PROGRESS");
+    const {
+      getDashboardMetrics,
+      saveRuntimeStudySession,
+      saveRuntimeQuestionAttempt,
+    } = await import("../lib/data-service");
+
+    const freshStudentId = "student-fresh-analytics-101";
+
+    // 1. Fresh student with 0 data
+    const freshMetrics = await getDashboardMetrics(freshStudentId);
+    assert(freshMetrics.study_hours === 0, "Fresh student study_hours is 0");
+    assert(freshMetrics.study_hours_today === 0, "Fresh student study_hours_today is 0");
+    assert(freshMetrics.questions_practiced === 0, "Fresh student questions_practiced is 0");
+    assert(freshMetrics.questions_practiced_today === 0, "Fresh student questions_practiced_today is 0");
+    assert(freshMetrics.accuracy_percentage === 0, "Fresh student accuracy_percentage is 0% (never fake 78%)");
+    assert(freshMetrics.mock_tests_completed === 0, "Fresh student mock_tests_completed is 0");
+    assert(freshMetrics.mock_tests_this_month === 0, "Fresh student mock_tests_this_month is 0");
+    assert(freshMetrics.study_hours_delta_pct === 0, "Fresh student study_hours_delta_pct is 0% (never fake 20%)");
+    assert(freshMetrics.questions_delta_pct === 0, "Fresh student questions_delta_pct is 0% (never fake 12%)");
+    assert(Array.isArray(freshMetrics.weekly_stats) && freshMetrics.weekly_stats.length === 7, "Weekly stats array has 7 days");
+    assert(freshMetrics.weekly_stats?.[0]?.questionsCount === 0, "Weekly stats questions count is 0 when unattempted");
+    assert(freshMetrics.weekly_stats?.[0]?.accuracyPercentage === 0, "Weekly stats accuracy is 0 when unattempted");
+    assert(Array.isArray(freshMetrics.monthly_stats) && freshMetrics.monthly_stats.length === 30, "Monthly stats array has 30 days");
+
+    // 2. Add realistic study sessions: yesterday 30m, today 60m
+    const todayStr = new Date().toISOString().split("T")[0];
+    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+
+    saveRuntimeStudySession({
+      user_id: freshStudentId,
+      duration_minutes: 30,
+      session_date: yesterdayStr,
+      notes: "Yesterday Indian Polity reading",
+    });
+
+    saveRuntimeStudySession({
+      user_id: freshStudentId,
+      duration_minutes: 60,
+      session_date: todayStr,
+      notes: "Today Quantitative Aptitude",
+    });
+
+    // 3. Add 4 questions today: 3 correct, 1 wrong
+    for (let i = 0; i < 3; i++) {
+      saveRuntimeQuestionAttempt({
+        user_id: freshStudentId,
+        question_id: `q-fresh-${i}`,
+        is_correct: true,
+        selected_option_index: 0,
+        time_taken_seconds: 40,
+      });
+    }
+    saveRuntimeQuestionAttempt({
+      user_id: freshStudentId,
+      question_id: "q-fresh-wrong",
+      is_correct: false,
+      selected_option_index: 1,
+      time_taken_seconds: 50,
+    });
+
+    const activeMetrics = await getDashboardMetrics(freshStudentId);
+    assert(activeMetrics.study_hours === 1.5, "Total study hours equals 1.5 hrs (90 mins)");
+    assert(activeMetrics.study_hours_today === 1.0, "Today study hours equals 1.0 hr (60 mins)");
+    assert(activeMetrics.study_hours_yesterday === 0.5, "Yesterday study hours equals 0.5 hr (30 mins)");
+    assert(activeMetrics.study_hours_delta_pct === 100, "Study hours delta is +100% vs yesterday ((1.0 - 0.5) / 0.5 * 100)");
+    assert(activeMetrics.questions_practiced === 4, "Total questions practiced equals 4");
+    assert(activeMetrics.questions_practiced_today === 4, "Today questions practiced equals 4");
+    assert(activeMetrics.accuracy_percentage === 75, "Overall accuracy equals 75% ((3/4)*100)");
+    assert(activeMetrics.study_streak_days >= 1, "Active study streak is >= 1 day");
+  }
+
   console.log("\n=================================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
   console.log("=================================================");

@@ -209,10 +209,22 @@ export interface StudentActivity {
 export interface DashboardMetrics {
   study_hours: number;
   study_hours_today?: number;
+  study_hours_yesterday?: number;
+  study_hours_delta_pct?: number;
   questions_practiced: number;
   questions_practiced_today?: number;
+  questions_practiced_yesterday?: number;
+  questions_delta_pct?: number;
   accuracy_percentage?: number;
+  accuracy_today?: number;
+  accuracy_this_week?: number;
+  accuracy_last_week?: number;
+  accuracy_delta_pct?: number;
   mock_tests_completed: number;
+  mock_tests_this_month?: number;
+  mock_tests_sparkline?: number[];
+  sparkline_study_hours?: number[];
+  sparkline_questions?: number[];
   study_streak_days: number;
   official_progress_percentage: number;
   personal_progress_percentage: number;
@@ -229,6 +241,12 @@ export interface DashboardMetrics {
     progress_percentage: number;
   }[];
   weekly_stats?: {
+    date: string;
+    dayLabel: string;
+    questionsCount: number;
+    accuracyPercentage: number;
+  }[];
+  monthly_stats?: {
     date: string;
     dayLabel: string;
     questionsCount: number;

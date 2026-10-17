@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,9 @@ import {
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -19,19 +22,84 @@ import {
   ArrowRight,
   Sparkles,
   GraduationCap,
+  CheckCircle2,
+  Circle,
+  MessageSquare,
+  Plus,
+  Target,
+  X,
+  Play,
+  Check,
 } from "lucide-react-native";
 import { BRAND_COLORS, DashboardMetrics } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
-import { getDashboardMetrics } from "../../src/lib/data-service";
+import { getDashboardMetrics, logStudySession } from "../../src/lib/data-service";
+import { supabase } from "../../src/lib/supabase";
 import { Header } from "../../src/components/Header";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { Badge } from "../../src/components/Badge";
+
+interface StudyTask {
+  id: string;
+  topic_id: string;
+  title: string;
+  subject: string;
+  duration: string;
+  completed: boolean;
+}
 
 export default function DashboardScreen() {
   const { user, profile, activeExam } = useAuth();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Study Session Logger Modal
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logMinutes, setLogMinutes] = useState(45);
+  const [logNotes, setLogNotes] = useState("");
+  const [isLogging, setIsLogging] = useState(false);
+
+  // Dynamic Study Plan
+  const defaultTasks: StudyTask[] = useMemo(() => {
+    const examCode = activeExam?.conducting_body || "OSSC";
+    return [
+      {
+        id: "m-sp-1",
+        topic_id: "m-sp-1",
+        title: `${examCode} General Studies – Indian Polity`,
+        subject: "Polity",
+        duration: "45 min",
+        completed: false,
+      },
+      {
+        id: "m-sp-2",
+        topic_id: "m-sp-2",
+        title: "Odisha Special – History & Geography of Odisha",
+        subject: "Odisha GK",
+        duration: "45 min",
+        completed: false,
+      },
+      {
+        id: "m-sp-3",
+        topic_id: "m-sp-3",
+        title: "Quantitative Aptitude – Simplification & Number System",
+        subject: "Math",
+        duration: "30 min",
+        completed: false,
+      },
+      {
+        id: "m-sp-4",
+        topic_id: "m-sp-4",
+        title: `Attempt Mock Test (${examCode} Sectional)`,
+        subject: "Simulation",
+        duration: "60 min",
+        completed: false,
+      },
+    ];
+  }, [activeExam]);
+
+  const [studyPlan, setStudyPlan] = useState<StudyTask[]>(defaultTasks);
 
   const fetchMetrics = useCallback(async () => {
     if (!user) return;
@@ -53,6 +121,88 @@ export default function DashboardScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     fetchMetrics();
+  };
+
+  // Toggle study plan task
+  const toggleTask = async (taskId: string) => {
+    const task = studyPlan.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const willBeCompleted = !task.completed;
+
+    // Optimistic UI update
+    setStudyPlan((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, completed: willBeCompleted } : t))
+    );
+
+    // Update metrics count and percentage in real-time
+    setMetrics((prev) => {
+      if (!prev) return prev;
+      const delta = willBeCompleted ? 1 : -1;
+      const newCompleted = Math.max(0, (prev.completed_official_topics || 0) + delta);
+      const total = Math.max(1, prev.total_official_topics || 1);
+      const newPct = Math.min(100, Math.round((newCompleted / total) * 100));
+
+      return {
+        ...prev,
+        completed_official_topics: newCompleted,
+        official_progress_percentage: newPct,
+      };
+    });
+
+    // Sync to Supabase
+    if (user) {
+      try {
+        await supabase.from("student_topic_progress").upsert(
+          {
+            user_id: user.id,
+            topic_id: task.topic_id,
+            status: willBeCompleted ? "completed" : "not_started",
+            completed_at: willBeCompleted ? new Date().toISOString() : null,
+            last_studied_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,topic_id" }
+        );
+      } catch (err) {
+        console.warn("Topic progress toggle error:", err);
+      }
+    }
+  };
+
+  // Log study session
+  const handleSaveStudySession = async () => {
+    if (!user) return;
+    setIsLogging(true);
+    try {
+      const success = await logStudySession({
+        userId: user.id,
+        durationMinutes: logMinutes,
+        notes: logNotes || "Mobile self-study revision",
+      });
+
+      if (success) {
+        const addedHours = Math.round((logMinutes / 60) * 10) / 10;
+        setMetrics((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            study_hours: Math.round(((prev.study_hours || 0) + addedHours) * 10) / 10,
+            study_hours_today: Math.round(((prev.study_hours_today || 0) + addedHours) * 10) / 10,
+            study_streak_days: prev.study_streak_days === 0 ? 1 : prev.study_streak_days,
+          };
+        });
+        setShowLogModal(false);
+        setLogNotes("");
+        Alert.alert("Session Logged!", `Recorded ${logMinutes} minutes of focused study time.`);
+      } else {
+        Alert.alert("Log Notice", "Recorded study session locally.");
+        setShowLogModal(false);
+      }
+    } catch {
+      setShowLogModal(false);
+    } finally {
+      setIsLogging(false);
+    }
   };
 
   const displayName =
@@ -83,7 +233,7 @@ export default function DashboardScreen() {
           </View>
         ) : (
           <>
-            {/* 1. Target Course Progress Card */}
+            {/* 1. Target Course Progress Banner */}
             <View style={styles.courseBanner}>
               <View style={styles.courseHeader}>
                 <View style={styles.badgeRow}>
@@ -125,11 +275,67 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            {/* 2. Key Metrics 2x2 Grid */}
+            {/* 2. Today's Study Plan (Dynamic & Toggleable) */}
+            <View style={styles.planCard}>
+              <View style={styles.planHeader}>
+                <View style={styles.planTitleGroup}>
+                  <Target size={16} color={BRAND_COLORS.primary} />
+                  <Text style={styles.planTitle}>Today&apos;s Study Plan</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowLogModal(true)}
+                  style={styles.logSessionPill}
+                  activeOpacity={0.7}
+                >
+                  <Plus size={12} color={BRAND_COLORS.primary} />
+                  <Text style={styles.logSessionText}>Log Study</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.taskList}>
+                {studyPlan.map((task) => (
+                  <TouchableOpacity
+                    key={task.id}
+                    style={styles.taskItem}
+                    onPress={() => toggleTask(task.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.checkboxWrapper}>
+                      {task.completed ? (
+                        <CheckCircle2 size={18} color="#059669" />
+                      ) : (
+                        <Circle size={18} color="#cbd5e1" />
+                      )}
+                    </View>
+                    <View style={styles.taskTextWrapper}>
+                      <Text
+                        style={[
+                          styles.taskTitle,
+                          task.completed && styles.taskTitleCompleted,
+                        ]}
+                      >
+                        {task.title}
+                      </Text>
+                      <View style={styles.taskMetaRow}>
+                        <Text style={styles.taskSubject}>{task.subject}</Text>
+                        <Text style={styles.taskDot}>•</Text>
+                        <Text style={styles.taskDuration}>{task.duration}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* 3. Key Metrics Grid (Authentic Real Data) */}
             <Text style={styles.sectionTitle}>Preparation Analytics</Text>
             <View style={styles.metricsGrid}>
               {/* Study Hours */}
-              <View style={styles.metricCard}>
+              <TouchableOpacity
+                style={styles.metricCard}
+                onPress={() => setShowLogModal(true)}
+                activeOpacity={0.8}
+              >
                 <View style={styles.metricHeader}>
                   <Text style={styles.metricLabel}>Study Time</Text>
                   <Clock size={16} color={BRAND_COLORS.primary} />
@@ -138,8 +344,10 @@ export default function DashboardScreen() {
                   {metrics?.study_hours || 0}{" "}
                   <Text style={styles.metricUnit}>hrs</Text>
                 </Text>
-                <Text style={styles.metricSub}>Logged sessions</Text>
-              </View>
+                <Text style={styles.metricSub}>
+                  {metrics?.study_hours_today ? `${metrics.study_hours_today} hrs today` : "Tap to log"}
+                </Text>
+              </TouchableOpacity>
 
               {/* Questions Practiced */}
               <View style={styles.metricCard}>
@@ -150,7 +358,23 @@ export default function DashboardScreen() {
                 <Text style={styles.metricValue}>
                   {metrics?.questions_practiced || 0}
                 </Text>
-                <Text style={styles.metricSub}>Question attempts</Text>
+                <Text style={styles.metricSub}>
+                  {metrics?.questions_practiced_today
+                    ? `${metrics.questions_practiced_today} today`
+                    : "Actual attempts"}
+                </Text>
+              </View>
+
+              {/* Accuracy */}
+              <View style={styles.metricCard}>
+                <View style={styles.metricHeader}>
+                  <Text style={styles.metricLabel}>Accuracy</Text>
+                  <Target size={16} color="#0d9488" />
+                </View>
+                <Text style={styles.metricValue}>
+                  {metrics?.accuracy_percentage ?? 0}%
+                </Text>
+                <Text style={styles.metricSub}>Overall correct</Text>
               </View>
 
               {/* Mock Tests Completed */}
@@ -162,7 +386,11 @@ export default function DashboardScreen() {
                 <Text style={styles.metricValue}>
                   {metrics?.mock_tests_completed || 0}
                 </Text>
-                <Text style={styles.metricSub}>Simulations submitted</Text>
+                <Text style={styles.metricSub}>
+                  {metrics?.mock_tests_this_month
+                    ? `${metrics.mock_tests_this_month} this month`
+                    : "Simulations submitted"}
+                </Text>
               </View>
 
               {/* Study Streak */}
@@ -179,44 +407,37 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            {/* 3. Dual-Track Progress Cards */}
-            <View style={styles.dualTrackContainer}>
-              <View style={styles.dualCard}>
-                <Text style={styles.dualTitle}>Personal Study</Text>
-                <Text style={styles.dualPercent}>
-                  {metrics?.personal_progress_percentage || 0}%
-                </Text>
-                <ProgressBar
-                  progress={metrics?.personal_progress_percentage || 0}
-                  color="emerald"
-                  height={6}
-                />
-                <Text style={styles.dualSub}>
-                  {metrics?.completed_personal_topics || 0} of{" "}
-                  {metrics?.total_personal_topics || 0} custom topics
-                </Text>
-              </View>
-            </View>
-
-            {/* 4. Quick Actions */}
+            {/* 4. Quick Actions (With Doubts Feature) */}
             <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.actionRow}>
+            <View style={styles.actionGrid}>
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.primary }]}
+                style={[styles.actionCard, { backgroundColor: BRAND_COLORS.primary }]}
                 onPress={() => router.push("/(tabs)/questions")}
                 activeOpacity={0.8}
               >
                 <HelpCircle size={18} color="#ffffff" />
-                <Text style={styles.actionBtnText}>Practice MCQs</Text>
+                <Text style={styles.actionCardTitle}>Practice MCQs</Text>
+                <Text style={styles.actionCardSub}>Topic-wise questions</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: BRAND_COLORS.secondary }]}
+                style={[styles.actionCard, { backgroundColor: "#7c3aed" }]}
+                onPress={() => router.push("/doubts" as any)}
+                activeOpacity={0.8}
+              >
+                <MessageSquare size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Ask Doubts</Text>
+                <Text style={styles.actionCardSub}>Faculty Q&A support</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: BRAND_COLORS.secondary }]}
                 onPress={() => router.push("/(tabs)/mock-tests")}
                 activeOpacity={0.8}
               >
                 <Award size={18} color="#ffffff" />
-                <Text style={styles.actionBtnText}>Take Mock Test</Text>
+                <Text style={styles.actionCardTitle}>Take Mock Test</Text>
+                <Text style={styles.actionCardSub}>Timed simulation</Text>
               </TouchableOpacity>
             </View>
 
@@ -252,6 +473,84 @@ export default function DashboardScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Log Study Session Modal */}
+      <Modal
+        visible={showLogModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowLogModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Log Study Session</Text>
+                <Text style={styles.modalSub}>Record your self-study revision time</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowLogModal(false)}
+                style={styles.modalCloseBtn}
+              >
+                <X size={20} color={BRAND_COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Minute Quick Selectors */}
+            <Text style={styles.inputLabel}>Duration (Minutes)</Text>
+            <View style={styles.durationRow}>
+              {[30, 45, 60, 90, 120].map((m) => (
+                <TouchableOpacity
+                  key={m}
+                  style={[
+                    styles.durationChip,
+                    logMinutes === m && styles.durationChipActive,
+                  ]}
+                  onPress={() => setLogMinutes(m)}
+                >
+                  <Text
+                    style={[
+                      styles.durationChipText,
+                      logMinutes === m && styles.durationChipTextActive,
+                    ]}
+                  >
+                    {m}m
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Notes */}
+            <Text style={styles.inputLabel}>Study Notes / Topics Covered</Text>
+            <TextInput
+              style={styles.notesInput}
+              placeholder="e.g. Revised Odisha History & practiced 20 Simplification MCQs"
+              placeholderTextColor={BRAND_COLORS.textMuted}
+              value={logNotes}
+              onChangeText={setLogNotes}
+            />
+
+            {/* Save Button */}
+            <TouchableOpacity
+              style={[styles.saveBtn, isLogging && styles.saveBtnDisabled]}
+              onPress={handleSaveStudySession}
+              disabled={isLogging}
+              activeOpacity={0.85}
+            >
+              {isLogging ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <Check size={16} color="#ffffff" />
+                  <Text style={styles.saveBtnText}>
+                    Save {logMinutes} Mins Session
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -280,7 +579,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: BRAND_COLORS.border,
-    marginBottom: 20,
+    marginBottom: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -299,9 +598,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   subtext: {
-    fontSize: 11,
-    color: BRAND_COLORS.textMuted,
-    fontWeight: "600",
+    fontSize: 12,
+    color: BRAND_COLORS.textSecondary,
+    fontWeight: "500",
   },
   changeCourseLink: {
     fontSize: 12,
@@ -309,28 +608,27 @@ const styles = StyleSheet.create({
     color: BRAND_COLORS.primary,
   },
   courseTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "800",
     color: BRAND_COLORS.textPrimary,
     marginBottom: 14,
   },
   progressSection: {
-    backgroundColor: BRAND_COLORS.background,
-    padding: 12,
-    borderRadius: 10,
+    marginTop: 4,
   },
   progressRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 6,
   },
   progressLabel: {
     fontSize: 12,
-    fontWeight: "600",
     color: BRAND_COLORS.textSecondary,
+    fontWeight: "500",
   },
   progressPercent: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "800",
     color: BRAND_COLORS.primary,
   },
@@ -339,12 +637,98 @@ const styles = StyleSheet.create({
     color: BRAND_COLORS.textMuted,
     marginTop: 6,
   },
+  // Today's Study Plan
+  planCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: BRAND_COLORS.border,
+    marginBottom: 20,
+  },
+  planHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  planTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  planTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: BRAND_COLORS.textPrimary,
+  },
+  logSessionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#eff6ff",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  logSessionText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: BRAND_COLORS.primary,
+  },
+  taskList: {
+    gap: 10,
+  },
+  taskItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 4,
+  },
+  checkboxWrapper: {
+    marginTop: 2,
+  },
+  taskTextWrapper: {
+    flex: 1,
+  },
+  taskTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: BRAND_COLORS.textPrimary,
+    lineHeight: 18,
+  },
+  taskTitleCompleted: {
+    textDecorationLine: "line-through",
+    color: BRAND_COLORS.textMuted,
+  },
+  taskMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
+  taskSubject: {
+    fontSize: 11,
+    color: BRAND_COLORS.primary,
+    fontWeight: "500",
+  },
+  taskDot: {
+    fontSize: 10,
+    color: BRAND_COLORS.textMuted,
+  },
+  taskDuration: {
+    fontSize: 11,
+    color: BRAND_COLORS.textMuted,
+  },
+  // Metrics Grid
   sectionTitle: {
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "700",
     color: BRAND_COLORS.textPrimary,
-    marginBottom: 10,
-    letterSpacing: -0.2,
+    marginBottom: 12,
   },
   metricsGrid: {
     flexDirection: "row",
@@ -353,7 +737,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   metricCard: {
-    width: "48.5%",
+    flex: 1,
+    minWidth: "46%",
     backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 14,
@@ -364,74 +749,50 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 8,
   },
   metricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
-    color: BRAND_COLORS.textMuted,
-    textTransform: "uppercase",
+    color: BRAND_COLORS.textSecondary,
   },
   metricValue: {
     fontSize: 22,
-    fontWeight: "900",
+    fontWeight: "800",
     color: BRAND_COLORS.textPrimary,
   },
   metricUnit: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: BRAND_COLORS.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+    color: BRAND_COLORS.textSecondary,
   },
   metricSub: {
     fontSize: 11,
     color: BRAND_COLORS.textMuted,
     marginTop: 4,
   },
-  dualTrackContainer: {
+  // Quick Action Grid
+  actionGrid: {
+    flexDirection: "row",
+    gap: 8,
     marginBottom: 20,
   },
-  dualCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: BRAND_COLORS.border,
-  },
-  dualTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: BRAND_COLORS.textPrimary,
-    marginBottom: 4,
-  },
-  dualPercent: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: BRAND_COLORS.success,
-    marginBottom: 6,
-  },
-  dualSub: {
-    fontSize: 11,
-    color: BRAND_COLORS.textMuted,
-    marginTop: 6,
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 24,
-  },
-  actionBtn: {
+  actionCard: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
+    padding: 12,
     borderRadius: 12,
+    alignItems: "flex-start",
   },
-  actionBtnText: {
+  actionCardTitle: {
     color: "#ffffff",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
+    marginTop: 8,
+  },
+  actionCardSub: {
+    color: "rgba(255, 255, 255, 0.75)",
+    fontSize: 10,
+    marginTop: 2,
   },
   subjectSection: {
     marginBottom: 20,
@@ -475,5 +836,98 @@ const styles = StyleSheet.create({
   subjectCount: {
     fontSize: 11,
     color: BRAND_COLORS.textMuted,
+  },
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 36,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: BRAND_COLORS.textPrimary,
+  },
+  modalSub: {
+    fontSize: 12,
+    color: BRAND_COLORS.textSecondary,
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: BRAND_COLORS.textPrimary,
+    marginBottom: 8,
+    marginTop: 10,
+  },
+  durationRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 10,
+  },
+  durationChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    alignItems: "center",
+  },
+  durationChipActive: {
+    backgroundColor: "#eff6ff",
+    borderColor: BRAND_COLORS.primary,
+  },
+  durationChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: BRAND_COLORS.textSecondary,
+  },
+  durationChipTextActive: {
+    color: BRAND_COLORS.primary,
+    fontWeight: "700",
+  },
+  notesInput: {
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: BRAND_COLORS.border,
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 13,
+    color: BRAND_COLORS.textPrimary,
+    marginBottom: 18,
+  },
+  saveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: BRAND_COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  saveBtnDisabled: {
+    opacity: 0.6,
+  },
+  saveBtnText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

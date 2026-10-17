@@ -205,8 +205,23 @@ export interface StudentActivity {
 
 export interface DashboardMetrics {
   study_hours: number;
+  study_hours_today?: number;
+  study_hours_yesterday?: number;
+  study_hours_delta_pct?: number;
   questions_practiced: number;
+  questions_practiced_today?: number;
+  questions_practiced_yesterday?: number;
+  questions_delta_pct?: number;
+  accuracy_percentage?: number;
+  accuracy_today?: number;
+  accuracy_this_week?: number;
+  accuracy_last_week?: number;
+  accuracy_delta_pct?: number;
   mock_tests_completed: number;
+  mock_tests_this_month?: number;
+  mock_tests_sparkline?: number[];
+  sparkline_study_hours?: number[];
+  sparkline_questions?: number[];
   study_streak_days: number;
   official_progress_percentage: number;
   personal_progress_percentage: number;
@@ -221,6 +236,25 @@ export interface DashboardMetrics {
     total_topics: number;
     completed_topics: number;
     progress_percentage: number;
+  }[];
+  weekly_stats?: {
+    date: string;
+    dayLabel: string;
+    questionsCount: number;
+    accuracyPercentage: number;
+  }[];
+  monthly_stats?: {
+    date: string;
+    dayLabel: string;
+    questionsCount: number;
+    accuracyPercentage: number;
+  }[];
+  recommended_topics?: {
+    topic_id: string;
+    topic_title: string;
+    subject_id: string;
+    subject_name: string;
+    estimated_minutes: number;
   }[];
 }
 
@@ -256,4 +290,25 @@ export interface StudentListItem {
   role: UserRole;
   is_profile_completed: boolean;
   created_at: string;
+}
+
+export type DoubtStatus = "pending" | "answered" | "resolved";
+
+export interface StudentDoubt {
+  id: string;
+  user_id: string;
+  student_name: string;
+  student_email?: string;
+  subject: string;
+  exam_id?: string | null;
+  question: string;
+  answer?: string | null;
+  answered_by?: string | null;
+  answered_at?: string | null;
+  status: DoubtStatus;
+  is_private: boolean;
+  upvotes: number;
+  is_notified?: boolean;
+  created_at: string;
+  updated_at: string;
 }
