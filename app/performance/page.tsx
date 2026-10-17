@@ -9,11 +9,17 @@ export const metadata: Metadata = {
   description: "Comprehensive performance metrics, subject accuracy breakdowns, time-per-question analysis, and Odisha competitive rank predictions.",
 };
 
+import { redirect } from "next/navigation";
+
 export default async function PerformancePage() {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const userId = authData.user?.id || "demo-student-id";
+  if (!authData.user) {
+    redirect("/login?redirectTo=/performance");
+  }
+
+  const userId = authData.user.id;
 
   const [profile, allExams] = await Promise.all([
     getStudentProfile(userId),
@@ -24,10 +30,8 @@ export default async function PerformancePage() {
     ? allExams.find((e) => e.id === profile.target_exam_id) || null
     : allExams[0] || null;
 
-  const [metrics, analytics] = await Promise.all([
-    getDashboardMetrics(userId, targetExam?.id),
-    getPerformanceAnalytics(userId, targetExam?.id),
-  ]);
+  const metrics = await getDashboardMetrics(userId, targetExam?.id);
+  const analytics = await getPerformanceAnalytics(userId, targetExam?.id, metrics);
 
   return (
     <PerformanceClient

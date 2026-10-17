@@ -299,51 +299,71 @@ export async function getStudentDoubts(filters?: {
   search?: string;
   includePublicAnswered?: boolean;
 }): Promise<StudentDoubt[]> {
+  const allFetchedDoubts: StudentDoubt[] = [];
+
   if (isSupabaseConfigured()) {
+    let supabase: any;
     try {
-      const supabase = await createClient();
-      let query = supabase
-        .from("student_doubts")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (filters?.isAdmin) {
-        if (filters?.status && filters.status !== "all") {
-          query = query.eq("status", filters.status);
-        }
-        if (filters?.subject && filters.subject !== "all") {
-          query = query.eq("subject", filters.subject);
-        }
-      } else if (filters?.userId) {
-        if (filters?.includePublicAnswered) {
-          query = query.or(
-            `user_id.eq.${filters.userId},and(is_private.eq.false,status.eq.answered)`
-          );
-        } else {
-          query = query.eq("user_id", filters.userId);
-        }
-      } else {
-        query = query.eq("is_private", false).eq("status", "answered");
-      }
-
-      if (filters?.search) {
-        query = query.or(
-          `question.ilike.%${filters.search}%,answer.ilike.%${filters.search}%,student_name.ilike.%${filters.search}%`
-        );
-      }
-
-      const { data, error } = await query;
-      if (!error && data && data.length > 0) {
-        const existingIds = new Set(data.map((d: any) => d.id));
-        const extraRuntime = RUNTIME_DOUBTS.filter((rd) => !existingIds.has(rd.id));
-        return applyDoubtFilters([...data, ...extraRuntime], filters);
-      }
+      supabase = createAdminClient();
     } catch {
-      // Fallback to RUNTIME_DOUBTS
+      try {
+        supabase = await createClient();
+      } catch {
+        supabase = null;
+      }
+    }
+
+    if (supabase) {
+      // Tier 1: Query dedicated student_doubts table
+      try {
+        let query = supabase
+          .from("student_doubts")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        const { data, error } = await query;
+        if (!error && data && Array.isArray(data)) {
+          allFetchedDoubts.push(...(data as StudentDoubt[]));
+        }
+      } catch {
+        // Table may not yet be migrated on remote Supabase instance
+      }
+
+      // Tier 2: Query fallback persistence store in study_sessions (duration_minutes: 99999)
+      try {
+        const { data: sessionRows } = await supabase
+          .from("study_sessions")
+          .select("id, notes")
+          .eq("duration_minutes", 99999);
+
+        if (sessionRows && Array.isArray(sessionRows)) {
+          for (const row of sessionRows) {
+            try {
+              if (row.notes) {
+                const parsed = JSON.parse(row.notes);
+                if (parsed.type === "student_doubt" && parsed.id) {
+                  if (!allFetchedDoubts.some((d) => d.id === parsed.id)) {
+                    allFetchedDoubts.push(parsed as StudentDoubt);
+                  }
+                }
+              }
+            } catch {
+              // Ignore non-json rows
+            }
+          }
+        }
+      } catch {
+        // Non-blocking fallback
+      }
     }
   }
 
-  return applyDoubtFilters(RUNTIME_DOUBTS, filters);
+  // Tier 3: Merge with in-memory RUNTIME_DOUBTS
+  const existingIds = new Set(allFetchedDoubts.map((d) => d.id));
+  const runtimeExtra = RUNTIME_DOUBTS.filter((rd) => !existingIds.has(rd.id));
+  const combined = [...allFetchedDoubts, ...runtimeExtra];
+
+  return applyDoubtFilters(combined, filters);
 }
 
 function applyDoubtFilters(
@@ -425,28 +445,60 @@ export async function createStudentDoubt(payload: {
   RUNTIME_DOUBTS.unshift(newDoubt);
 
   if (isSupabaseConfigured()) {
+    let supabase: any;
     try {
-      const supabase = await createClient();
-      const { data, error } = await supabase
-        .from("student_doubts")
-        .insert({
-          user_id: payload.user_id,
-          student_name: payload.student_name,
-          student_email: payload.student_email,
-          subject: payload.subject,
-          exam_id: payload.exam_id,
-          question: payload.question,
-          is_private: Boolean(payload.is_private),
-          status: "pending",
-        })
-        .select()
-        .single();
-
-      if (!error && data) {
-        newDoubt.id = data.id;
-      }
+      supabase = createAdminClient();
     } catch {
-      // offline fallback
+      try {
+        supabase = await createClient();
+      } catch {
+        supabase = null;
+      }
+    }
+
+    if (supabase) {
+      let persisted = false;
+
+      // 1. Try dedicated student_doubts table
+      try {
+        const { data, error } = await supabase
+          .from("student_doubts")
+          .insert({
+            user_id: payload.user_id,
+            student_name: payload.student_name,
+            student_email: payload.student_email,
+            subject: payload.subject,
+            exam_id: payload.exam_id,
+            question: payload.question,
+            is_private: Boolean(payload.is_private),
+            status: "pending",
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          newDoubt.id = data.id;
+          persisted = true;
+        }
+      } catch {
+        persisted = false;
+      }
+
+      // 2. If student_doubts table is not yet migrated, reliably persist in study_sessions (duration_minutes: 99999)
+      if (!persisted) {
+        try {
+          await supabase.from("study_sessions").insert({
+            user_id: payload.user_id,
+            duration_minutes: 99999,
+            notes: JSON.stringify({
+              type: "student_doubt",
+              ...newDoubt,
+            }),
+          });
+        } catch (e) {
+          console.warn("Fallback doubt persistence:", e);
+        }
+      }
     }
   }
 
@@ -462,23 +514,84 @@ export async function updateStudentDoubtAnswer(
   }
 ): Promise<StudentDoubt | null> {
   const now = new Date().toISOString();
+  let updatedDoubt: StudentDoubt | null = null;
 
   if (isSupabaseConfigured()) {
+    let supabase: any;
     try {
-      const supabase = await createAdminClient();
-      await supabase
-        .from("student_doubts")
-        .update({
-          answer: payload.answer,
-          answered_by: payload.answered_by,
-          status: payload.status,
-          answered_at: now,
-          updated_at: now,
-          is_notified: false,
-        })
-        .eq("id", id);
+      supabase = createAdminClient();
     } catch {
-      // offline fallback
+      try {
+        supabase = await createClient();
+      } catch {
+        supabase = null;
+      }
+    }
+
+    if (supabase) {
+      // 1. Update in student_doubts table
+      try {
+        const { data, error } = await supabase
+          .from("student_doubts")
+          .update({
+            answer: payload.answer,
+            answered_by: payload.answered_by,
+            status: payload.status,
+            answered_at: now,
+            updated_at: now,
+            is_notified: false,
+          })
+          .eq("id", id)
+          .select()
+          .maybeSingle();
+
+        if (!error && data) {
+          updatedDoubt = data as StudentDoubt;
+        }
+      } catch {
+        // Non-blocking
+      }
+
+      // 2. Update in study_sessions fallback if present
+      try {
+        const { data: sessionRows } = await supabase
+          .from("study_sessions")
+          .select("id, notes")
+          .eq("duration_minutes", 99999);
+
+        if (sessionRows && Array.isArray(sessionRows)) {
+          for (const row of sessionRows) {
+            try {
+              if (row.notes) {
+                const parsed = JSON.parse(row.notes);
+                if (parsed.type === "student_doubt" && parsed.id === id) {
+                  const updatedNotes = {
+                    ...parsed,
+                    answer: payload.answer,
+                    answered_by: payload.answered_by,
+                    status: payload.status,
+                    answered_at: now,
+                    updated_at: now,
+                    is_notified: false,
+                  };
+                  await supabase
+                    .from("study_sessions")
+                    .update({ notes: JSON.stringify(updatedNotes) })
+                    .eq("id", row.id);
+
+                  if (!updatedDoubt) {
+                    updatedDoubt = updatedNotes;
+                  }
+                }
+              }
+            } catch {
+              // Ignore parse errors
+            }
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
     }
   }
 
@@ -493,10 +606,12 @@ export async function updateStudentDoubtAnswer(
       updated_at: now,
       is_notified: false,
     };
-    return RUNTIME_DOUBTS[idx];
+    if (!updatedDoubt) {
+      updatedDoubt = RUNTIME_DOUBTS[idx];
+    }
   }
 
-  return null;
+  return updatedDoubt;
 }
 
 export function markDoubtAsNotified(id: string): void {
@@ -1236,7 +1351,8 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
  */
 export async function getPerformanceAnalytics(
   userId: string,
-  targetExamId?: string | null
+  targetExamId?: string | null,
+  preloadedMetrics?: DashboardMetrics
 ): Promise<PerformanceAnalyticsData> {
   const examId = targetExamId || SEED_EXAMS[0].id;
   let attempts: any[] = [];
@@ -1327,7 +1443,7 @@ export async function getPerformanceAnalytics(
   const studyHoursLabel = totalStudyHours > 0 ? "Verified" : "No Sessions";
 
   // 4. Exam Readiness
-  const metrics = await getDashboardMetrics(userId, examId);
+  const metrics = preloadedMetrics || (await getDashboardMetrics(userId, examId));
   const syllabusProgress = metrics.official_progress_percentage || 0;
 
   let readinessScore = 0;

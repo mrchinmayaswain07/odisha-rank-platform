@@ -22,12 +22,12 @@ export default async function AdminLayout({
   const { user, isAdmin } = await requireAdmin();
 
   // If unauthenticated, redirect to login
-  if (isConfigured && !user) {
+  if (!user) {
     redirect("/login?redirectTo=/admin");
   }
 
   // Normal students are directly redirected to their student dashboard (no access-denied or admin setup screen exposed)
-  if (isConfigured && user && !isAdmin) {
+  if (!isAdmin) {
     redirect("/dashboard");
   }
 

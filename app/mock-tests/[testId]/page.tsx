@@ -1,6 +1,6 @@
-import React from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Metadata } from "next";
+import { createClient } from "@/lib/supabase/server";
 import { getMockTestById } from "@/lib/data-service";
 import { MockTestEngine } from "./MockTestEngine";
 
@@ -18,6 +18,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function MockTestActivePage({ params }: Props) {
+  const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getUser();
+
+  if (!authData.user) {
+    redirect(`/login?redirectTo=/mock-tests/${params.testId}`);
+  }
+
   const data = await getMockTestById(params.testId);
   if (!data) notFound();
 

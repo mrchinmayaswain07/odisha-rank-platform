@@ -13,18 +13,19 @@ export const metadata: Metadata = {
   description: "Take timed, full-length mock examinations for Odisha competitive recruitment tests (OSSC, OSSSC, OPSC) with real-time scoring.",
 };
 
+import { redirect } from "next/navigation";
+
 export default async function MockTestsPage({
   searchParams,
 }: {
   searchParams?: { exam?: string };
 }) {
-  let user = null;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    user = data?.user;
-  } catch {
-    user = null;
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  const user = data?.user;
+
+  if (!user) {
+    redirect("/login?redirectTo=/mock-tests");
   }
 
   // Parallel fetch: all courses & student profile

@@ -15,6 +15,24 @@ export const metadata: Metadata = {
   description: "Access verified study notes, formula sheets, previous year question papers (PYQs), and Odisha GK handbooks for OPSC, OSSC, and OSSSC exams.",
 };
 
+import { redirect } from "next/navigation";
+
+const EMPTY_METRICS: any = {
+  study_hours: 0,
+  questions_practiced: 0,
+  accuracy_percentage: 0,
+  mock_tests_completed: 0,
+  study_streak_days: 0,
+  official_progress_percentage: 0,
+  personal_progress_percentage: 0,
+  total_official_topics: 0,
+  completed_official_topics: 0,
+  total_personal_topics: 0,
+  completed_personal_topics: 0,
+  recent_activities: [],
+  subject_progress: [],
+};
+
 export default async function MaterialsPage({
   searchParams,
 }: {
@@ -23,7 +41,11 @@ export default async function MaterialsPage({
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const userId = authData.user?.id || "demo-student-id";
+  if (!authData.user) {
+    redirect("/login?redirectTo=/materials");
+  }
+
+  const userId = authData.user.id;
 
   const [profile, allExams, subjects] = await Promise.all([
     getStudentProfile(userId),
@@ -35,8 +57,6 @@ export default async function MaterialsPage({
     ? allExams.find((e) => e.id === profile.target_exam_id) || null
     : allExams[0] || null;
 
-  const metrics = await getDashboardMetrics(userId, targetExam?.id);
-
   // Fetch only published study materials (draft and archived excluded) for eligible students
   const publishedMaterials = await getStudyMaterials({
     status: "published",
@@ -46,7 +66,7 @@ export default async function MaterialsPage({
   return (
     <MaterialsClient
       profile={profile}
-      metrics={metrics}
+      metrics={EMPTY_METRICS}
       targetExam={targetExam}
       allExams={allExams}
       subjects={subjects}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StudentDoubt, DoubtStatus, Exam, Subject } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -22,6 +22,7 @@ import {
   HelpCircle,
   Lock,
   Globe,
+  RefreshCw,
 } from "lucide-react";
 
 interface StudentQuestionsManagerProps {
@@ -39,6 +40,31 @@ export const StudentQuestionsManager: React.FC<StudentQuestionsManagerProps> = (
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Sync latest doubts from server on mount and regularly
+  const fetchLatestDoubts = async () => {
+    try {
+      setIsRefreshing(true);
+      const res = await fetch("/api/admin/doubts");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.doubts && Array.isArray(data.doubts)) {
+          setDoubts(data.doubts);
+        }
+      }
+    } catch {
+      // Non-blocking
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLatestDoubts();
+    const interval = setInterval(fetchLatestDoubts, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Answering Modal State
   const [activeDoubt, setActiveDoubt] = useState<StudentDoubt | null>(null);

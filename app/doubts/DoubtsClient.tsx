@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   MessageSquare,
@@ -76,6 +76,53 @@ export const DoubtsClient: React.FC<DoubtsClientProps> = ({
   const myDoubts = doubts.filter((d) => d.user_id === currentUserId);
   const publicAnsweredDoubts = doubts.filter((d) => !d.is_private && d.status === "answered");
 
+  // Load locally saved doubts and sync on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("odisharank_student_doubts");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setDoubts((prev) => {
+            const existingIds = new Set(prev.map((d) => d.id));
+            const newItems = parsed.filter((d: StudentDoubt) => !existingIds.has(d.id));
+            return [...newItems, ...prev];
+          });
+        }
+      }
+    } catch {
+      // Local storage unreadable
+    }
+  }, []);
+
+  // Poll for answer updates
+  useEffect(() => {
+    const fetchLatest = async () => {
+      try {
+        const res = await fetch("/api/doubts");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.doubts && Array.isArray(data.doubts)) {
+            setDoubts((prev) => {
+              const map = new Map(prev.map((d) => [d.id, d]));
+              data.doubts.forEach((d: StudentDoubt) => map.set(d.id, d));
+              const merged = Array.from(map.values()).sort(
+                (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+              );
+              try {
+                localStorage.setItem("odisharank_student_doubts", JSON.stringify(merged.slice(0, 50)));
+              } catch {}
+              return merged;
+            });
+          }
+        }
+      } catch {}
+    };
+
+    const interval = setInterval(fetchLatest, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleAskDoubt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!questionInput.trim()) return;
@@ -100,7 +147,14 @@ export const DoubtsClient: React.FC<DoubtsClientProps> = ({
         throw new Error(data.error || "Failed to submit doubt");
       }
 
-      setDoubts((prev) => [data.doubt, ...prev]);
+      const created = data.doubt;
+      setDoubts((prev) => {
+        const next = [created, ...prev.filter((d) => d.id !== created.id)];
+        try {
+          localStorage.setItem("odisharank_student_doubts", JSON.stringify(next.slice(0, 50)));
+        } catch {}
+        return next;
+      });
       setQuestionInput("");
       setIsPrivate(false);
       setActiveTab("my_doubts");
@@ -126,7 +180,13 @@ export const DoubtsClient: React.FC<DoubtsClientProps> = ({
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      setDoubts((prev) => [fallbackDoubt, ...prev]);
+      setDoubts((prev) => {
+        const next = [fallbackDoubt, ...prev];
+        try {
+          localStorage.setItem("odisharank_student_doubts", JSON.stringify(next.slice(0, 50)));
+        } catch {}
+        return next;
+      });
       setQuestionInput("");
       setIsPrivate(false);
       setActiveTab("my_doubts");

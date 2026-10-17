@@ -9,14 +9,20 @@ export const metadata: Metadata = {
   description: "View and edit your OdishaRank student profile, target examination, and academic details.",
 };
 
+import { redirect } from "next/navigation";
+
 export default async function ProfilePage() {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const userId = authData.user?.id || "demo-student-id";
+  if (!authData.user) {
+    redirect("/login?redirectTo=/profile");
+  }
+
+  const userId = authData.user.id;
   const profile = (await getStudentProfile(userId)) || {
     id: userId,
-    email: authData.user?.email || "student@odisharank.in",
+    email: authData.user.email || "student@odisharank.in",
     full_name: "Aspirant Scholar",
     target_exam_id: null,
     target_year: 2026,

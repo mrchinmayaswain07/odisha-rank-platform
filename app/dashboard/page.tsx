@@ -1,6 +1,7 @@
 import React from "react";
 import { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { getStudentProfile, getDashboardMetrics, getExams } from "@/lib/data-service";
 import { DashboardClient } from "./DashboardClient";
 
@@ -13,7 +14,11 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
-  const userId = authData.user?.id || "demo-student-id";
+  if (!authData.user) {
+    redirect("/login?redirectTo=/dashboard");
+  }
+
+  const userId = authData.user.id;
 
   // Parallel fetch: profile and exams
   const [profile, allExams] = await Promise.all([

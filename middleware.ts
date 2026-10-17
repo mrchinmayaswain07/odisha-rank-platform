@@ -19,16 +19,55 @@ export async function middleware(request: NextRequest) {
   );
 
   const pathname = request.nextUrl.pathname;
-  const isProtectedRoute =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/profile") ||
-    pathname.startsWith("/admin");
+  const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
+
+  // Comprehensive list of strictly protected student & administrator paths
+  const PROTECTED_PREFIXES = [
+    "/dashboard",
+    "/doubts",
+    "/syllabus",
+    "/materials",
+    "/performance",
+    "/questions",
+    "/mock-tests",
+    "/bookmarks",
+    "/courses",
+    "/planner",
+    "/profile",
+    "/admin",
+  ];
+
+  const isProtectedRoute = PROTECTED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
 
   // Prevent back-button cache restoration for protected routes
   if (isProtectedRoute) {
     response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     response.headers.set("Pragma", "no-cache");
     response.headers.set("Expires", "0");
+  }
+
+  // Check if any Supabase auth cookies are present in request
+  const hasAuthCookie = request.cookies.getAll().some(
+    (c) =>
+      (c.name.startsWith("sb-") || c.name.includes("auth-token")) &&
+      c.value &&
+      c.value.trim() !== ""
+  );
+
+  // Zero-latency fast-path for unauthenticated users accessing protected routes:
+  // If there are no auth cookies at all, redirect to login immediately without making any network calls!
+  if (isProtectedRoute && !hasAuthCookie) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirectTo", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Fast-path for guest browsing public paths:
+  // If user has no auth cookie and is visiting a public path, return immediately without querying Supabase!
+  if (!hasAuthCookie && !pathname.startsWith("/api/admin")) {
+    return response;
   }
 
   // If Supabase credentials are not live in this environment, allow previewing routes
@@ -66,18 +105,35 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
-
-  if (pathname === "/register" && user) {
+  // If visiting login or register while already authenticated, redirect appropriately
+  if ((pathname === "/login" || pathname === "/register") && user) {
     const isRootAdmin = user.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
     const targetUrl = new URL(isRootAdmin ? "/admin" : "/dashboard", request.url);
     return NextResponse.redirect(targetUrl);
   }
 
+  // If accessing a protected route without valid user session, redirect to login
   if (isProtectedRoute && !user) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Strict role check for /admin routes: only root administrator or promoted admin users can access /admin
+  if (pathname.startsWith("/admin") && user) {
+    const isRootAdmin = user.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
+    if (!isRootAdmin) {
+      const { data: roleRow } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      if (!roleRow || roleRow.role !== "admin") {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+    }
   }
 
   return response;

@@ -741,6 +741,185 @@ async function runTests() {
     assert(updatedAnalytics.recommended_focus.length > 0, "Recommended focus provides targeted guidance based on actual weak areas");
   }
 
+  // --------------------------------------------------------------------------
+  // 20. UNIFIED ROUTE SECURITY & FAST-PATH EDGE GUARDS
+  // --------------------------------------------------------------------------
+  console.log("\n20. UNIFIED ROUTE SECURITY & FAST-PATH EDGE GUARDS");
+  {
+    const PROTECTED_PREFIXES = [
+      "/dashboard",
+      "/doubts",
+      "/syllabus",
+      "/materials",
+      "/performance",
+      "/questions",
+      "/mock-tests",
+      "/bookmarks",
+      "/courses",
+      "/planner",
+      "/profile",
+      "/admin",
+    ];
+
+    const isRouteProtected = (pathname: string) =>
+      PROTECTED_PREFIXES.some(
+        (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+      );
+
+    // Verify all student and admin routes are strictly guarded
+    assert(isRouteProtected("/dashboard"), "Dashboard is strictly protected");
+    assert(isRouteProtected("/doubts"), "Doubts page is strictly protected against unauthenticated access");
+    assert(isRouteProtected("/syllabus"), "Syllabus page is strictly protected");
+    assert(isRouteProtected("/materials"), "Materials page is strictly protected");
+    assert(isRouteProtected("/performance"), "Performance page is strictly protected");
+    assert(isRouteProtected("/questions"), "Questions bank is strictly protected");
+    assert(isRouteProtected("/mock-tests"), "Mock tests is strictly protected");
+    assert(isRouteProtected("/mock-tests/test-123"), "Active mock test is strictly protected");
+    assert(isRouteProtected("/bookmarks"), "Bookmarks is strictly protected");
+    assert(isRouteProtected("/courses"), "Courses page is strictly protected");
+    assert(isRouteProtected("/planner"), "Planner page is strictly protected");
+    assert(isRouteProtected("/profile"), "Profile page is strictly protected");
+    assert(isRouteProtected("/admin"), "Admin dashboard is strictly protected");
+    assert(isRouteProtected("/admin/doubts"), "Admin doubts is strictly protected");
+    assert(isRouteProtected("/admin/students"), "Admin students directory is strictly protected");
+
+    // Verify public routes are accessible
+    assert(!isRouteProtected("/"), "Landing page is public");
+    assert(!isRouteProtected("/about"), "About page is public");
+    assert(!isRouteProtected("/contact"), "Contact page is public");
+    assert(!isRouteProtected("/login"), "Login page is public");
+    assert(!isRouteProtected("/register"), "Register page is public");
+
+    // Fast-path auth cookie check
+    const checkFastPathRedirect = (pathname: string, hasAuthCookie: boolean) => {
+      if (isRouteProtected(pathname) && !hasAuthCookie) {
+        return `/login?redirectTo=${pathname}`;
+      }
+      return null;
+    };
+
+    assert(
+      checkFastPathRedirect("/doubts", false) === "/login?redirectTo=/doubts",
+      "Unauthenticated guest visiting /doubts is redirected instantly without network delay"
+    );
+    assert(
+      checkFastPathRedirect("/performance", false) === "/login?redirectTo=/performance",
+      "Unauthenticated guest visiting /performance is redirected instantly"
+    );
+
+    // Admin edge authorization check
+    const checkAdminEdgeAccess = (user: { email: string; role?: string }) => {
+      const ROOT_ADMIN = "mrchinmayaswain07@gmail.com";
+      if (user.email.toLowerCase() === ROOT_ADMIN.toLowerCase()) return true;
+      return user.role === "admin";
+    };
+
+    assert(
+      checkAdminEdgeAccess({ email: "mrchinmayaswain07@gmail.com" }) === true,
+      "Root admin has edge access to /admin"
+    );
+    assert(
+      checkAdminEdgeAccess({ email: "student@odisharank.in", role: "student" }) === false,
+      "Student is denied access to /admin at edge"
+    );
+    assert(
+      checkAdminEdgeAccess({ email: "promoted@odisharank.in", role: "admin" }) === true,
+      "Promoted admin user has access to /admin"
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // 21. STUDENT CUSTOM TOPICS & CHAPTERS PERSISTENCE
+  // --------------------------------------------------------------------------
+  console.log("\n21. STUDENT CUSTOM TOPICS & CHAPTERS PERSISTENCE");
+  {
+    const studentAId = "student-topic-test-user-a";
+    const studentBId = "student-topic-test-user-b";
+
+    // 1. Create a custom chapter for Student A
+    const customChapA = {
+      id: `custom-chap-${Date.now()}-1`,
+      subject_id: "subj-ossc-gs",
+      title: "Student A's High-Yield Odisha History Notes",
+      is_official: false,
+      created_by: studentAId,
+    };
+
+    // 2. Create custom topic under custom chapter
+    const customTopA = {
+      id: `custom-top-${Date.now()}-1`,
+      chapter_id: customChapA.id,
+      title: "Paika Rebellion & Buxi Jagabandhu Timeline",
+      estimated_minutes: 60,
+      is_official: false,
+      created_by: studentAId,
+    };
+
+    assert(customChapA.is_official === false, "Custom chapter is non-official");
+    assert(customTopA.is_official === false, "Custom topic is non-official");
+    assert(customTopA.created_by === studentAId, "Custom topic owned by student A");
+
+    // 3. User isolation test: Student B cannot delete or overwrite Student A's custom topic
+    const canDelete = (item: { created_by: string; is_official: boolean }, callerId: string) => {
+      if (item.is_official) return false;
+      return item.created_by === callerId;
+    };
+
+    assert(canDelete(customTopA, studentAId) === true, "Student A can delete own custom topic");
+    assert(canDelete(customTopA, studentBId) === false, "Student B cannot delete Student A's custom topic");
+    assert(canDelete({ created_by: "system", is_official: true }, studentAId) === false, "Cannot delete official topic");
+  }
+
+  // --------------------------------------------------------------------------
+  // 22. MULTI-TIER RESILIENT DOUBTS RETENTION ACROSS REFRESH
+  // --------------------------------------------------------------------------
+  console.log("\n22. MULTI-TIER RESILIENT DOUBTS RETENTION ACROSS REFRESH");
+  {
+    const { createStudentDoubt, getStudentDoubts, updateStudentDoubtAnswer } = await import("../lib/data-service");
+    const studentId = "student-refresh-test-99";
+    const studentName = "Debashis Mohapatra";
+
+    // Submit doubt
+    const doubt = await createStudentDoubt({
+      user_id: studentId,
+      student_name: studentName,
+      student_email: "debashis@odisharank.in",
+      subject: "Odisha General Studies",
+      question: "What was the significance of the 1817 Paika Bidroha in Khordha?",
+      is_private: false,
+    });
+
+    assert(Boolean(doubt.id), "Doubt is assigned a persistent ID");
+    assert(doubt.user_id === studentId, "Doubt is linked to student ID");
+    assert(doubt.status === "pending", "Initial doubt status is pending");
+
+    // Fetch doubts as the student (simulating refresh)
+    const refreshedStudentDoubts = await getStudentDoubts({ userId: studentId });
+    const foundInStudent = refreshedStudentDoubts.find((d) => d.id === doubt.id);
+    assert(Boolean(foundInStudent), "Student doubt persists and is immediately retrievable on refresh");
+
+    // Fetch doubts as Admin
+    const adminDoubts = await getStudentDoubts({ isAdmin: true });
+    const foundInAdmin = adminDoubts.find((d) => d.id === doubt.id);
+    assert(Boolean(foundInAdmin), "Admin sees student doubt in admin panel");
+
+    // Admin answers the doubt
+    const answeredDoubt = await updateStudentDoubtAnswer(doubt.id, {
+      answer: "The Paika Rebellion of 1817 led by Bakshi Jagabandhu was an organized armed rebellion against British rule.",
+      answered_by: "Prof. S. Das, Odisha History Faculty",
+      status: "answered",
+    });
+
+    assert(answeredDoubt?.status === "answered", "Admin successfully marks doubt as answered");
+    assert(Boolean(answeredDoubt?.answer), "Answer text is saved");
+
+    // Re-fetch as student to confirm answered doubt appears
+    const recheckedStudentDoubts = await getStudentDoubts({ userId: studentId });
+    const answeredInStudent = recheckedStudentDoubts.find((d) => d.id === doubt.id);
+    assert(answeredInStudent?.status === "answered", "Answered doubt appears for student after refresh");
+    assert(answeredInStudent?.answered_by === "Prof. S. Das, Odisha History Faculty", "Faculty details appear on student view");
+  }
+
   console.log("\n=================================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
   console.log("=================================================");

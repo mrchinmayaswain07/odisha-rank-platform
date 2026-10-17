@@ -9,18 +9,19 @@ export const metadata: Metadata = {
   description: "Browse verified Odisha Government exam subjects, chapters, topics, notes, and create personal custom study modules.",
 };
 
+import { redirect } from "next/navigation";
+
 export default async function SyllabusPage({
   searchParams,
 }: {
   searchParams?: { exam?: string; subject?: string };
 }) {
-  let user = null;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-  } catch {
-    user = null;
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  const user = data?.user;
+
+  if (!user) {
+    redirect("/login?redirectTo=/syllabus");
   }
 
   // Parallel fetch: all active courses & student profile

@@ -9,18 +9,19 @@ export const metadata: Metadata = {
   description: "Practice verified MCQs for Odisha Government competitive exams with instant evaluation and detailed explanations.",
 };
 
+import { redirect } from "next/navigation";
+
 export default async function QuestionsPage({
   searchParams,
 }: {
   searchParams?: { exam?: string; subject?: string; difficulty?: string };
 }) {
-  let user = null;
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    user = data?.user;
-  } catch {
-    user = null;
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  const user = data?.user;
+
+  if (!user) {
+    redirect("/login?redirectTo=/questions");
   }
 
   // Parallel fetch: all exams & student profile

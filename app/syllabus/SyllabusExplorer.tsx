@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Subject,
@@ -76,6 +76,37 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
   const [newTopicDesc, setNewTopicDesc] = useState("");
   const [newTopicMins, setNewTopicMins] = useState(45);
 
+  // Restore custom chapters & topics on mount from localStorage
+  useEffect(() => {
+    try {
+      const storedChaps = localStorage.getItem(`odisharank_custom_chaps_${userId || "user"}`);
+      if (storedChaps) {
+        const parsed = JSON.parse(storedChaps);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setChapters((prev) => {
+            const existingIds = new Set(prev.map((c) => c.id));
+            const newChaps = parsed.filter((c: Chapter) => !existingIds.has(c.id));
+            return [...prev, ...newChaps];
+          });
+        }
+      }
+
+      const storedTops = localStorage.getItem(`odisharank_custom_tops_${userId || "user"}`);
+      if (storedTops) {
+        const parsedTops = JSON.parse(storedTops);
+        if (Array.isArray(parsedTops) && parsedTops.length > 0) {
+          setTopics((prev) => {
+            const existingIds = new Set(prev.map((t) => t.id));
+            const newTops = parsedTops.filter((t: Topic) => !existingIds.has(t.id));
+            return [...prev, ...newTops];
+          });
+        }
+      }
+    } catch {
+      // Local storage unreadable
+    }
+  }, [userId]);
+
   const activeSubject = subjects.find((s) => s.id === selectedSubjectId);
   const activeChapters = chapters.filter((c) => c.subject_id === selectedSubjectId);
   const activeChapter = chapters.find((c) => c.id === selectedChapterId);
@@ -95,66 +126,160 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
     });
   };
 
-  const handleCreateCustomChapter = (e: React.FormEvent) => {
+  const handleCreateCustomChapter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChapterTitle.trim() || !selectedSubjectId) return;
 
-    const newChap: Chapter = {
+    const title = newChapterTitle.trim();
+    const desc = newChapterDesc.trim() || null;
+
+    let newChap: Chapter = {
       id: `custom-chap-${Date.now()}`,
       subject_id: selectedSubjectId,
-      title: newChapterTitle.trim(),
-      description: newChapterDesc.trim() || null,
+      title,
+      description: desc,
       order_index: activeChapters.length + 1,
       is_official: false,
       created_by: userId || "me",
       created_at: new Date().toISOString(),
     };
 
-    setChapters((prev) => [...prev, newChap]);
+    try {
+      const res = await fetch("/api/syllabus/chapters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject_id: selectedSubjectId,
+          title,
+          description: desc,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.chapter) {
+          newChap = data.chapter;
+        }
+      }
+    } catch {}
+
+    setChapters((prev) => {
+      const next = [...prev, newChap];
+      try {
+        const customOnly = next.filter((c) => !c.is_official);
+        localStorage.setItem(`odisharank_custom_chaps_${userId || "user"}`, JSON.stringify(customOnly));
+      } catch {}
+      return next;
+    });
+
     setSelectedChapterId(newChap.id);
     setNewChapterTitle("");
     setNewChapterDesc("");
     setShowAddChapter(false);
   };
 
-  const handleDeleteChapter = (chapterId: string) => {
+  const handleDeleteChapter = async (chapterId: string) => {
     const chap = chapters.find((c) => c.id === chapterId);
     if (!chap || chap.is_official) return; // Strict security check: cannot delete official chapters
-    setChapters((prev) => prev.filter((c) => c.id !== chapterId));
-    setTopics((prev) => prev.filter((t) => t.chapter_id !== chapterId));
+
+    try {
+      await fetch(`/api/syllabus/chapters?id=${chapterId}`, { method: "DELETE" });
+    } catch {}
+
+    setChapters((prev) => {
+      const next = prev.filter((c) => c.id !== chapterId);
+      try {
+        const customOnly = next.filter((c) => !c.is_official);
+        localStorage.setItem(`odisharank_custom_chaps_${userId || "user"}`, JSON.stringify(customOnly));
+      } catch {}
+      return next;
+    });
+
+    setTopics((prev) => {
+      const next = prev.filter((t) => t.chapter_id !== chapterId);
+      try {
+        const customOnly = next.filter((t) => !t.is_official);
+        localStorage.setItem(`odisharank_custom_tops_${userId || "user"}`, JSON.stringify(customOnly));
+      } catch {}
+      return next;
+    });
+
     if (selectedChapterId === chapterId) {
       const remaining = chapters.filter((c) => c.id !== chapterId && c.subject_id === selectedSubjectId);
       setSelectedChapterId(remaining[0]?.id || "");
     }
   };
 
-  const handleCreateCustomTopic = (e: React.FormEvent) => {
+  const handleCreateCustomTopic = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTopicTitle.trim() || !selectedChapterId) return;
 
-    const newTop: Topic = {
+    const title = newTopicTitle.trim();
+    const desc = newTopicDesc.trim() || null;
+    const mins = newTopicMins;
+
+    let newTop: Topic = {
       id: `custom-top-${Date.now()}`,
       chapter_id: selectedChapterId,
-      title: newTopicTitle.trim(),
-      description: newTopicDesc.trim() || null,
-      estimated_minutes: newTopicMins,
+      title,
+      description: desc,
+      estimated_minutes: mins,
       order_index: activeTopics.length + 1,
       is_official: false,
       created_by: userId || "me",
       created_at: new Date().toISOString(),
     };
 
-    setTopics((prev) => [...prev, newTop]);
+    try {
+      const res = await fetch("/api/syllabus/topics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chapter_id: selectedChapterId,
+          title,
+          description: desc,
+          estimated_minutes: mins,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.topic) {
+          newTop = data.topic;
+        }
+      }
+    } catch {}
+
+    setTopics((prev) => {
+      const next = [...prev, newTop];
+      try {
+        const customOnly = next.filter((t) => !t.is_official);
+        localStorage.setItem(`odisharank_custom_tops_${userId || "user"}`, JSON.stringify(customOnly));
+      } catch {}
+      return next;
+    });
+
     setSelectedTopicId(newTop.id);
     setNewTopicTitle("");
     setNewTopicDesc("");
     setShowAddTopic(false);
   };
 
-  const handleDeleteTopic = (topicId: string) => {
+  const handleDeleteTopic = async (topicId: string) => {
     const top = topics.find((t) => t.id === topicId);
     if (!top || top.is_official) return; // Strict security check: cannot delete official topics
-    setTopics((prev) => prev.filter((t) => t.id !== topicId));
+
+    try {
+      await fetch(`/api/syllabus/topics?id=${topicId}`, { method: "DELETE" });
+    } catch {}
+
+    setTopics((prev) => {
+      const next = prev.filter((t) => t.id !== topicId);
+      try {
+        const customOnly = next.filter((t) => !t.is_official);
+        localStorage.setItem(`odisharank_custom_tops_${userId || "user"}`, JSON.stringify(customOnly));
+      } catch {}
+      return next;
+    });
+
     if (selectedTopicId === topicId) {
       const remaining = topics.filter((t) => t.id !== topicId && t.chapter_id === selectedChapterId);
       setSelectedTopicId(remaining[0]?.id || "");
