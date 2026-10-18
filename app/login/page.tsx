@@ -20,6 +20,8 @@ import {
   LayoutDashboard,
   CheckCircle2,
   Loader2,
+  Mail,
+  Send,
 } from "lucide-react";
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -30,6 +32,10 @@ function LoginForm() {
   const redirectTo = sanitizeRedirect(searchParams.get("redirectTo"), "/dashboard");
 
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isEmailNotConfirmed, setIsEmailNotConfirmed] = useState(false);
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState("");
+  const [isResending, setIsResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loggedInUser, setLoggedInUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -74,6 +80,8 @@ function LoginForm() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     setAuthError(null);
+    setIsEmailNotConfirmed(false);
+    setResendSuccess(false);
 
     try {
       const supabase = createClient();
@@ -83,7 +91,18 @@ function LoginForm() {
       });
 
       if (error) {
-        setAuthError(error.message);
+        const msg = error.message?.toLowerCase() || "";
+        if (
+          msg.includes("email not confirmed") ||
+          msg.includes("not confirmed") ||
+          msg.includes("confirm your email")
+        ) {
+          setIsEmailNotConfirmed(true);
+          setUnconfirmedEmail(data.email);
+          setAuthError("Email is not confirmed. Please verify your email before logging in.");
+        } else {
+          setAuthError(error.message);
+        }
         setIsLoading(false);
       } else if (signInData.user) {
         // Check if admin to smartly route to admin if they came without target
@@ -104,6 +123,27 @@ function LoginForm() {
     } catch {
       setAuthError("Unable to connect to authentication service.");
       setIsLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!unconfirmedEmail) return;
+    setIsResending(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: unconfirmedEmail,
+      });
+      if (error) {
+        setAuthError(error.message || "Failed to resend confirmation email.");
+      } else {
+        setResendSuccess(true);
+      }
+    } catch {
+      setAuthError("Network error while resending confirmation link.");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -170,12 +210,48 @@ function LoginForm() {
 
   return (
     <Card className="p-8 border-slate-200">
-      {authError && (
+      {isEmailNotConfirmed ? (
+        <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2.5">
+          <div className="flex items-center gap-2 font-bold text-amber-800 text-sm">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Email Not Confirmed</span>
+          </div>
+          <p className="text-amber-700 leading-relaxed">
+            Your account verification is pending. Please click the link sent to your email to activate your account.
+          </p>
+
+          {resendSuccess ? (
+            <div className="flex items-center gap-2 text-emerald-700 font-semibold bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Confirmation link resent to {unconfirmedEmail}! Please check your inbox and spam folder.</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleResendConfirmation}
+              disabled={isResending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow-sm transition-colors"
+            >
+              {isResending ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Resending Link...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Resend Confirmation Link</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      ) : authError ? (
         <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2.5">
           <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
           <span>{authError}</span>
         </div>
-      )}
+      ) : null}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <Input

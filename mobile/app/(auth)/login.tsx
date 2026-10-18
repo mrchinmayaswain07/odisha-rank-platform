@@ -12,9 +12,10 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Mail, Lock, AlertCircle } from "lucide-react-native";
+import { Mail, Lock, AlertCircle, CheckCircle2, Send } from "lucide-react-native";
 import { BRAND_COLORS, loginSchema } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
+import { supabase } from "../../src/lib/supabase";
 import { Button } from "../../src/components/Button";
 
 export default function LoginScreen() {
@@ -29,10 +30,16 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [isEmailNotConfirmed, setIsEmailNotConfirmed] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
     setErrorMsg("");
+    setIsEmailNotConfirmed(false);
+    setResendSuccess(false);
+
     const parsed = loginSchema.safeParse({ email: email.trim(), password });
     if (!parsed.success) {
       setErrorMsg(parsed.error.errors[0]?.message || "Please check your inputs.");
@@ -44,9 +51,42 @@ export default function LoginScreen() {
     setIsLoading(false);
 
     if (error) {
-      setErrorMsg(error.message || "Failed to log in. Please check your credentials.");
+      const msg = error.message?.toLowerCase() || "";
+      if (
+        msg.includes("email not confirmed") ||
+        msg.includes("not confirmed") ||
+        msg.includes("confirm your email")
+      ) {
+        setIsEmailNotConfirmed(true);
+        setErrorMsg("Email is not confirmed. Please verify your email before logging in.");
+      } else {
+        setErrorMsg(error.message || "Failed to log in. Please check your credentials.");
+      }
     } else {
       router.replace("/(tabs)/dashboard");
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!email.trim()) {
+      setErrorMsg("Please enter your email address to resend confirmation.");
+      return;
+    }
+    setIsResending(true);
+    try {
+      const { error: resendErr } = await supabase.auth.resend({
+        type: "signup",
+        email: email.trim(),
+      });
+      if (resendErr) {
+        setErrorMsg(resendErr.message || "Could not resend confirmation link.");
+      } else {
+        setResendSuccess(true);
+      }
+    } catch {
+      setErrorMsg("Could not resend confirmation link. Please check network connection.");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -70,8 +110,39 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>Sign in to your aspirant account</Text>
           </View>
 
-          {/* Error Banner */}
-          {errorMsg ? (
+          {/* Email Not Confirmed Banner with Resend Button */}
+          {isEmailNotConfirmed ? (
+            <View style={styles.unconfirmedBanner}>
+              <View style={styles.unconfirmedHeader}>
+                <AlertCircle size={18} color="#d97706" />
+                <Text style={styles.unconfirmedTitle}>Email Not Confirmed</Text>
+              </View>
+              <Text style={styles.unconfirmedText}>
+                Your email address has not been confirmed yet. Please click the link in your verification email.
+              </Text>
+
+              {resendSuccess ? (
+                <View style={styles.resendSuccessBox}>
+                  <CheckCircle2 size={16} color="#059669" />
+                  <Text style={styles.resendSuccessText}>
+                    Confirmation link resent to {email.trim()}! Please check your inbox and spam folder.
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.resendBtn}
+                  onPress={handleResendConfirmation}
+                  disabled={isResending}
+                  activeOpacity={0.8}
+                >
+                  <Send size={14} color="#ffffff" />
+                  <Text style={styles.resendBtnText}>
+                    {isResending ? "Resending Link..." : "Resend Confirmation Link"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : errorMsg ? (
             <View style={styles.errorBanner}>
               <AlertCircle size={16} color={BRAND_COLORS.danger} />
               <Text style={styles.errorText}>{errorMsg}</Text>
@@ -189,6 +260,62 @@ const styles = StyleSheet.create({
   errorText: {
     color: BRAND_COLORS.danger,
     fontSize: 13,
+    flex: 1,
+  },
+  unconfirmedBanner: {
+    backgroundColor: "#fffbeb",
+    borderWidth: 1,
+    borderColor: "#fde68a",
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  unconfirmedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  unconfirmedTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#b45309",
+  },
+  unconfirmedText: {
+    fontSize: 12,
+    color: "#92400e",
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  resendBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: BRAND_COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  resendBtnText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  resendSuccessBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#ecfdf5",
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  resendSuccessText: {
+    fontSize: 12,
+    color: "#059669",
+    fontWeight: "600",
     flex: 1,
   },
   form: {

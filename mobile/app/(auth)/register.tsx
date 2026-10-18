@@ -57,7 +57,19 @@ export default function RegisterScreen() {
     setIsLoading(false);
 
     if (error) {
-      setErrorMsg(error.message || "Failed to create account. Please try again.");
+      const msg = error.message?.toLowerCase() || "";
+      if (
+        msg.includes("already registered") ||
+        msg.includes("already exists") ||
+        msg.includes("user already") ||
+        (error.status === 400 && msg.includes("email"))
+      ) {
+        setErrorMsg(`An account is already created with this email (${email.trim()}). Please sign in.`);
+      } else {
+        setErrorMsg(error.message || "Failed to create account. Please try again.");
+      }
+    } else if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setErrorMsg(`An account is already created with this email (${email.trim()}). Please sign in.`);
     } else if (data?.session) {
       // Auto-confirmed or immediate session
       setSuccessMsg("Account created! Redirecting to dashboard...");
@@ -127,8 +139,21 @@ export default function RegisterScreen() {
           {/* Error Banner */}
           {errorMsg ? (
             <View style={styles.errorBanner}>
-              <AlertCircle size={16} color={BRAND_COLORS.danger} />
-              <Text style={styles.errorText}>{errorMsg}</Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+                <AlertCircle size={16} color={BRAND_COLORS.danger} style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.errorText}>{errorMsg}</Text>
+                  {errorMsg.includes("already created") || errorMsg.includes("already exists") ? (
+                    <TouchableOpacity
+                      style={styles.errorActionBtn}
+                      onPress={() => router.replace("/(auth)/login")}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.errorActionBtnText}>Sign In to Existing Account →</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
             </View>
           ) : null}
 
@@ -271,7 +296,22 @@ const styles = StyleSheet.create({
   errorText: {
     color: BRAND_COLORS.danger,
     fontSize: 13,
-    flex: 1,
+    lineHeight: 18,
+  },
+  errorActionBtn: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: BRAND_COLORS.danger,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  errorActionBtnText: {
+    color: BRAND_COLORS.danger,
+    fontSize: 12,
+    fontWeight: "700",
   },
   successBanner: {
     flexDirection: "row",

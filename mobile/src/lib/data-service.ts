@@ -10,6 +10,7 @@ import {
   Profile,
   DashboardMetrics,
   StudentDoubt,
+  DoubtStatus,
   evaluateMockTestScoring,
   calculateProgress,
   calculateStudyStreak,
@@ -897,3 +898,120 @@ export async function logStudySession(payload: {
     return false;
   }
 }
+
+/**
+ * Fetch all student questions / doubts for Admin Review
+ */
+export async function getAdminDoubtsList(): Promise<StudentDoubt[]> {
+  try {
+    const { data, error } = await supabase
+      .from("student_doubts")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!error && data && Array.isArray(data)) {
+      return data as StudentDoubt[];
+    }
+  } catch {}
+
+  // Resilient fallback to study_sessions duration 99999
+  try {
+    const { data: rows } = await supabase
+      .from("study_sessions")
+      .select("id, notes")
+      .eq("duration_minutes", 99999);
+
+    if (rows && Array.isArray(rows)) {
+      const parsedDoubts: StudentDoubt[] = [];
+      for (const row of rows) {
+        try {
+          if (row.notes) {
+            const parsed = JSON.parse(row.notes);
+            if (parsed.type === "student_doubt" && parsed.id) {
+              parsedDoubts.push(parsed as StudentDoubt);
+            }
+          }
+        } catch {}
+      }
+      return parsedDoubts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+  } catch {}
+
+  return [];
+}
+
+/**
+ * Answer a student doubt / question as Faculty / Administrator
+ */
+export async function updateStudentDoubtAnswer(
+  id: string,
+  payload: {
+    answer: string;
+    answered_by: string;
+    status: DoubtStatus;
+  }
+): Promise<StudentDoubt | null> {
+  const now = new Date().toISOString();
+  let updatedDoubt: StudentDoubt | null = null;
+
+  try {
+    const { data, error } = await supabase
+      .from("student_doubts")
+      .update({
+        answer: payload.answer,
+        answered_by: payload.answered_by,
+        answered_at: now,
+        status: payload.status,
+        updated_at: now,
+        is_notified: false,
+      })
+      .eq("id", id)
+      .select()
+      .maybeSingle();
+
+    if (!error && data) {
+      updatedDoubt = data as StudentDoubt;
+    }
+  } catch {}
+
+  // Resilient fallback persistence via study_sessions
+  try {
+    const { data: rows } = await supabase
+      .from("study_sessions")
+      .select("id, notes")
+      .eq("duration_minutes", 99999);
+
+    if (rows && Array.isArray(rows)) {
+      for (const row of rows) {
+        try {
+          if (row.notes) {
+            const parsed = JSON.parse(row.notes);
+            if (parsed.type === "student_doubt" && parsed.id === id) {
+              const updatedObj = {
+                ...parsed,
+                answer: payload.answer,
+                answered_by: payload.answered_by,
+                answered_at: now,
+                status: payload.status,
+                updated_at: now,
+                is_notified: false,
+              };
+              await supabase
+                .from("study_sessions")
+                .update({ notes: JSON.stringify(updatedObj) })
+                .eq("id", row.id);
+
+              if (!updatedDoubt) {
+                updatedDoubt = updatedObj as StudentDoubt;
+              }
+              break;
+            }
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+
+  return updatedDoubt;
+}
+

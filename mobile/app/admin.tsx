@@ -34,8 +34,10 @@ import {
   UserCheck,
   UserX,
   GraduationCap,
+  MessageSquare,
+  Send,
 } from "lucide-react-native";
-import { BRAND_COLORS, SITE_CONFIG } from "@odisha-rank/shared";
+import { BRAND_COLORS, SITE_CONFIG, StudentDoubt } from "@odisha-rank/shared";
 import { useAuth } from "../src/lib/auth-context";
 import {
   getAdminOverviewStats,
@@ -50,11 +52,13 @@ import {
   createAdminMaterial,
   getAdminStudentsList,
   updateAdminStudentRole,
+  getAdminDoubtsList,
+  updateStudentDoubtAnswer,
 } from "../src/lib/data-service";
 import { Button } from "../src/components/Button";
 import { Badge } from "../src/components/Badge";
 
-type AdminTab = "overview" | "questions" | "courses" | "mock-tests" | "materials" | "students";
+type AdminTab = "overview" | "questions" | "courses" | "mock-tests" | "materials" | "students" | "doubts";
 
 export default function AdminScreen() {
   const { user, profile, isAdmin } = useAuth();
@@ -69,6 +73,7 @@ export default function AdminScreen() {
   const [mockTests, setMockTests] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
+  const [doubts, setDoubts] = useState<StudentDoubt[]>([]);
   const [tabLoading, setTabLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -77,6 +82,9 @@ export default function AdminScreen() {
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   const [showAddMockModal, setShowAddMockModal] = useState(false);
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
+  const [showAnswerDoubtModal, setShowAnswerDoubtModal] = useState(false);
+  const [selectedDoubt, setSelectedDoubt] = useState<StudentDoubt | null>(null);
+  const [doubtAnswerText, setDoubtAnswerText] = useState("");
 
   // Form states - Add Question
   const [qText, setQText] = useState("");
@@ -154,6 +162,9 @@ export default function AdminScreen() {
       } else if (tab === "students") {
         const data = await getAdminStudentsList();
         setStudents(data);
+      } else if (tab === "doubts") {
+        const data = await getAdminDoubtsList();
+        setDoubts(data);
       }
     } catch (err) {
       console.warn("Error loading tab data:", err);
@@ -375,6 +386,38 @@ export default function AdminScreen() {
     );
   };
 
+  const handleOpenAnswerModal = (doubt: StudentDoubt) => {
+    setSelectedDoubt(doubt);
+    setDoubtAnswerText(doubt.answer || "");
+    setShowAnswerDoubtModal(true);
+  };
+
+  const handleAnswerDoubt = async () => {
+    if (!selectedDoubt || !doubtAnswerText.trim()) {
+      Alert.alert("Required", "Please provide a detailed verified answer for the student.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await updateStudentDoubtAnswer(selectedDoubt.id, {
+        answer: doubtAnswerText.trim(),
+        answered_by: profile?.full_name || "Faculty Specialist",
+        status: "answered",
+      });
+
+      Alert.alert("Success", "Verified faculty response published for student.");
+      setShowAnswerDoubtModal(false);
+      setDoubtAnswerText("");
+      setSelectedDoubt(null);
+      loadTabData("doubts");
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to submit doubt answer.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleOpenWebAdmin = async () => {
     const url = "https://odisharank.vercel.app/admin";
     try {
@@ -484,6 +527,15 @@ export default function AdminScreen() {
           >
             <Text style={[styles.tabText, activeTab === "students" && styles.tabTextActive]}>
               Students ({stats?.studentsCount ?? 0})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabItem, activeTab === "doubts" && styles.tabItemActive]}
+            onPress={() => handleTabChange("doubts")}
+          >
+            <Text style={[styles.tabText, activeTab === "doubts" && styles.tabTextActive]}>
+              Doubts ({doubts.filter((d) => d.status === "pending").length})
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -968,6 +1020,95 @@ export default function AdminScreen() {
             )}
           </View>
         )}
+
+        {/* TAB 7: DOUBTS */}
+        {activeTab === "doubts" && (
+          <View style={styles.tabSection}>
+            <View style={styles.tabSectionHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.tabSectionTitle}>Student Doubts & Questions</Text>
+                <Text style={styles.tabSectionSub}>
+                  {doubts.length} queries submitted • {doubts.filter((d) => d.status === "pending").length} awaiting answer
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.refreshBtn}
+                onPress={() => loadTabData("doubts")}
+                activeOpacity={0.7}
+              >
+                <RefreshCw size={14} color={BRAND_COLORS.primary} />
+                <Text style={styles.refreshText}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
+
+            {tabLoading ? (
+              <ActivityIndicator size="large" color={BRAND_COLORS.primary} style={{ marginVertical: 32 }} />
+            ) : doubts.length === 0 ? (
+              <View style={[styles.itemCard, { alignItems: "center", paddingVertical: 32 }]}>
+                <MessageSquare size={36} color="#64748b" style={{ marginBottom: 10 }} />
+                <Text style={{ color: "#ffffff", fontSize: 15, fontWeight: "700" }}>No Questions Found</Text>
+                <Text style={{ color: "#94a3b8", fontSize: 12, textAlign: "center", marginTop: 4 }}>
+                  Student preparation doubts will appear here for faculty review and response.
+                </Text>
+              </View>
+            ) : (
+              doubts.map((doubt) => {
+                const isPending = doubt.status === "pending";
+                return (
+                  <View key={doubt.id} style={styles.doubtCard}>
+                    <View style={styles.doubtHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.doubtStudentName}>{doubt.student_name || "Aspirant"}</Text>
+                        <Text style={styles.doubtMetaText}>
+                          {doubt.subject} • {doubt.student_email || "Student"}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.doubtBadge,
+                          isPending ? styles.doubtBadgePending : styles.doubtBadgeAnswered,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.doubtBadgeText,
+                            isPending ? styles.doubtBadgeTextPending : styles.doubtBadgeTextAnswered,
+                          ]}
+                        >
+                          {isPending ? "Pending" : "Answered"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.doubtQuestionText}>{doubt.question}</Text>
+
+                    {doubt.answer ? (
+                      <View style={styles.doubtAnswerBox}>
+                        <Text style={styles.doubtAnswerLabel}>
+                          Faculty Response ({doubt.answered_by || "Verified Faculty"}):
+                        </Text>
+                        <Text style={styles.doubtAnswerContent}>{doubt.answer}</Text>
+                      </View>
+                    ) : null}
+
+                    <View style={styles.doubtActionRow}>
+                      <TouchableOpacity
+                        style={styles.answerDoubtBtn}
+                        onPress={() => handleOpenAnswerModal(doubt)}
+                        activeOpacity={0.8}
+                      >
+                        <MessageSquare size={13} color="#ffffff" style={{ marginRight: 6 }} />
+                        <Text style={styles.answerDoubtBtnText}>
+                          {isPending ? "Answer Question" : "Update Response"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
       </ScrollView>
 
       {/* MODAL 1: ADD QUESTION */}
@@ -978,9 +1119,20 @@ export default function AdminScreen() {
         >
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Question to Bank</Text>
-              <TouchableOpacity onPress={() => setShowAddQuestionModal(false)}>
-                <X size={20} color={BRAND_COLORS.textPrimary} />
+              <TouchableOpacity
+                style={styles.modalBackBtn}
+                onPress={() => setShowAddQuestionModal(false)}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={16} color="#ffffff" />
+                <Text style={styles.modalBackText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Add Question</Text>
+              <TouchableOpacity
+                onPress={() => setShowAddQuestionModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
@@ -1053,6 +1205,15 @@ export default function AdminScreen() {
                 disabled={isSubmitting}
                 style={{ marginTop: 16 }}
               />
+
+              <Button
+                title="Cancel & Go Back"
+                variant="outline"
+                size="md"
+                onPress={() => setShowAddQuestionModal(false)}
+                disabled={isSubmitting}
+                style={{ marginTop: 10, marginBottom: 20 }}
+              />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -1066,9 +1227,20 @@ export default function AdminScreen() {
         >
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Examination Course</Text>
-              <TouchableOpacity onPress={() => setShowAddCourseModal(false)}>
-                <X size={20} color={BRAND_COLORS.textPrimary} />
+              <TouchableOpacity
+                style={styles.modalBackBtn}
+                onPress={() => setShowAddCourseModal(false)}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={16} color="#ffffff" />
+                <Text style={styles.modalBackText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Add Course</Text>
+              <TouchableOpacity
+                onPress={() => setShowAddCourseModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
@@ -1118,6 +1290,15 @@ export default function AdminScreen() {
                 disabled={isSubmitting}
                 style={{ marginTop: 16 }}
               />
+
+              <Button
+                title="Cancel & Go Back"
+                variant="outline"
+                size="md"
+                onPress={() => setShowAddCourseModal(false)}
+                disabled={isSubmitting}
+                style={{ marginTop: 10, marginBottom: 20 }}
+              />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -1131,9 +1312,20 @@ export default function AdminScreen() {
         >
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
+              <TouchableOpacity
+                style={styles.modalBackBtn}
+                onPress={() => setShowAddMockModal(false)}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={16} color="#ffffff" />
+                <Text style={styles.modalBackText}>Back</Text>
+              </TouchableOpacity>
               <Text style={styles.modalTitle}>Create Mock Test</Text>
-              <TouchableOpacity onPress={() => setShowAddMockModal(false)}>
-                <X size={20} color={BRAND_COLORS.textPrimary} />
+              <TouchableOpacity
+                onPress={() => setShowAddMockModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
@@ -1181,6 +1373,15 @@ export default function AdminScreen() {
                 disabled={isSubmitting}
                 style={{ marginTop: 16 }}
               />
+
+              <Button
+                title="Cancel & Go Back"
+                variant="outline"
+                size="md"
+                onPress={() => setShowAddMockModal(false)}
+                disabled={isSubmitting}
+                style={{ marginTop: 10, marginBottom: 20 }}
+              />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -1194,9 +1395,20 @@ export default function AdminScreen() {
         >
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Study Material / PDF</Text>
-              <TouchableOpacity onPress={() => setShowAddMaterialModal(false)}>
-                <X size={20} color={BRAND_COLORS.textPrimary} />
+              <TouchableOpacity
+                style={styles.modalBackBtn}
+                onPress={() => setShowAddMaterialModal(false)}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={16} color="#ffffff" />
+                <Text style={styles.modalBackText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Add Study Material</Text>
+              <TouchableOpacity
+                onPress={() => setShowAddMaterialModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
@@ -1249,6 +1461,86 @@ export default function AdminScreen() {
                 onPress={handleCreateMaterial}
                 disabled={isSubmitting}
                 style={{ marginTop: 16 }}
+              />
+
+              <Button
+                title="Cancel & Go Back"
+                variant="outline"
+                size="md"
+                onPress={() => setShowAddMaterialModal(false)}
+                disabled={isSubmitting}
+                style={{ marginTop: 10, marginBottom: 20 }}
+              />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* MODAL 5: ANSWER STUDENT DOUBT */}
+      <Modal visible={showAnswerDoubtModal} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalBackdrop}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                style={styles.modalBackBtn}
+                onPress={() => setShowAnswerDoubtModal(false)}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={16} color="#ffffff" />
+                <Text style={styles.modalBackText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Answer Student Doubt</Text>
+              <TouchableOpacity
+                onPress={() => setShowAnswerDoubtModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalScroll}>
+              {selectedDoubt ? (
+                <View style={styles.doubtModalQueryCard}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                    <Text style={styles.doubtModalStudent}>
+                      {selectedDoubt.student_name || "Aspirant"} ({selectedDoubt.subject})
+                    </Text>
+                    <Text style={styles.doubtModalDate}>
+                      {new Date(selectedDoubt.created_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <Text style={styles.doubtModalQuestion}>{selectedDoubt.question}</Text>
+                </View>
+              ) : null}
+
+              <Text style={styles.formLabel}>Faculty Explanation / Verified Answer *</Text>
+              <TextInput
+                style={[styles.formInput, { height: 110, textAlignVertical: "top" }]}
+                multiline
+                placeholder="Provide comprehensive conceptual clarification, syllabus references, or step-by-step solution..."
+                value={doubtAnswerText}
+                onChangeText={setDoubtAnswerText}
+              />
+
+              <Button
+                title={isSubmitting ? "Publishing Answer..." : "Publish Verified Answer"}
+                variant="primary"
+                size="md"
+                onPress={handleAnswerDoubt}
+                disabled={isSubmitting}
+                style={{ marginTop: 16 }}
+              />
+
+              <Button
+                title="Cancel & Go Back"
+                variant="outline"
+                size="md"
+                onPress={() => setShowAnswerDoubtModal(false)}
+                disabled={isSubmitting}
+                style={{ marginTop: 10, marginBottom: 20 }}
               />
             </ScrollView>
           </View>
@@ -1807,5 +2099,129 @@ const styles = StyleSheet.create({
   },
   choiceTextActive: {
     color: "#ffffff",
+  },
+  modalBackBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    gap: 4,
+  },
+  modalBackText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  doubtCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    marginBottom: 12,
+  },
+  doubtHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  doubtStudentName: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  doubtMetaText: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  doubtBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  doubtBadgePending: {
+    backgroundColor: "#451a03",
+    borderColor: "#d97706",
+  },
+  doubtBadgeAnswered: {
+    backgroundColor: "#064e3b",
+    borderColor: "#059669",
+  },
+  doubtBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  doubtBadgeTextPending: {
+    color: "#fbbf24",
+  },
+  doubtBadgeTextAnswered: {
+    color: "#34d399",
+  },
+  doubtQuestionText: {
+    fontSize: 13,
+    color: "#e2e8f0",
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  doubtAnswerBox: {
+    backgroundColor: "#1e293b",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: "#10b981",
+  },
+  doubtAnswerLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#34d399",
+    marginBottom: 4,
+  },
+  doubtAnswerContent: {
+    fontSize: 12,
+    color: "#cbd5e1",
+    lineHeight: 17,
+  },
+  doubtActionRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  answerDoubtBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: BRAND_COLORS.primary,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  answerDoubtBtnText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  doubtModalQueryCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  doubtModalStudent: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#38bdf8",
+  },
+  doubtModalDate: {
+    fontSize: 11,
+    color: "#94a3b8",
+  },
+  doubtModalQuestion: {
+    fontSize: 13,
+    color: "#ffffff",
+    lineHeight: 18,
   },
 });

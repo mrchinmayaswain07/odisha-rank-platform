@@ -81,7 +81,19 @@ export default function RegisterPage() {
       });
 
       if (error) {
-        setAuthError(error.message);
+        const msg = error.message?.toLowerCase() || "";
+        if (
+          msg.includes("already registered") ||
+          msg.includes("already exists") ||
+          msg.includes("user already") ||
+          (error.status === 400 && msg.includes("email"))
+        ) {
+          setAuthError(`An account is already created with this email (${data.email}). Please sign in.`);
+        } else {
+          setAuthError(error.message);
+        }
+      } else if (signUpData?.user && Array.isArray(signUpData.user.identities) && signUpData.user.identities.length === 0) {
+        setAuthError(`An account is already created with this email (${data.email}). Please sign in.`);
       } else if (signUpData.user && signUpData.session) {
         // Logged in immediately
         window.location.href = "/profile";
@@ -198,9 +210,22 @@ export default function RegisterPage() {
           ) : (
             <>
               {authError && (
-                <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <span>{authError}</span>
+                <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">{authError}</span>
+                  </div>
+                  {(authError.includes("already created") || authError.includes("already exists")) && (
+                    <div className="pl-6 pt-1">
+                      <Link
+                        href="/login"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-sm transition-colors"
+                      >
+                        <span>Sign In to Existing Account</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  )}
                 </div>
               )}
 
