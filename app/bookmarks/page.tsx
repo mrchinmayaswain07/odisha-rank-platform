@@ -1,15 +1,14 @@
 import React from "react";
 import { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
-import { getStudentProfile, getDashboardMetrics, getExams } from "@/lib/data-service";
+import { redirect } from "next/navigation";
+import { getAuthenticatedUser } from "@/lib/auth-server";
+import { getStudentProfile, getExams } from "@/lib/data-service";
 import { BookmarksClient } from "./BookmarksClient";
 
 export const metadata: Metadata = {
   title: "Bookmarked Questions & Revision Hub | OdishaRank",
   description: "Access your saved questions, revision formulas, and tricky topics for quick review before Odisha state examinations.",
 };
-
-import { redirect } from "next/navigation";
 
 const EMPTY_METRICS: any = {
   study_hours: 0,
@@ -28,14 +27,13 @@ const EMPTY_METRICS: any = {
 };
 
 export default async function BookmarksPage() {
-  const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
-  if (!authData.user) {
+  if (!user) {
     redirect("/login?redirectTo=/bookmarks");
   }
 
-  const userId = authData.user.id;
+  const userId = user.id;
 
   const [profile, allExams] = await Promise.all([
     getStudentProfile(userId),

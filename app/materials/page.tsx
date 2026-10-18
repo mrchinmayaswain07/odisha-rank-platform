@@ -33,19 +33,20 @@ const EMPTY_METRICS: any = {
   subject_progress: [],
 };
 
+import { getAuthenticatedUser } from "@/lib/auth-server";
+
 export default async function MaterialsPage({
   searchParams,
 }: {
   searchParams?: { exam?: string; category?: string; q?: string };
 }) {
-  const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
-  if (!authData.user) {
+  if (!user) {
     redirect("/login?redirectTo=/materials");
   }
 
-  const userId = authData.user.id;
+  const userId = user.id;
 
   const [profile, allExams, subjects] = await Promise.all([
     getStudentProfile(userId),

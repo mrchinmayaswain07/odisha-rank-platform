@@ -137,6 +137,7 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
               <Link
                 key={item.name}
                 href={item.href}
+                prefetch={true}
                 onClick={onCloseMobile}
                 className={`flex items-center gap-3.5 px-4 py-2.5 rounded-2xl font-semibold text-xs sm:text-sm transition-all ${
                   isActive

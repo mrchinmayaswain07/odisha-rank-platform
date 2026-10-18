@@ -15,14 +15,14 @@ export const metadata: Metadata = {
 
 import { redirect } from "next/navigation";
 
+import { getAuthenticatedUser } from "@/lib/auth-server";
+
 export default async function MockTestsPage({
   searchParams,
 }: {
   searchParams?: { exam?: string };
 }) {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  const user = data?.user;
+  const user = await getAuthenticatedUser();
 
   if (!user) {
     redirect("/login?redirectTo=/mock-tests");

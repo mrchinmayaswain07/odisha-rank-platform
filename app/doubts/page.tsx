@@ -1,7 +1,7 @@
 import React from "react";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/lib/auth-server";
 import { getStudentProfile, getExams, getStudentDoubts } from "@/lib/data-service";
 import { DoubtsClient } from "./DoubtsClient";
 
@@ -27,14 +27,13 @@ const EMPTY_METRICS: any = {
 };
 
 export default async function DoubtsPage() {
-  const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
-  if (!authData.user) {
+  if (!user) {
     redirect("/login?redirectTo=/doubts");
   }
 
-  const userId = authData.user.id;
+  const userId = user.id;
 
   const [profile, allExams, initialDoubts] = await Promise.all([
     getStudentProfile(userId),

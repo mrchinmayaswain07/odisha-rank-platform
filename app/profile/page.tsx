@@ -1,6 +1,7 @@
 import React from "react";
 import { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { getAuthenticatedUser } from "@/lib/auth-server";
 import { getStudentProfile, getExams } from "@/lib/data-service";
 import { ProfileClient } from "./ProfileClient";
 
@@ -9,20 +10,17 @@ export const metadata: Metadata = {
   description: "View and edit your OdishaRank student profile, target examination, and academic details.",
 };
 
-import { redirect } from "next/navigation";
-
 export default async function ProfilePage() {
-  const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
-  if (!authData.user) {
+  if (!user) {
     redirect("/login?redirectTo=/profile");
   }
 
-  const userId = authData.user.id;
+  const userId = user.id;
   const profile = (await getStudentProfile(userId)) || {
     id: userId,
-    email: authData.user.email || "student@odisharank.in",
+    email: user.email || "student@odisharank.in",
     full_name: "Aspirant Scholar",
     target_exam_id: null,
     target_year: 2026,

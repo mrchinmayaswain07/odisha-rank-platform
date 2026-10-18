@@ -261,6 +261,7 @@ export function getRuntimeMaterials(): StudyMaterial[] {
 }
 
 export function saveRuntimeMaterial(mat: StudyMaterial): StudyMaterial {
+  invalidateCatalogCache("materials_");
   const existingIdx = RUNTIME_MATERIALS.findIndex((m) => m.id === mat.id);
   if (existingIdx >= 0) {
     RUNTIME_MATERIALS[existingIdx] = { ...RUNTIME_MATERIALS[existingIdx], ...mat };
@@ -272,6 +273,7 @@ export function saveRuntimeMaterial(mat: StudyMaterial): StudyMaterial {
 }
 
 export function updateRuntimeMaterialStatus(id: string, status: "draft" | "published" | "archived"): boolean {
+  invalidateCatalogCache("materials_");
   const existingIdx = RUNTIME_MATERIALS.findIndex((m) => m.id === id);
   if (existingIdx >= 0) {
     RUNTIME_MATERIALS[existingIdx].status = status;
@@ -639,6 +641,7 @@ export function saveRuntimeQuestionAttempt(att: {
   is_correct: boolean;
   time_taken_seconds?: number;
 }) {
+  invalidateCatalogCache(`metrics_${att.user_id}`);
   const record = {
     id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     user_id: att.user_id,
@@ -671,6 +674,7 @@ export function saveRuntimeStudySession(sess: {
   session_date?: string;
   notes?: string;
 }) {
+  invalidateCatalogCache(`metrics_${sess.user_id}`);
   const record = {
     id: `sess-${Date.now()}`,
     user_id: sess.user_id,
@@ -758,8 +762,16 @@ export async function getStudyMaterials(filters?: {
   category?: string;
   search?: string;
 }): Promise<StudyMaterial[]> {
+  const cacheKey = `materials_${filters?.examId || "all"}_${filters?.subjectId || "all"}_${filters?.topicId || "all"}_${filters?.category || "all"}_${filters?.status || "published"}_${filters?.search || ""}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CATALOG_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   if (!isSupabaseConfigured()) {
-    return applyMaterialFilters(RUNTIME_MATERIALS, filters);
+    const res = applyMaterialFilters(RUNTIME_MATERIALS, filters);
+    catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
+    return res;
   }
 
   try {
@@ -784,17 +796,19 @@ export async function getStudyMaterials(filters?: {
     }
 
     let { data, error } = await query;
-    if (error) {
-      return applyMaterialFilters(RUNTIME_MATERIALS, filters);
+    if (error || !data || data.length === 0) {
+      const res = applyMaterialFilters(RUNTIME_MATERIALS, filters);
+      catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
+      return res;
     }
 
-    if (!data || data.length === 0) {
-      return applyMaterialFilters(RUNTIME_MATERIALS, filters);
-    }
-
-    return data as StudyMaterial[];
+    const result = data as StudyMaterial[];
+    catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
   } catch {
-    return applyMaterialFilters(RUNTIME_MATERIALS, filters);
+    const res = applyMaterialFilters(RUNTIME_MATERIALS, filters);
+    catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
+    return res;
   }
 }
 
@@ -807,6 +821,12 @@ export async function getQuestions(filters?: {
   difficulty?: string;
   search?: string;
 }): Promise<Question[]> {
+  const cacheKey = `questions_${filters?.examId || "all"}_${filters?.subjectId || "all"}_${filters?.difficulty || "all"}_${filters?.search || ""}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CATALOG_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   if (!isSupabaseConfigured()) {
     let result = SEED_QUESTIONS;
     if (filters?.examId) {
@@ -819,6 +839,7 @@ export async function getQuestions(filters?: {
       const s = filters.search.toLowerCase();
       result = result.filter((q) => q.question_text.toLowerCase().includes(s));
     }
+    catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
     return result;
   }
 
@@ -833,7 +854,6 @@ export async function getQuestions(filters?: {
 
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
-      // If no questions exist specifically for this exam in the database, fetch available questions so students can always practice
       if (filters?.examId && (!data || data.length === 0)) {
         try {
           const generalRes = await supabase
@@ -842,7 +862,9 @@ export async function getQuestions(filters?: {
             .order("created_at", { ascending: false })
             .limit(25);
           if (generalRes.data && generalRes.data.length > 0) {
-            return generalRes.data as Question[];
+            const res = generalRes.data as Question[];
+            catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
+            return res;
           }
         } catch {
           // Continue to seed fallback
@@ -858,10 +880,14 @@ export async function getQuestions(filters?: {
       }
       if (filters?.subjectId) fallback = fallback.filter((q) => q.subject_id === filters.subjectId);
       if (filters?.difficulty) fallback = fallback.filter((q) => q.difficulty === filters.difficulty);
+      catalogCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
       return fallback;
     }
-    return data as Question[];
+    const result = data as Question[];
+    catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
   } catch {
+    catalogCache.set(cacheKey, { data: SEED_QUESTIONS, timestamp: Date.now() });
     return SEED_QUESTIONS;
   }
 }
@@ -970,9 +996,16 @@ export async function getPaginatedQuestions(filters?: {
  * Fetch mock tests filtered by course/exam.
  */
 export async function getMockTests(examId?: string, includeAllStatus: boolean = false): Promise<MockTest[]> {
+  const cacheKey = `mocktests_${examId || "all"}_${includeAllStatus}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CATALOG_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   if (!isSupabaseConfigured()) {
-    if (examId) return SEED_MOCK_TESTS.filter((m) => m.exam_id === examId);
-    return SEED_MOCK_TESTS;
+    const res = examId ? SEED_MOCK_TESTS.filter((m) => m.exam_id === examId) : SEED_MOCK_TESTS;
+    catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
+    return res;
   }
 
   try {
@@ -989,14 +1022,20 @@ export async function getMockTests(examId?: string, includeAllStatus: boolean = 
 
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
-      return examId ? SEED_MOCK_TESTS.filter((m) => m.exam_id === examId) : SEED_MOCK_TESTS;
+      const res = examId ? SEED_MOCK_TESTS.filter((m) => m.exam_id === examId) : SEED_MOCK_TESTS;
+      catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
+      return res;
     }
-    return data.map((item: any) => ({
+    const result = data.map((item: any) => ({
       ...item,
       questions_count: item.mock_test_questions?.[0]?.count ?? 0,
     })) as MockTest[];
+    catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
   } catch {
-    return examId ? SEED_MOCK_TESTS.filter((m) => m.exam_id === examId) : SEED_MOCK_TESTS;
+    const res = examId ? SEED_MOCK_TESTS.filter((m) => m.exam_id === examId) : SEED_MOCK_TESTS;
+    catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
+    return res;
   }
 }
 
@@ -1039,8 +1078,14 @@ export async function getMockTestById(id: string): Promise<{ test: MockTest; que
 }
 
 export async function getStudentProfile(userId: string): Promise<Profile | null> {
+  const cacheKey = `profile_${userId}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CATALOG_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   if (!isSupabaseConfigured()) {
-    return {
+    const res: Profile = {
       id: userId,
       email: "student@odisharank.in",
       full_name: "Aspirant Scholar",
@@ -1053,6 +1098,8 @@ export async function getStudentProfile(userId: string): Promise<Profile | null>
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+    catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
+    return res;
   }
 
   try {
@@ -1064,7 +1111,9 @@ export async function getStudentProfile(userId: string): Promise<Profile | null>
       .single();
 
     if (error || !data) return null;
-    return data as Profile;
+    const result = data as Profile;
+    catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
   } catch {
     return null;
   }
@@ -1077,6 +1126,12 @@ export async function getStudentProfile(userId: string): Promise<Profile | null>
  * 3. Never leaks or mixes up progress across different courses or custom topics.
  */
 export async function getDashboardMetrics(userId: string, targetExamId?: string | null): Promise<DashboardMetrics> {
+  const cacheKey = `metrics_${userId}_${targetExamId || "all"}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 30 * 1000) {
+    return cached.data;
+  }
+
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const todayStr = new Date().toISOString().split("T")[0];
@@ -1150,7 +1205,7 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
       });
     }
 
-    return {
+    const offlineMetrics: DashboardMetrics = {
       study_hours: studyHours,
       study_hours_today: studyHoursToday,
       study_hours_yesterday: studyHoursYesterday,
@@ -1187,6 +1242,8 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
       weekly_stats: weeklyStats,
       monthly_stats: monthlyStats,
     };
+    catalogCache.set(cacheKey, { data: offlineMetrics, timestamp: Date.now() });
+    return offlineMetrics;
   }
 
   try {
@@ -1447,7 +1504,7 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
       });
     });
 
-    return {
+    const onlineMetrics: DashboardMetrics = {
       study_hours: studyHours,
       study_hours_today: studyHoursToday,
       study_hours_yesterday: studyHoursYesterday,
@@ -1479,6 +1536,8 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
       monthly_stats: monthlyStats,
       recommended_topics: recommendedTopics,
     };
+    catalogCache.set(cacheKey, { data: onlineMetrics, timestamp: Date.now() });
+    return onlineMetrics;
   } catch (err) {
     console.error("getDashboardMetrics error:", err);
     return {
@@ -1762,8 +1821,14 @@ export async function getPerformanceAnalytics(
  * Parallelized for maximum speed.
  */
 export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
+  const cacheKey = "admin_dashboard_stats";
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 30 * 1000) {
+    return cached.data;
+  }
+
   if (!isSupabaseConfigured()) {
-    return {
+    const res: AdminDashboardStats = {
       total_students: 12,
       total_courses: SEED_EXAMS.length,
       total_subjects: SEED_SUBJECTS.length,
@@ -1774,6 +1839,8 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
       total_mock_tests: SEED_MOCK_TESTS.length,
       recent_activities: [],
     };
+    catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
+    return res;
   }
 
   try {
@@ -1810,7 +1877,7 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
         .limit(10),
     ]);
 
-    return {
+    const result: AdminDashboardStats = {
       total_students: studentsRes.count || 0,
       total_courses: coursesRes.count || 0,
       total_subjects: subjectsRes.count || 0,
@@ -1821,6 +1888,8 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
       total_mock_tests: mockTestsRes.count || 0,
       recent_activities: (activitiesRes.data || []) as StudentActivity[],
     };
+    catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
   } catch (err) {
     console.error("getAdminDashboardStats error:", err);
     return {

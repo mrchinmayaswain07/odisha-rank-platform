@@ -57,6 +57,9 @@ export const metadata: Metadata = {
   },
 };
 
+import { headers } from "next/headers";
+import { getAuthenticatedUser } from "@/lib/auth-server";
+
 export default async function RootLayout({
   children,
 }: {
@@ -65,23 +68,37 @@ export default async function RootLayout({
   let navUser = null;
 
   try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    const user = data?.user;
+    const headerList = headers();
+    const pathname = headerList.get("x-pathname") || "";
+    const isPortalRoute =
+      pathname.startsWith("/admin") ||
+      ["/dashboard", "/planner", "/courses", "/materials", "/performance", "/bookmarks", "/doubts"].includes(
+        pathname
+      );
 
-    if (user) {
-      const [{ data: prof }, isAdmin] = await Promise.all([
-        supabase.from("profiles").select("full_name, target_exam_id").eq("id", user.id).maybeSingle(),
-        checkIsAdmin(user.id, user.email),
-      ]);
+    // Zero-latency optimization: Navbar and Footer return null on portal/admin routes.
+    // Completely bypass DB queries on portal routes!
+    if (!isPortalRoute) {
+      const user = await getAuthenticatedUser();
 
-      navUser = {
-        id: user.id,
-        email: user.email || null,
-        fullName: prof?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "Aspirant",
-        targetExamId: prof?.target_exam_id || null,
-        isAdmin,
-      };
+      if (user) {
+        const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
+        const isRootAdmin = user.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
+
+        const supabase = await createClient();
+        const [{ data: prof }, isAdmin] = await Promise.all([
+          supabase.from("profiles").select("full_name, target_exam_id").eq("id", user.id).maybeSingle(),
+          isRootAdmin ? true : checkIsAdmin(user.id, user.email || undefined),
+        ]);
+
+        navUser = {
+          id: user.id,
+          email: user.email || null,
+          fullName: prof?.full_name || user.email?.split("@")[0] || "Aspirant",
+          targetExamId: prof?.target_exam_id || null,
+          isAdmin,
+        };
+      }
     }
   } catch {
     navUser = null;

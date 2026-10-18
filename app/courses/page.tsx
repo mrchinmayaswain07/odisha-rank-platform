@@ -1,15 +1,14 @@
 import React from "react";
 import { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
-import { getStudentProfile, getDashboardMetrics, getExams } from "@/lib/data-service";
+import { redirect } from "next/navigation";
+import { getAuthenticatedUser } from "@/lib/auth-server";
+import { getStudentProfile, getExams } from "@/lib/data-service";
 import { CoursesClient } from "./CoursesClient";
 
 export const metadata: Metadata = {
   title: "My Courses & Target Odisha Examinations | OdishaRank",
   description: "Browse official examination courses, switch active exam preparations, and view stage-wise syllabus patterns for OPSC, OSSC, and OSSSC.",
 };
-
-import { redirect } from "next/navigation";
 
 const EMPTY_METRICS: any = {
   study_hours: 0,
@@ -28,14 +27,13 @@ const EMPTY_METRICS: any = {
 };
 
 export default async function CoursesPage() {
-  const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
-  if (!authData.user) {
+  if (!user) {
     redirect("/login?redirectTo=/courses");
   }
 
-  const userId = authData.user.id;
+  const userId = user.id;
 
   const [profile, allExams] = await Promise.all([
     getStudentProfile(userId),

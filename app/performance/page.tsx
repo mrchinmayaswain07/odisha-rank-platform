@@ -1,6 +1,7 @@
 import React from "react";
 import { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { getAuthenticatedUser } from "@/lib/auth-server";
 import { getStudentProfile, getDashboardMetrics, getExams, getPerformanceAnalytics } from "@/lib/data-service";
 import { PerformanceClient } from "./PerformanceClient";
 
@@ -9,17 +10,14 @@ export const metadata: Metadata = {
   description: "Comprehensive performance metrics, subject accuracy breakdowns, time-per-question analysis, and Odisha competitive rank predictions.",
 };
 
-import { redirect } from "next/navigation";
-
 export default async function PerformancePage() {
-  const supabase = await createClient();
-  const { data: authData } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
-  if (!authData.user) {
+  if (!user) {
     redirect("/login?redirectTo=/performance");
   }
 
-  const userId = authData.user.id;
+  const userId = user.id;
 
   const [profile, allExams] = await Promise.all([
     getStudentProfile(userId),

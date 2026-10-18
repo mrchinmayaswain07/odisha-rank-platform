@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 
 import { redirect } from "next/navigation";
 
+import { getAuthenticatedUser } from "@/lib/auth-server";
+
 export default async function QuestionsPage({
   searchParams,
 }: {
   searchParams?: { exam?: string; subject?: string; difficulty?: string };
 }) {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  const user = data?.user;
+  const user = await getAuthenticatedUser();
 
   if (!user) {
     redirect("/login?redirectTo=/questions");
