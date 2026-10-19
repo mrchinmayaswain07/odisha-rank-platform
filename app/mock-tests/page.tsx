@@ -21,16 +21,19 @@ export default async function MockTestsPage({
     redirect("/login?redirectTo=/mock-tests");
   }
 
-  // Parallel fetch: all courses & student profile
-  const [allExams, profile] = await Promise.all([
+  const explicitExam = searchParams?.exam;
+
+  // Parallel fetch: all courses, student profile, and mock tests if exam is provided
+  const [allExams, profile, prefetchTests] = await Promise.all([
     getExams(),
     getStudentProfile(user.id),
+    explicitExam ? getMockTests(explicitExam) : null,
   ]);
 
-  const activeExamId = searchParams?.exam || profile?.target_exam_id || allExams[0]?.id || "";
+  const activeExamId = explicitExam || profile?.target_exam_id || allExams[0]?.id || "";
   const activeExam = allExams.find((e) => e.id === activeExamId) || allExams[0] || null;
 
-  const tests = await getMockTests(activeExamId);
+  const tests = prefetchTests || (await getMockTests(activeExamId));
 
   return (
     <MockTestsClient

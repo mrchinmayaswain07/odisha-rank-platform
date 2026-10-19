@@ -85,6 +85,7 @@ export default async function RootLayout({
         "/mock-tests",
         "/questions",
         "/profile",
+        "/syllabus",
       ].some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
     // Zero-latency optimization: Navbar and Footer return null on portal/admin routes.

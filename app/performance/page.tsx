@@ -28,8 +28,10 @@ export default async function PerformancePage() {
     ? allExams.find((e) => e.id === profile.target_exam_id) || null
     : allExams[0] || null;
 
-  const metrics = await getDashboardMetrics(userId, targetExam?.id);
-  const analytics = await getPerformanceAnalytics(userId, targetExam?.id, metrics);
+  const [metrics, analytics] = await Promise.all([
+    getDashboardMetrics(userId, targetExam?.id),
+    getPerformanceAnalytics(userId, targetExam?.id),
+  ]);
 
   return (
     <PerformanceClient

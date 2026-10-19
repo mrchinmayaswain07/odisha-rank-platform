@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 
 import { redirect } from "next/navigation";
 
+import { getAuthenticatedUser } from "@/lib/auth-server";
+
 export default async function SyllabusPage({
   searchParams,
 }: {
   searchParams?: { exam?: string; subject?: string };
 }) {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  const user = data?.user;
+  const user = await getAuthenticatedUser();
 
   if (!user) {
     redirect("/login?redirectTo=/syllabus");
@@ -38,8 +38,11 @@ export default async function SyllabusPage({
   const subjects = await getSubjects(activeExamId);
   const firstSubjectId = searchParams?.subject || subjects[0]?.id || "";
   const chapters = firstSubjectId ? await getChapters(firstSubjectId, user?.id) : [];
-  const firstChapterId = chapters[0]?.id || "";
-  const topics = firstChapterId ? await getTopics(firstChapterId, user?.id) : [];
+  const firstChapter = chapters[0];
+  // Chapters already have nested topics from Supabase query
+  const topics = (firstChapter as any)?.topics && Array.isArray((firstChapter as any).topics) && (firstChapter as any).topics.length > 0
+    ? (firstChapter as any).topics
+    : (firstChapter ? await getTopics(firstChapter.id, user?.id) : []);
   const firstTopicId = topics[0]?.id || "";
   const materials = firstTopicId ? await getStudyMaterials({ topicId: firstTopicId }) : [];
 

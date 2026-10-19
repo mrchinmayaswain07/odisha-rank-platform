@@ -628,6 +628,7 @@ What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odish
         material_type: matType,
         content: matContent.trim() || "Official study notes for state exams.",
         url: matUrl.trim() || undefined,
+        file_url: matUrl.trim() || undefined,
       });
 
       Alert.alert("Success", "Study material / PDF note uploaded.");
@@ -1269,8 +1270,11 @@ What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odish
               materials.map((mat, idx) => (
                 <View key={mat.id || idx} style={styles.itemCard}>
                   <View style={styles.itemHeader}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", flex: 1 }}>
                       <Badge label={mat.material_type?.toUpperCase() || "NOTE"} variant="blue" size="sm" />
+                      {Boolean((mat.url || mat.file_url)?.includes("drive.google.com") || (mat.url || mat.file_url)?.includes("docs.google.com")) && (
+                        <Badge label="Google Drive" variant="amber" size="sm" />
+                      )}
                       {mat.topics?.title && (
                         <Badge label={mat.topics.title.substring(0, 18) + "..."} variant="slate" size="sm" />
                       )}
@@ -1285,8 +1289,15 @@ What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odish
                   </View>
                   <Text style={styles.courseItemTitle}>{mat.title}</Text>
                   <Text style={styles.courseItemDesc}>{mat.content}</Text>
-                  {mat.url && (
-                    <Text style={styles.courseSlugText}>URL: {mat.url}</Text>
+                  {(mat.url || mat.file_url) && (
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(mat.url || mat.file_url)}
+                      style={{ marginTop: 6 }}
+                    >
+                      <Text style={[styles.courseSlugText, { color: BRAND_COLORS.primary }]}>
+                        🔗 {mat.url || mat.file_url}
+                      </Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               ))

@@ -48,20 +48,16 @@ export default async function MaterialsPage({
 
   const userId = user.id;
 
-  const [profile, allExams, subjects] = await Promise.all([
+  const [profile, allExams, subjects, publishedMaterials] = await Promise.all([
     getStudentProfile(userId),
     getExams(),
     getSubjects(),
+    getStudyMaterials({ status: "published" }),
   ]);
 
   const targetExam = profile?.target_exam_id
     ? allExams.find((e) => e.id === profile.target_exam_id) || null
     : allExams[0] || null;
-
-  // Fetch all published study materials so students have complete access to universal & exam notes
-  const publishedMaterials = await getStudyMaterials({
-    status: "published",
-  });
 
   return (
     <MaterialsClient

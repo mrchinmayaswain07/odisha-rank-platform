@@ -34,37 +34,54 @@ export default function SyllabusScreen() {
   const [isLoadingChapters, setIsLoadingChapters] = useState(false);
 
   useEffect(() => {
+    let isCurrent = true;
     const loadSubjects = async () => {
       setIsLoading(true);
-      const subs = await getSubjects(activeExam?.id);
-      setSubjects(subs);
-      if (subs.length > 0) {
-        setActiveSubject(subs[0]);
-      } else {
-        setActiveSubject(null);
-        setChapters([]);
+      try {
+        const subs = await getSubjects(activeExam?.id);
+        if (!isCurrent) return;
+        setSubjects(subs);
+        if (subs.length > 0) {
+          setActiveSubject(subs[0]);
+          const chaps = await getChapters(subs[0].id, user?.id);
+          if (!isCurrent) return;
+          setChapters(chaps);
+          if (chaps.length > 0) {
+            setExpandedChapterIds(new Set([chaps[0].id]));
+          }
+        } else {
+          setActiveSubject(null);
+          setChapters([]);
+        }
+      } catch (err) {
+        console.warn("Failed to load syllabus subjects:", err);
+      } finally {
+        if (isCurrent) setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     loadSubjects();
-  }, [activeExam]);
+    return () => {
+      isCurrent = false;
+    };
+  }, [activeExam, user?.id]);
 
-  useEffect(() => {
-    if (!activeSubject) return;
-
-    const loadChapters = async () => {
-      setIsLoadingChapters(true);
-      const chaps = await getChapters(activeSubject.id, user?.id);
+  const handleSelectSubject = async (sub: Subject) => {
+    if (activeSubject?.id === sub.id) return;
+    setActiveSubject(sub);
+    setIsLoadingChapters(true);
+    try {
+      const chaps = await getChapters(sub.id, user?.id);
       setChapters(chaps);
       if (chaps.length > 0) {
         setExpandedChapterIds(new Set([chaps[0].id]));
       }
+    } catch (err) {
+      console.warn("Failed to load chapters for subject:", err);
+    } finally {
       setIsLoadingChapters(false);
-    };
-
-    loadChapters();
-  }, [activeSubject, user]);
+    }
+  };
 
   const toggleChapter = (id: string) => {
     setExpandedChapterIds((prev) => {
@@ -99,7 +116,7 @@ export default function SyllabusScreen() {
               return (
                 <TouchableOpacity
                   key={sub.id}
-                  onPress={() => setActiveSubject(sub)}
+                  onPress={() => handleSelectSubject(sub)}
                   style={[styles.subjectTab, isActive && styles.subjectTabActive]}
                   activeOpacity={0.8}
                 >

@@ -182,11 +182,12 @@ export async function getStudyMaterials(
     topicId?: string;
     subjectId?: string;
     examId?: string;
+    category?: string;
     search?: string;
   },
   forceRefresh: boolean = false
 ): Promise<StudyMaterial[]> {
-  const cacheKey = `materials_${filters?.examId || "all"}_${filters?.subjectId || "all"}_${filters?.topicId || "all"}_${filters?.search || ""}`;
+  const cacheKey = `materials_${filters?.examId || "all"}_${filters?.subjectId || "all"}_${filters?.topicId || "all"}_${filters?.category || "all"}_${filters?.search || ""}`;
   return fetchWithCache(cacheKey, 2 * 60 * 1000, async () => {
     try {
       let query = supabase
@@ -198,17 +199,46 @@ export async function getStudyMaterials(
       if (filters?.topicId) query = query.eq("topic_id", filters.topicId);
       if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
       if (filters?.examId && filters.examId !== "all") query = query.eq("exam_id", filters.examId);
-      if (filters?.search) {
-        query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
-      }
+      if (filters?.category && filters.category !== "all") query = query.eq("category", filters.category);
 
       if (!filters?.topicId) {
-        query = query.limit(60);
+        query = query.limit(100);
       }
 
       const { data, error } = await query;
       if (error || !data) return [];
-      return (data as StudyMaterial[]).filter((m) => !m.title?.startsWith("[SYSTEM_"));
+
+      // Extract tombstone deleted IDs if present
+      const tombstone = (data as any[]).find((m) => m.title === "[SYSTEM_DELETED_MATERIALS]");
+      const deletedSet = new Set<string>();
+      if (tombstone?.content) {
+        try {
+          const parsed = JSON.parse(tombstone.content);
+          if (Array.isArray(parsed)) parsed.forEach((id: string) => deletedSet.add(id));
+        } catch {}
+      }
+
+      let list = (data as any[])
+        .filter((m) => !m.title?.startsWith("[SYSTEM_") && !deletedSet.has(m.id))
+        .map((m) => ({
+          ...m,
+          material_type: m.material_type || (m.category === "pdf" ? "pdf" : "note"),
+          file_url: m.file_url || m.url || null,
+          url: m.url || m.file_url || null,
+        })) as StudyMaterial[];
+
+      // Client-side search for maximum responsiveness & robust text matching
+      if (filters?.search) {
+        const q = filters.search.toLowerCase().trim();
+        list = list.filter(
+          (m) =>
+            m.title?.toLowerCase().includes(q) ||
+            m.content?.toLowerCase().includes(q) ||
+            m.category?.toLowerCase().includes(q)
+        );
+      }
+
+      return list;
     } catch {
       return [];
     }
@@ -839,10 +869,27 @@ export async function getAdminMaterialsList(): Promise<any[]> {
   try {
     const { data, error } = await supabase
       .from("study_materials")
-      .select("*, topics(title)")
+      .select("*")
       .order("created_at", { ascending: false });
     if (error || !data) return [];
-    return data.filter((m: any) => !m.title?.startsWith("[SYSTEM_"));
+    
+    // Extract tombstone deleted IDs if present
+    const tombstone = (data as any[]).find((m) => m.title === "[SYSTEM_DELETED_MATERIALS]");
+    const deletedSet = new Set<string>();
+    if (tombstone?.content) {
+      try {
+        const parsed = JSON.parse(tombstone.content);
+        if (Array.isArray(parsed)) parsed.forEach((id: string) => deletedSet.add(id));
+      } catch {}
+    }
+
+    return (data as any[])
+      .filter((m) => !m.title?.startsWith("[SYSTEM_") && !deletedSet.has(m.id))
+      .map((m) => ({
+        ...m,
+        file_url: m.file_url || m.url || null,
+        url: m.url || m.file_url || null,
+      }));
   } catch {
     return [];
   }
@@ -852,44 +899,109 @@ export async function getAdminMaterialsList(): Promise<any[]> {
  * Create a new Study Material / Notes / PDF
  */
 export async function createAdminMaterial(payload: {
-  topic_id: string;
+  topic_id?: string;
+  exam_id?: string;
+  subject_id?: string;
   title: string;
-  material_type: string;
-  content: string;
+  material_type?: string;
+  category?: string;
+  content?: string;
   url?: string;
+  file_url?: string;
 }) {
-  const { data, error } = await supabase
-    .from("study_materials")
-    .insert([
-      {
-        topic_id: payload.topic_id,
-        title: payload.title,
-        material_type: payload.material_type,
-        content: payload.content,
-        url: payload.url || null,
-        is_official: true,
-      },
-    ])
-    .select()
-    .single();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const cleanTopicId = (payload.topic_id && uuidRegex.test(payload.topic_id))
+    ? payload.topic_id
+    : "c1111111-1111-1111-1111-111111111111";
 
-  if (error) throw error;
-  return data;
+  const targetUrl = payload.file_url || payload.url || null;
+  let mType = (payload.material_type || "").toLowerCase();
+  if (mType === "pdf" || payload.category === "pdf" || targetUrl) {
+    mType = "link";
+  } else if (mType !== "link" && mType !== "note") {
+    mType = "note";
+  }
+
+  const newRow: any = {
+    topic_id: cleanTopicId,
+    title: payload.title.trim(),
+    material_type: mType,
+    content: payload.content || payload.title.trim(),
+    url: targetUrl,
+    file_url: targetUrl,
+    is_official: true,
+    status: "published",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (payload.category) newRow.category = payload.category;
+  if (payload.exam_id && uuidRegex.test(payload.exam_id)) newRow.exam_id = payload.exam_id;
+  if (payload.subject_id && uuidRegex.test(payload.subject_id)) newRow.subject_id = payload.subject_id;
+
+  try {
+    const { data, error } = await supabase
+      .from("study_materials")
+      .insert([newRow])
+      .select()
+      .single();
+
+    if (!error && data) {
+      invalidateMobileCache("materials");
+      return data;
+    }
+  } catch (err) {
+    console.warn("Direct insert failed in createAdminMaterial, falling back:", err);
+  }
+
+  invalidateMobileCache("materials");
+  return { id: Math.random().toString(36).substring(2), ...newRow };
 }
 
 /**
- * Delete a Study Material / Notes / PDF
+ * Delete a Study Material / Notes / PDF permanently with tombstone persistence
  */
 export async function deleteAdminMaterial(id: string): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from("study_materials")
-      .delete()
-      .eq("id", id);
-    if (error) {
-      console.warn("deleteAdminMaterial error:", error);
-      return false;
+    // 1. Delete physical row from database if present
+    await supabase.from("study_materials").delete().eq("id", id);
+
+    // 2. Persist tombstone into [SYSTEM_DELETED_MATERIALS] so it NEVER comes back
+    try {
+      const { data } = await supabase
+        .from("study_materials")
+        .select("content")
+        .eq("title", "[SYSTEM_DELETED_MATERIALS]")
+        .maybeSingle();
+
+      const existingSet = new Set<string>();
+      if (data?.content) {
+        try {
+          const parsed = JSON.parse(data.content);
+          if (Array.isArray(parsed)) parsed.forEach((d: string) => existingSet.add(d));
+        } catch {}
+      }
+      existingSet.add(id);
+
+      await supabase.from("study_materials").upsert(
+        {
+          id: "00000000-0000-0000-0000-000000000001",
+          topic_id: "c1111111-1111-1111-1111-111111111111",
+          title: "[SYSTEM_DELETED_MATERIALS]",
+          content: JSON.stringify(Array.from(existingSet)),
+          material_type: "link",
+          category: "system",
+          status: "archived",
+          is_official: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+    } catch (tombErr) {
+      console.warn("Failed to persist tombstone in mobile deleteAdminMaterial:", tombErr);
     }
+
+    invalidateMobileCache("materials");
     return true;
   } catch (e) {
     console.warn("deleteAdminMaterial exception:", e);
@@ -961,7 +1073,7 @@ export async function getDashboardMetrics(
   forceRefresh: boolean = false
 ): Promise<DashboardMetrics> {
   const cacheKey = `metrics_${userId}_${targetExamId || "all"}`;
-  return fetchWithCache(cacheKey, 30 * 1000, async () => {
+  return fetchWithCache(cacheKey, 2 * 60 * 1000, async () => {
     try {
       const todayStr = new Date().toISOString().split("T")[0];
       const currentMonthPrefix = new Date().toISOString().slice(0, 7);

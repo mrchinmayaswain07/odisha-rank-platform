@@ -50,6 +50,7 @@ export default function RootLayout() {
             options={{ presentation: "card", headerShown: false }}
           />
           <Stack.Screen name="topic/[topicId]" options={{ headerShown: false }} />
+          <Stack.Screen name="materials" options={{ headerShown: false }} />
           <Stack.Screen name="material/[materialId]" options={{ headerShown: false }} />
           <Stack.Screen name="mock-test/[testId]" options={{ headerShown: false }} />
           <Stack.Screen name="mock-test/[testId]/result" options={{ headerShown: false }} />

@@ -32,6 +32,7 @@ import {
   Check,
   Zap,
   Gamepad2,
+  BookOpen,
 } from "lucide-react-native";
 import { BRAND_COLORS, DashboardMetrics } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
@@ -543,7 +544,7 @@ export default function DashboardScreen() {
               </ScrollView>
             </View>
 
-            {/* 4. Quick Actions (With Doubts Feature) */}
+            {/* 4. Quick Actions (With Notes & Doubts) */}
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <View style={styles.actionGrid}>
               <TouchableOpacity
@@ -554,6 +555,16 @@ export default function DashboardScreen() {
                 <HelpCircle size={18} color="#ffffff" />
                 <Text style={styles.actionCardTitle}>Practice MCQs</Text>
                 <Text style={styles.actionCardSub}>Topic-wise questions</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: "#0284c7" }]}
+                onPress={() => router.push("/materials" as any)}
+                activeOpacity={0.8}
+              >
+                <BookOpen size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Study Notes & PDFs</Text>
+                <Text style={styles.actionCardSub}>Notes & Drive links</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -920,14 +931,17 @@ const styles = StyleSheet.create({
   // Quick Action Grid
   actionGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
     gap: 8,
     marginBottom: 20,
   },
   actionCard: {
-    flex: 1,
+    width: "48.5%",
     padding: 12,
     borderRadius: 12,
     alignItems: "flex-start",
+    marginBottom: 4,
   },
   actionCardTitle: {
     color: "#ffffff",

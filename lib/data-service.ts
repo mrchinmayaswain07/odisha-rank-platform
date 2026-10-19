@@ -40,25 +40,43 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(url && key && !url.includes("placeholder"));
 }
 
-// In-memory catalog cache with 60-second TTL to eliminate redundant Supabase fetches
+// In-memory catalog cache with 5-minute TTL to eliminate redundant Supabase fetches
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
 }
 
 const catalogCache = new Map<string, CacheEntry<any>>();
-const CATALOG_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+const inFlightRequests = new Map<string, Promise<any>>();
+const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes (invalidated immediately on any admin write)
 
 export function invalidateCatalogCache(pattern?: string) {
   if (!pattern) {
     catalogCache.clear();
+    inFlightRequests.clear();
   } else {
     catalogCache.forEach((_, key) => {
       if (key.includes(pattern)) {
         catalogCache.delete(key);
       }
     });
+    inFlightRequests.forEach((_, key) => {
+      if (key.includes(pattern)) {
+        inFlightRequests.delete(key);
+      }
+    });
   }
+}
+
+export async function fetchWithDedupe<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  if (inFlightRequests.has(key)) {
+    return inFlightRequests.get(key)!;
+  }
+  const promise = fetcher().finally(() => {
+    inFlightRequests.delete(key);
+  });
+  inFlightRequests.set(key, promise);
+  return promise;
 }
 
 /**
@@ -337,11 +355,17 @@ if (initialFileMaterials.length === 0) {
 }
 
 const RUNTIME_DELETED_MATERIAL_IDS = new Set<string>(loadFileDeletedIds());
+let LAST_DELETED_SYNC_TIMESTAMP = 0;
 
 /**
  * Loads all permanently deleted material IDs across local and remote stores.
  */
 export async function getDeletedMaterialIds(): Promise<Set<string>> {
+  // Return cached set if recently synced
+  if (Date.now() - LAST_DELETED_SYNC_TIMESTAMP < 5 * 60 * 1000 && RUNTIME_DELETED_MATERIAL_IDS.size > 0) {
+    return RUNTIME_DELETED_MATERIAL_IDS;
+  }
+
   // Sync from disk file
   const fileIds = loadFileDeletedIds();
   fileIds.forEach((id) => RUNTIME_DELETED_MATERIAL_IDS.add(id));
@@ -364,6 +388,7 @@ export async function getDeletedMaterialIds(): Promise<Set<string>> {
           }
         } catch {}
       }
+      LAST_DELETED_SYNC_TIMESTAMP = Date.now();
     } catch {}
   }
 
@@ -376,6 +401,7 @@ export async function getDeletedMaterialIds(): Promise<Set<string>> {
 export async function recordDeletedMaterialId(id: string): Promise<void> {
   invalidateCatalogCache("materials_");
   RUNTIME_DELETED_MATERIAL_IDS.add(id);
+  LAST_DELETED_SYNC_TIMESTAMP = Date.now();
   saveFileDeletedIds(Array.from(RUNTIME_DELETED_MATERIAL_IDS));
   deleteRuntimeMaterial(id);
 
@@ -1993,6 +2019,12 @@ export async function getPerformanceAnalytics(
   targetExamId?: string | null,
   preloadedMetrics?: DashboardMetrics
 ): Promise<PerformanceAnalyticsData> {
+  const cacheKey = `analytics_${userId}_${targetExamId || "all"}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 60 * 1000) {
+    return cached.data;
+  }
+
   const examId = targetExamId || SEED_EXAMS[0].id;
   let attempts: any[] = [];
   let sessions: any[] = [];
@@ -2205,7 +2237,7 @@ export async function getPerformanceAnalytics(
     }
   }
 
-  return {
+  const result: PerformanceAnalyticsData = {
     overall_accuracy: overallAccuracy,
     total_questions_attempted: totalAttempts,
     total_correct: totalCorrect,
@@ -2221,6 +2253,9 @@ export async function getPerformanceAnalytics(
     subject_breakdown: subjectBreakdown,
     recommended_focus: recommendedFocus,
   };
+
+  catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
+  return result;
 }
 
 /**
