@@ -34,15 +34,6 @@ export async function POST(request: NextRequest) {
           is_correct,
           time_taken_seconds: time_taken_seconds || 42,
         });
-
-        // Also log activity occasionally
-        await supabase.from("student_activity").insert({
-          user_id: authData.user.id,
-          activity_type: "question_attempted",
-          title: is_correct ? "Correct MCQ Answer" : "MCQ Practice Attempt",
-          description: `Attempted question with ${time_taken_seconds || 42}s speed.`,
-          metadata: { question_id, is_correct },
-        });
       }
     } catch {
       // offline fallback

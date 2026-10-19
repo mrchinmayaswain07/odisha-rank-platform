@@ -79,7 +79,10 @@ export async function getExams(includeInactive: boolean = false): Promise<Exam[]
 
   try {
     const supabase = await createClient();
-    let query = supabase.from("exams").select("*").order("created_at", { ascending: true });
+    let query = supabase
+      .from("exams")
+      .select("id, slug, title, conducting_body, description, eligibility, stages, is_active, status, created_at, updated_at")
+      .order("created_at", { ascending: true });
 
     if (!includeInactive) {
       query = query.eq("is_active", true).neq("status", "archived");
@@ -91,32 +94,27 @@ export async function getExams(includeInactive: boolean = false): Promise<Exam[]
       return SEED_EXAMS;
     }
 
-    // Parallel fetch enrollment counts
+    // Single-roundtrip RPC or count aggregation instead of dumping the entire profiles table
+    const countMap: Record<string, number> = {};
     try {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("target_exam_id");
-
-      const countMap: Record<string, number> = {};
-      profiles?.forEach((p) => {
-        if (p.target_exam_id) {
-          countMap[p.target_exam_id] = (countMap[p.target_exam_id] || 0) + 1;
-        }
-      });
-
-      const result = exams.map((ex: any) => ({
-        ...ex,
-        status: ex.status || "published",
-        students_count: countMap[ex.id] || 0,
-      })) as Exam[];
-
-      catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
-      return result;
+      const { data: rpcCounts, error: rpcErr } = await supabase.rpc("get_exam_enrollment_counts");
+      if (!rpcErr && Array.isArray(rpcCounts)) {
+        rpcCounts.forEach((c: any) => {
+          if (c.exam_id) countMap[c.exam_id] = Number(c.student_count || 0);
+        });
+      }
     } catch {
-      const result = exams as Exam[];
-      catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
-      return result;
+      // Non-blocking fallback
     }
+
+    const result = exams.map((ex: any) => ({
+      ...ex,
+      status: ex.status || "published",
+      students_count: countMap[ex.id] || 0,
+    })) as Exam[];
+
+    catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
   } catch {
     catalogCache.set(cacheKey, { data: SEED_EXAMS, timestamp: Date.now() });
     return SEED_EXAMS;
@@ -151,7 +149,10 @@ export async function getSubjects(examId?: string, includeAllStatus: boolean = f
 
   try {
     const supabase = await createClient();
-    let query = supabase.from("subjects").select("*").order("order_index", { ascending: true });
+    let query = supabase
+      .from("subjects")
+      .select("id, exam_id, name, code, description, order_index, status, created_at, updated_at")
+      .order("order_index", { ascending: true });
 
     if (examId) {
       query = query.eq("exam_id", examId);
@@ -179,15 +180,23 @@ export async function getSubjects(examId?: string, includeAllStatus: boolean = f
  * Fetch chapters for a given subject.
  */
 export async function getChapters(subjectId: string, userId?: string, includeAllStatus: boolean = false): Promise<Chapter[]> {
+  const cacheKey = `chapters_${subjectId}_${userId || "anon"}_${includeAllStatus}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CATALOG_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   if (!isSupabaseConfigured()) {
-    return SEED_CHAPTERS.filter((c) => c.subject_id === subjectId);
+    const fallback = SEED_CHAPTERS.filter((c) => c.subject_id === subjectId);
+    catalogCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+    return fallback;
   }
 
   try {
     const supabase = await createClient();
     let query = supabase
       .from("chapters")
-      .select("*, topics(*)")
+      .select("id, subject_id, title, description, order_index, is_official, status, created_by, created_at, updated_at, topics(id, chapter_id, title, description, estimated_minutes, order_index, is_official, status, created_by, created_at, updated_at)")
       .eq("subject_id", subjectId)
       .order("order_index", { ascending: true });
 
@@ -203,11 +212,16 @@ export async function getChapters(subjectId: string, userId?: string, includeAll
 
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
-      return SEED_CHAPTERS.filter((c) => c.subject_id === subjectId);
+      const fallback = SEED_CHAPTERS.filter((c) => c.subject_id === subjectId);
+      catalogCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+      return fallback;
     }
+    catalogCache.set(cacheKey, { data: data as Chapter[], timestamp: Date.now() });
     return data as Chapter[];
   } catch {
-    return SEED_CHAPTERS.filter((c) => c.subject_id === subjectId);
+    const fallback = SEED_CHAPTERS.filter((c) => c.subject_id === subjectId);
+    catalogCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+    return fallback;
   }
 }
 
@@ -215,16 +229,23 @@ export async function getChapters(subjectId: string, userId?: string, includeAll
  * Fetch topics for a chapter or all topics if chapterId not specified.
  */
 export async function getTopics(chapterId?: string, userId?: string, includeAllStatus: boolean = false): Promise<Topic[]> {
+  const cacheKey = `topics_${chapterId || "all"}_${userId || "anon"}_${includeAllStatus}`;
+  const cached = catalogCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CATALOG_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
   if (!isSupabaseConfigured()) {
-    if (!chapterId) return SEED_TOPICS;
-    return SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
+    const fallback = !chapterId ? SEED_TOPICS : SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
+    catalogCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+    return fallback;
   }
 
   try {
     const supabase = await createClient();
     let query = supabase
       .from("topics")
-      .select("*")
+      .select("id, chapter_id, title, description, estimated_minutes, order_index, is_official, status, created_by, created_at, updated_at")
       .order("order_index", { ascending: true });
 
     if (chapterId) {
@@ -243,13 +264,16 @@ export async function getTopics(chapterId?: string, userId?: string, includeAllS
 
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
-      if (!chapterId) return SEED_TOPICS;
-      return SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
+      const fallback = !chapterId ? SEED_TOPICS : SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
+      catalogCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+      return fallback;
     }
+    catalogCache.set(cacheKey, { data: data as Topic[], timestamp: Date.now() });
     return data as Topic[];
   } catch {
-    if (!chapterId) return SEED_TOPICS;
-    return SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
+    const fallback = !chapterId ? SEED_TOPICS : SEED_TOPICS.filter((t) => t.chapter_id === chapterId);
+    catalogCache.set(cacheKey, { data: fallback, timestamp: Date.now() });
+    return fallback;
   }
 }
 
@@ -921,7 +945,10 @@ export async function getStudyMaterials(filters?: {
 
   try {
     const supabase = await createClient();
-    let query = supabase.from("study_materials").select("*").order("created_at", { ascending: false });
+    let query = supabase
+      .from("study_materials")
+      .select("id, topic_id, title, material_type, url, is_official, status, description, category, file_url, file_size, exam_id, subject_id, chapter_id, published_at, created_at, created_by")
+      .order("created_at", { ascending: false });
 
     if (filters?.topicId && filters.topicId !== "all") query = query.eq("topic_id", filters.topicId);
     if (filters?.subjectId && filters.subjectId !== "all") query = query.eq("subject_id", filters.subjectId);
@@ -938,6 +965,11 @@ export async function getStudyMaterials(filters?: {
 
     if (filters?.search) {
       query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+    }
+
+    // Default limit if topic not specified to prevent full table downloads
+    if (!filters?.topicId || filters.topicId === "all") {
+      query = query.limit(100);
     }
 
     let { data, error } = await query;
@@ -990,12 +1022,17 @@ export async function getQuestions(filters?: {
 
   try {
     const supabase = await createClient();
-    let query = supabase.from("questions").select("*").order("created_at", { ascending: false });
+    let query = supabase
+      .from("questions")
+      .select("id, subject_id, topic_id, exam_id, chapter_id, question_text, options, correct_option_index, explanation, difficulty, is_sample, status, marks, negative_marks, created_at")
+      .order("created_at", { ascending: false });
 
     if (filters?.examId) query = query.eq("exam_id", filters.examId);
     if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
     if (filters?.difficulty) query = query.eq("difficulty", filters.difficulty);
     if (filters?.search) query = query.ilike("question_text", `%${filters.search}%`);
+
+    query = query.limit(60);
 
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
@@ -1003,7 +1040,7 @@ export async function getQuestions(filters?: {
         try {
           const generalRes = await supabase
             .from("questions")
-            .select("*")
+            .select("id, subject_id, topic_id, exam_id, chapter_id, question_text, options, correct_option_index, explanation, difficulty, is_sample, status, marks, negative_marks, created_at")
             .order("created_at", { ascending: false })
             .limit(25);
           if (generalRes.data && generalRes.data.length > 0) {
@@ -1077,9 +1114,10 @@ export async function getPaginatedQuestions(filters?: {
 
   try {
     const supabase = await createClient();
+    const columns = "id, subject_id, topic_id, exam_id, chapter_id, question_text, options, correct_option_index, explanation, difficulty, is_sample, status, marks, negative_marks, created_at";
     let query = supabase
       .from("questions")
-      .select("*", { count: "exact" })
+      .select(columns, { count: "exact" })
       .order("created_at", { ascending: false });
 
     if (filters?.examId) query = query.eq("exam_id", filters.examId);
@@ -1095,7 +1133,7 @@ export async function getPaginatedQuestions(filters?: {
     if (error && (error.message.includes("status") || error.message.includes("chapter_id"))) {
       let retryQuery = supabase
         .from("questions")
-        .select("*", { count: "exact" })
+        .select(columns, { count: "exact" })
         .order("created_at", { ascending: false });
       if (filters?.examId) retryQuery = retryQuery.eq("exam_id", filters.examId);
       if (filters?.subjectId) retryQuery = retryQuery.eq("subject_id", filters.subjectId);
@@ -1157,7 +1195,7 @@ export async function getMockTests(examId?: string, includeAllStatus: boolean = 
     const supabase = await createClient();
     let query = supabase
       .from("mock_tests")
-      .select("*, mock_test_questions(count)")
+      .select("id, exam_id, title, description, duration_minutes, total_marks, negative_marking, pass_percentage, is_published, status, created_at, updated_at, mock_test_questions(count)")
       .order("created_at", { ascending: false });
 
     if (!includeAllStatus) {
@@ -1195,7 +1233,7 @@ export async function getMockTestById(id: string): Promise<{ test: MockTest; que
     const supabase = await createClient();
     const { data: test, error: testErr } = await supabase
       .from("mock_tests")
-      .select("*")
+      .select("id, exam_id, title, description, duration_minutes, total_marks, negative_marking, pass_percentage, is_published, status, created_at, updated_at")
       .eq("id", id)
       .single();
 
@@ -1206,7 +1244,7 @@ export async function getMockTestById(id: string): Promise<{ test: MockTest; que
 
     const { data: mtq, error: qErr } = await supabase
       .from("mock_test_questions")
-      .select("question_id, order_index, questions(*)")
+      .select("question_id, order_index, questions(id, subject_id, topic_id, exam_id, chapter_id, question_text, options, correct_option_index, explanation, difficulty, marks, negative_marks)")
       .eq("mock_test_id", id)
       .order("order_index", { ascending: true });
 
@@ -1251,7 +1289,7 @@ export async function getStudentProfile(userId: string): Promise<Profile | null>
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, email, full_name, target_exam_id, target_year, district, phone, bio, is_profile_completed, created_at, updated_at")
       .eq("id", userId)
       .single();
 
@@ -1434,7 +1472,7 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
       // 5. Recent activities
       supabase
         .from("student_activity")
-        .select("*")
+        .select("id, user_id, activity_type, title, description, created_at, metadata")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(6),
@@ -1760,10 +1798,13 @@ export async function getPerformanceAnalytics(
           .eq("status", "completed"),
         supabase
           .from("subjects")
-          .select("*")
+          .select("id, exam_id, name, code, description, order_index")
           .eq("exam_id", examId)
           .order("order_index", { ascending: true }),
-        supabase.from("questions").select("id, subject_id, exam_id"),
+        supabase
+          .from("questions")
+          .select("id, subject_id, exam_id")
+          .eq("exam_id", examId),
       ]);
 
       attempts = attRes.data || [];
@@ -1996,6 +2037,34 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
       supabase = await createClient();
     }
 
+    // Try single-roundtrip RPC first!
+    try {
+      const { data: rpcCounts, error: rpcErr } = await supabase.rpc("get_admin_dashboard_counts");
+      if (!rpcErr && rpcCounts) {
+        const { data: activities } = await supabase
+          .from("student_activity")
+          .select("id, user_id, activity_type, title, description, created_at")
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        const result: AdminDashboardStats = {
+          total_students: Number(rpcCounts.total_students || 0),
+          total_courses: Number(rpcCounts.total_courses || 0),
+          total_subjects: Number(rpcCounts.total_subjects || 0),
+          total_chapters: Number(rpcCounts.total_chapters || 0),
+          total_topics: Number(rpcCounts.total_topics || 0),
+          total_materials: Number(rpcCounts.total_materials || 0),
+          total_questions: Number(rpcCounts.total_questions || 0),
+          total_mock_tests: Number(rpcCounts.total_mock_tests || 0),
+          recent_activities: (activities || []) as StudentActivity[],
+        };
+        catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
+        return result;
+      }
+    } catch {
+      // Fallback to parallel count queries below
+    }
+
     const [
       studentsRes,
       coursesRes,
@@ -2007,17 +2076,17 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
       mockTestsRes,
       activitiesRes,
     ] = await Promise.all([
-      supabase.from("profiles").select("*", { count: "exact", head: true }),
-      supabase.from("exams").select("*", { count: "exact", head: true }),
-      supabase.from("subjects").select("*", { count: "exact", head: true }),
-      supabase.from("chapters").select("*", { count: "exact", head: true }),
-      supabase.from("topics").select("*", { count: "exact", head: true }),
-      supabase.from("study_materials").select("*", { count: "exact", head: true }),
-      supabase.from("questions").select("*", { count: "exact", head: true }),
-      supabase.from("mock_tests").select("*", { count: "exact", head: true }),
+      supabase.from("profiles").select("id", { count: "exact", head: true }),
+      supabase.from("exams").select("id", { count: "exact", head: true }),
+      supabase.from("subjects").select("id", { count: "exact", head: true }),
+      supabase.from("chapters").select("id", { count: "exact", head: true }),
+      supabase.from("topics").select("id", { count: "exact", head: true }),
+      supabase.from("study_materials").select("id", { count: "exact", head: true }),
+      supabase.from("questions").select("id", { count: "exact", head: true }),
+      supabase.from("mock_tests").select("id", { count: "exact", head: true }),
       supabase
         .from("student_activity")
-        .select("*")
+        .select("id, user_id, activity_type, title, description, created_at")
         .order("created_at", { ascending: false })
         .limit(10),
     ]);
@@ -2099,7 +2168,7 @@ export async function getStudentsList(filters?: {
 
     let query = supabase
       .from("profiles")
-      .select("*, exams:target_exam_id(title)", { count: "exact" })
+      .select("id, email, full_name, target_exam_id, target_year, district, phone, is_profile_completed, created_at, exams:target_exam_id(title)", { count: "exact" })
       .order("created_at", { ascending: false });
 
     if (filters?.targetExamId) {

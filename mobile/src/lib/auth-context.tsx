@@ -28,6 +28,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
+// Cache admin status to prevent repeated Supabase upserts on every screen navigation
+let hasSyncedRootAdminRole = false;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -60,20 +63,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (isRootAdmin) {
       setIsAdmin(true);
-      // Ensure user_roles has admin record so PostgreSQL is_admin() RLS policy succeeds
-      try {
-        await supabase
-          .from("user_roles")
-          .upsert(
-            {
-              user_id: userObj.id,
-              role: "admin",
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id" }
-          );
-      } catch {
-        // Non-blocking
+      // Ensure user_roles has admin record so PostgreSQL is_admin() RLS policy succeeds (only once per app lifecycle)
+      if (!hasSyncedRootAdminRole) {
+        hasSyncedRootAdminRole = true;
+        try {
+          await supabase
+            .from("user_roles")
+            .upsert(
+              {
+                user_id: userObj.id,
+                role: "admin",
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "user_id" }
+            );
+        } catch {
+          // Non-blocking
+        }
       }
       return true;
     }

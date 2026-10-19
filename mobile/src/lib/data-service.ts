@@ -19,155 +19,235 @@ import {
   SEED_DOUBTS,
 } from "@odisha-rank/shared";
 
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const mobileCache = new Map<string, CacheEntry<any>>();
+const inFlightRequests = new Map<string, Promise<any>>();
+
+export function invalidateMobileCache(prefix?: string) {
+  if (!prefix) {
+    mobileCache.clear();
+  } else {
+    mobileCache.forEach((_, key) => {
+      if (key.startsWith(prefix) || key.includes(prefix)) {
+        mobileCache.delete(key);
+      }
+    });
+  }
+}
+
+async function fetchWithCache<T>(
+  key: string,
+  ttlMs: number,
+  fetcher: () => Promise<T>,
+  forceRefresh: boolean = false
+): Promise<T> {
+  if (!forceRefresh) {
+    const cached = mobileCache.get(key);
+    if (cached && Date.now() - cached.timestamp < ttlMs) {
+      return cached.data;
+    }
+  }
+
+  if (inFlightRequests.has(key)) {
+    return inFlightRequests.get(key)!;
+  }
+
+  const promise = fetcher()
+    .then((result) => {
+      mobileCache.set(key, { data: result, timestamp: Date.now() });
+      inFlightRequests.delete(key);
+      return result;
+    })
+    .catch((err) => {
+      inFlightRequests.delete(key);
+      throw err;
+    });
+
+  inFlightRequests.set(key, promise);
+  return promise;
+}
+
 /**
  * Fetch all active courses / examinations from shared Supabase catalog
  */
-export async function getExams(): Promise<Exam[]> {
-  try {
-    const { data, error } = await supabase
-      .from("exams")
-      .select("*")
-      .eq("is_active", true)
-      .neq("status", "archived")
-      .order("created_at", { ascending: true });
+export async function getExams(forceRefresh: boolean = false): Promise<Exam[]> {
+  return fetchWithCache("exams", 5 * 60 * 1000, async () => {
+    try {
+      const { data, error } = await supabase
+        .from("exams")
+        .select("id, slug, title, conducting_body, description, eligibility, stages, is_active, status, created_at, updated_at")
+        .eq("is_active", true)
+        .neq("status", "archived")
+        .order("created_at", { ascending: true });
 
-    if (error || !data) return [];
-    return data as Exam[];
-  } catch {
-    return [];
-  }
+      if (error || !data) return [];
+      return data as Exam[];
+    } catch {
+      return [];
+    }
+  }, forceRefresh);
 }
 
 /**
  * Fetch subjects filtered by selected examId
  */
-export async function getSubjects(examId?: string): Promise<Subject[]> {
-  try {
-    let query = supabase
-      .from("subjects")
-      .select("*")
-      .neq("status", "archived")
-      .order("order_index", { ascending: true });
+export async function getSubjects(examId?: string, forceRefresh: boolean = false): Promise<Subject[]> {
+  const cacheKey = `subjects_${examId || "all"}`;
+  return fetchWithCache(cacheKey, 3 * 60 * 1000, async () => {
+    try {
+      let query = supabase
+        .from("subjects")
+        .select("id, exam_id, name, code, description, order_index, status, created_at, updated_at")
+        .neq("status", "archived")
+        .order("order_index", { ascending: true });
 
-    if (examId) query = query.eq("exam_id", examId);
+      if (examId) query = query.eq("exam_id", examId);
 
-    const { data, error } = await query;
-    if (error || !data) return [];
-    return data as Subject[];
-  } catch {
-    return [];
-  }
+      const { data, error } = await query;
+      if (error || !data) return [];
+      return data as Subject[];
+    } catch {
+      return [];
+    }
+  }, forceRefresh);
 }
 
 /**
  * Fetch chapters for a given subject
  */
-export async function getChapters(subjectId: string, userId?: string): Promise<Chapter[]> {
-  try {
-    let query = supabase
-      .from("chapters")
-      .select("*, topics(*)")
-      .eq("subject_id", subjectId)
-      .neq("status", "archived")
-      .order("order_index", { ascending: true });
+export async function getChapters(subjectId: string, userId?: string, forceRefresh: boolean = false): Promise<Chapter[]> {
+  const cacheKey = `chapters_${subjectId}_${userId || "anon"}`;
+  return fetchWithCache(cacheKey, 2 * 60 * 1000, async () => {
+    try {
+      let query = supabase
+        .from("chapters")
+        .select("id, subject_id, title, description, order_index, is_official, status, created_by, created_at, updated_at, topics(id, chapter_id, title, description, estimated_minutes, order_index, is_official, status, created_by, created_at, updated_at)")
+        .eq("subject_id", subjectId)
+        .neq("status", "archived")
+        .order("order_index", { ascending: true });
 
-    if (userId) {
-      query = query.or(`is_official.eq.true,created_by.eq.${userId}`);
-    } else {
-      query = query.eq("is_official", true);
+      if (userId) {
+        query = query.or(`is_official.eq.true,created_by.eq.${userId}`);
+      } else {
+        query = query.eq("is_official", true);
+      }
+
+      const { data, error } = await query;
+      if (error || !data) return [];
+      return data as Chapter[];
+    } catch {
+      return [];
     }
-
-    const { data, error } = await query;
-    if (error || !data) return [];
-    return data as Chapter[];
-  } catch {
-    return [];
-  }
+  }, forceRefresh);
 }
 
 /**
  * Fetch topics for a chapter
  */
-export async function getTopics(chapterId: string, userId?: string): Promise<Topic[]> {
-  try {
-    let query = supabase
-      .from("topics")
-      .select("*")
-      .eq("chapter_id", chapterId)
-      .neq("status", "archived")
-      .order("order_index", { ascending: true });
+export async function getTopics(chapterId: string, userId?: string, forceRefresh: boolean = false): Promise<Topic[]> {
+  const cacheKey = `topics_${chapterId}_${userId || "anon"}`;
+  return fetchWithCache(cacheKey, 2 * 60 * 1000, async () => {
+    try {
+      let query = supabase
+        .from("topics")
+        .select("id, chapter_id, title, description, estimated_minutes, order_index, is_official, status, created_by, created_at, updated_at")
+        .eq("chapter_id", chapterId)
+        .neq("status", "archived")
+        .order("order_index", { ascending: true });
 
-    if (userId) {
-      query = query.or(`is_official.eq.true,created_by.eq.${userId}`);
-    } else {
-      query = query.eq("is_official", true);
+      if (userId) {
+        query = query.or(`is_official.eq.true,created_by.eq.${userId}`);
+      } else {
+        query = query.eq("is_official", true);
+      }
+
+      const { data, error } = await query;
+      if (error || !data) return [];
+      return data as Topic[];
+    } catch {
+      return [];
     }
-
-    const { data, error } = await query;
-    if (error || !data) return [];
-    return data as Topic[];
-  } catch {
-    return [];
-  }
+  }, forceRefresh);
 }
 
 /**
  * Fetch study materials filtered by topic, subject, or exam
  */
-export async function getStudyMaterials(filters?: {
-  topicId?: string;
-  subjectId?: string;
-  examId?: string;
-  search?: string;
-}): Promise<StudyMaterial[]> {
-  try {
-    let query = supabase
-      .from("study_materials")
-      .select("*")
-      .neq("status", "archived")
-      .order("created_at", { ascending: false });
+export async function getStudyMaterials(
+  filters?: {
+    topicId?: string;
+    subjectId?: string;
+    examId?: string;
+    search?: string;
+  },
+  forceRefresh: boolean = false
+): Promise<StudyMaterial[]> {
+  const cacheKey = `materials_${filters?.examId || "all"}_${filters?.subjectId || "all"}_${filters?.topicId || "all"}_${filters?.search || ""}`;
+  return fetchWithCache(cacheKey, 2 * 60 * 1000, async () => {
+    try {
+      let query = supabase
+        .from("study_materials")
+        .select("id, topic_id, title, material_type, url, is_official, status, description, category, file_url, file_size, exam_id, subject_id, chapter_id, published_at, created_at, created_by")
+        .neq("status", "archived")
+        .order("created_at", { ascending: false });
 
-    if (filters?.topicId) query = query.eq("topic_id", filters.topicId);
-    if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
-    if (filters?.examId) query = query.eq("exam_id", filters.examId);
-    if (filters?.search) {
-      query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      if (filters?.topicId) query = query.eq("topic_id", filters.topicId);
+      if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
+      if (filters?.examId) query = query.eq("exam_id", filters.examId);
+      if (filters?.search) {
+        query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      }
+
+      if (!filters?.topicId) {
+        query = query.limit(60);
+      }
+
+      const { data, error } = await query;
+      if (error || !data) return [];
+      return data as StudyMaterial[];
+    } catch {
+      return [];
     }
-
-    const { data, error } = await query;
-    if (error || !data) return [];
-    return data as StudyMaterial[];
-  } catch {
-    return [];
-  }
+  }, forceRefresh);
 }
 
 /**
  * Fetch questions matching exam and subject filters
  */
-export async function getQuestions(filters?: {
-  examId?: string;
-  subjectId?: string;
-  difficulty?: string;
-  search?: string;
-}): Promise<Question[]> {
-  try {
-    let query = supabase
-      .from("questions")
-      .select("*")
-      .order("created_at", { ascending: false });
+export async function getQuestions(
+  filters?: {
+    examId?: string;
+    subjectId?: string;
+    difficulty?: string;
+    search?: string;
+  },
+  forceRefresh: boolean = false
+): Promise<Question[]> {
+  const cacheKey = `questions_${filters?.examId || "all"}_${filters?.subjectId || "all"}_${filters?.difficulty || "all"}_${filters?.search || ""}`;
+  return fetchWithCache(cacheKey, 60 * 1000, async () => {
+    try {
+      let query = supabase
+        .from("questions")
+        .select("id, subject_id, topic_id, exam_id, chapter_id, question_text, options, correct_option_index, explanation, difficulty, is_sample, status, marks, negative_marks, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-    if (filters?.examId) query = query.eq("exam_id", filters.examId);
-    if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
-    if (filters?.difficulty) query = query.eq("difficulty", filters.difficulty);
-    if (filters?.search) query = query.ilike("question_text", `%${filters.search}%`);
+      if (filters?.examId) query = query.eq("exam_id", filters.examId);
+      if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
+      if (filters?.difficulty) query = query.eq("difficulty", filters.difficulty);
+      if (filters?.search) query = query.ilike("question_text", `%${filters.search}%`);
 
-    const { data, error } = await query;
-    if (error || !data) return [];
-    return data as Question[];
-  } catch {
-    return [];
-  }
+      const { data, error } = await query;
+      if (error || !data) return [];
+      return data as Question[];
+    } catch {
+      return [];
+    }
+  }, forceRefresh);
 }
 
 /**
@@ -196,27 +276,30 @@ export async function recordQuestionAttempt(
 /**
  * Fetch published mock tests for selected course
  */
-export async function getMockTests(examId?: string): Promise<MockTest[]> {
-  try {
-    let query = supabase
-      .from("mock_tests")
-      .select("*, mock_test_questions(count)")
-      .eq("is_published", true)
-      .neq("status", "archived")
-      .order("created_at", { ascending: false });
+export async function getMockTests(examId?: string, forceRefresh: boolean = false): Promise<MockTest[]> {
+  const cacheKey = `mocktests_${examId || "all"}`;
+  return fetchWithCache(cacheKey, 2 * 60 * 1000, async () => {
+    try {
+      let query = supabase
+        .from("mock_tests")
+        .select("id, exam_id, title, description, duration_minutes, total_marks, negative_marking, pass_percentage, is_published, status, created_at, updated_at, mock_test_questions(count)")
+        .eq("is_published", true)
+        .neq("status", "archived")
+        .order("created_at", { ascending: false });
 
-    if (examId) query = query.eq("exam_id", examId);
+      if (examId) query = query.eq("exam_id", examId);
 
-    const { data, error } = await query;
-    if (error || !data) return [];
+      const { data, error } = await query;
+      if (error || !data) return [];
 
-    return data.map((item: any) => ({
-      ...item,
-      questions_count: item.mock_test_questions?.[0]?.count ?? 0,
-    })) as MockTest[];
-  } catch {
-    return [];
-  }
+      return data.map((item: any) => ({
+        ...item,
+        questions_count: item.mock_test_questions?.[0]?.count ?? 0,
+      })) as MockTest[];
+    } catch {
+      return [];
+    }
+  }, forceRefresh);
 }
 
 /**
@@ -225,28 +308,30 @@ export async function getMockTests(examId?: string): Promise<MockTest[]> {
 export async function getMockTestById(
   id: string
 ): Promise<{ test: MockTest; questions: Question[] } | null> {
-  try {
-    const { data: test, error: testErr } = await supabase
-      .from("mock_tests")
-      .select("*")
-      .eq("id", id)
-      .single();
+  return fetchWithCache(`mocktest_${id}`, 5 * 60 * 1000, async () => {
+    try {
+      const { data: test, error: testErr } = await supabase
+        .from("mock_tests")
+        .select("id, exam_id, title, description, duration_minutes, total_marks, negative_marking, pass_percentage, is_published, status, created_at, updated_at")
+        .eq("id", id)
+        .single();
 
-    if (testErr || !test) return null;
+      if (testErr || !test) return null;
 
-    const { data: mtq, error: qErr } = await supabase
-      .from("mock_test_questions")
-      .select("question_id, order_index, questions(*)")
-      .eq("mock_test_id", id)
-      .order("order_index", { ascending: true });
+      const { data: mtq, error: qErr } = await supabase
+        .from("mock_test_questions")
+        .select("question_id, order_index, questions(id, subject_id, topic_id, exam_id, chapter_id, question_text, options, correct_option_index, explanation, difficulty, marks, negative_marks)")
+        .eq("mock_test_id", id)
+        .order("order_index", { ascending: true });
 
-    if (qErr || !mtq) return { test, questions: [] };
+      if (qErr || !mtq) return { test, questions: [] };
 
-    const questions = mtq.map((row: any) => row.questions).filter(Boolean) as Question[];
-    return { test, questions };
-  } catch {
-    return null;
-  }
+      const questions = mtq.map((row: any) => row.questions).filter(Boolean) as Question[];
+      return { test, questions };
+    } catch {
+      return null;
+    }
+  });
 }
 
 /**
@@ -303,25 +388,29 @@ export async function submitMockTest(
 /**
  * Fetch Student Profile
  */
-export async function getStudentProfile(userId: string): Promise<Profile | null> {
-  try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+export async function getStudentProfile(userId: string, forceRefresh: boolean = false): Promise<Profile | null> {
+  return fetchWithCache(`profile_${userId}`, 60 * 1000, async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, target_exam_id, target_year, district, phone, bio, is_profile_completed, created_at, updated_at")
+        .eq("id", userId)
+        .single();
 
-    if (error || !data) return null;
-    return data as Profile;
-  } catch {
-    return null;
-  }
+      if (error || !data) return null;
+      return data as Profile;
+    } catch {
+      return null;
+    }
+  }, forceRefresh);
 }
 
 /**
  * Update Student Target Course in Supabase
  */
 export async function updateStudentCourse(userId: string, targetExamId: string) {
+  invalidateMobileCache("profile");
+  invalidateMobileCache("metrics");
   const { error } = await supabase
     .from("profiles")
     .update({ target_exam_id: targetExamId, updated_at: new Date().toISOString() })
@@ -343,6 +432,8 @@ export async function updateStudentProfile(
     bio?: string | null;
   }
 ): Promise<Profile> {
+  invalidateMobileCache("profile");
+  invalidateMobileCache("metrics");
   const { data, error } = await supabase
     .from("profiles")
     .update({
@@ -350,7 +441,7 @@ export async function updateStudentProfile(
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId)
-    .select()
+    .select("id, email, full_name, target_exam_id, target_year, district, phone, bio, is_profile_completed, created_at, updated_at")
     .single();
 
   if (error) throw error;
@@ -360,46 +451,66 @@ export async function updateStudentProfile(
 /**
  * Fetch Mission Control Administration Catalog Statistics
  */
-export async function getAdminOverviewStats() {
-  try {
-    const [
-      studentsRes,
-      coursesRes,
-      chaptersRes,
-      topicsRes,
-      questionsRes,
-      materialsRes,
-      mocksRes,
-    ] = await Promise.all([
-      supabase.from("profiles").select("*", { count: "exact", head: true }),
-      supabase.from("exams").select("*", { count: "exact", head: true }),
-      supabase.from("chapters").select("*", { count: "exact", head: true }),
-      supabase.from("topics").select("*", { count: "exact", head: true }),
-      supabase.from("questions").select("*", { count: "exact", head: true }),
-      supabase.from("study_materials").select("*", { count: "exact", head: true }),
-      supabase.from("mock_tests").select("*", { count: "exact", head: true }),
-    ]);
+export async function getAdminOverviewStats(forceRefresh: boolean = false) {
+  return fetchWithCache("admin_overview_stats", 60 * 1000, async () => {
+    try {
+      // 1. Try single-roundtrip RPC first!
+      const { data: rpcCounts, error: rpcErr } = await supabase.rpc("get_admin_dashboard_counts");
+      if (!rpcErr && rpcCounts) {
+        return {
+          studentsCount: Number(rpcCounts.total_students || 0),
+          activeCoursesCount: Number(rpcCounts.total_courses || 0),
+          chaptersCount: Number(rpcCounts.total_chapters || 0),
+          topicsCount: Number(rpcCounts.total_topics || 0),
+          questionsCount: Number(rpcCounts.total_questions || 0),
+          materialsCount: Number(rpcCounts.total_materials || 0),
+          mockTestsCount: Number(rpcCounts.total_mock_tests || 0),
+        };
+      }
+    } catch {
+      // Fallback
+    }
 
-    return {
-      studentsCount: studentsRes.count || 0,
-      activeCoursesCount: coursesRes.count || 0,
-      chaptersCount: chaptersRes.count || 0,
-      topicsCount: topicsRes.count || 0,
-      questionsCount: questionsRes.count || 0,
-      materialsCount: materialsRes.count || 0,
-      mockTestsCount: mocksRes.count || 0,
-    };
-  } catch {
-    return {
-      studentsCount: 0,
-      activeCoursesCount: 0,
-      chaptersCount: 0,
-      topicsCount: 0,
-      questionsCount: 0,
-      materialsCount: 0,
-      mockTestsCount: 0,
-    };
-  }
+    try {
+      const [
+        studentsRes,
+        coursesRes,
+        chaptersRes,
+        topicsRes,
+        questionsRes,
+        materialsRes,
+        mocksRes,
+      ] = await Promise.all([
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        supabase.from("exams").select("id", { count: "exact", head: true }),
+        supabase.from("chapters").select("id", { count: "exact", head: true }),
+        supabase.from("topics").select("id", { count: "exact", head: true }),
+        supabase.from("questions").select("id", { count: "exact", head: true }),
+        supabase.from("study_materials").select("id", { count: "exact", head: true }),
+        supabase.from("mock_tests").select("id", { count: "exact", head: true }),
+      ]);
+
+      return {
+        studentsCount: studentsRes.count || 0,
+        activeCoursesCount: coursesRes.count || 0,
+        chaptersCount: chaptersRes.count || 0,
+        topicsCount: topicsRes.count || 0,
+        questionsCount: questionsRes.count || 0,
+        materialsCount: materialsRes.count || 0,
+        mockTestsCount: mocksRes.count || 0,
+      };
+    } catch {
+      return {
+        studentsCount: 0,
+        activeCoursesCount: 0,
+        chaptersCount: 0,
+        topicsCount: 0,
+        questionsCount: 0,
+        materialsCount: 0,
+        mockTestsCount: 0,
+      };
+    }
+  }, forceRefresh);
 }
 
 /**
@@ -826,128 +937,132 @@ export async function updateAdminStudentRole(userId: string, newRole: "admin" | 
  */
 export async function getDashboardMetrics(
   userId: string,
-  targetExamId?: string | null
+  targetExamId?: string | null,
+  forceRefresh: boolean = false
 ): Promise<DashboardMetrics> {
-  try {
-    const todayStr = new Date().toISOString().split("T")[0];
-    const currentMonthPrefix = new Date().toISOString().slice(0, 7);
+  const cacheKey = `metrics_${userId}_${targetExamId || "all"}`;
+  return fetchWithCache(cacheKey, 30 * 1000, async () => {
+    try {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const currentMonthPrefix = new Date().toISOString().slice(0, 7);
 
-    const [
-      sessionsRes,
-      questionsRes,
-      mocksRes,
-      userProgressRes,
-      activitiesRes,
-      courseSubjectsRes,
-      personalTopicsRes,
-    ] = await Promise.all([
-      supabase.from("study_sessions").select("duration_minutes, session_date").eq("user_id", userId),
-      supabase.from("question_attempts").select("id, is_correct, created_at").eq("user_id", userId),
-      supabase.from("mock_test_attempts").select("id, score, accuracy, completed_at, created_at").eq("user_id", userId).eq("status", "completed"),
-      supabase.from("student_topic_progress").select("topic_id").eq("user_id", userId).eq("status", "completed"),
-      supabase.from("student_activity").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(6),
-      targetExamId
-        ? supabase.from("subjects").select("id, name, order_index, chapters(id, is_official, topics(id, is_official, title))").eq("exam_id", targetExamId).order("order_index", { ascending: true })
-        : supabase.from("subjects").select("id, name, order_index, chapters(id, is_official, topics(id, is_official, title))").order("order_index", { ascending: true }),
-      supabase.from("topics").select("id").eq("is_official", false).eq("created_by", userId),
-    ]);
+      const [
+        sessionsRes,
+        questionsRes,
+        mocksRes,
+        userProgressRes,
+        activitiesRes,
+        courseSubjectsRes,
+        personalTopicsRes,
+      ] = await Promise.all([
+        supabase.from("study_sessions").select("duration_minutes, session_date").eq("user_id", userId),
+        supabase.from("question_attempts").select("id, is_correct, created_at").eq("user_id", userId),
+        supabase.from("mock_test_attempts").select("id, score, accuracy, completed_at, created_at").eq("user_id", userId).eq("status", "completed"),
+        supabase.from("student_topic_progress").select("topic_id").eq("user_id", userId).eq("status", "completed"),
+        supabase.from("student_activity").select("id, user_id, activity_type, title, description, created_at, metadata").eq("user_id", userId).order("created_at", { ascending: false }).limit(6),
+        targetExamId
+          ? supabase.from("subjects").select("id, name, order_index, chapters(id, is_official, topics(id, is_official, title))").eq("exam_id", targetExamId).order("order_index", { ascending: true })
+          : supabase.from("subjects").select("id, name, order_index, chapters(id, is_official, topics(id, is_official, title))").order("order_index", { ascending: true }),
+        supabase.from("topics").select("id").eq("is_official", false).eq("created_by", userId),
+      ]);
 
-    const sessions = sessionsRes.data || [];
-    const totalMinutes = sessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
-    const studyHours = Math.round((totalMinutes / 60) * 10) / 10;
-    const studyStreakDays = calculateStudyStreak(sessions.map((s) => s.session_date));
+      const sessions = sessionsRes.data || [];
+      const totalMinutes = sessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
+      const studyHours = Math.round((totalMinutes / 60) * 10) / 10;
+      const studyStreakDays = calculateStudyStreak(sessions.map((s) => s.session_date));
 
-    const sessionsToday = sessions.filter((s: any) => s.session_date === todayStr);
-    const studyHoursToday = Math.round((sessionsToday.reduce((sum: number, s: any) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10;
+      const sessionsToday = sessions.filter((s: any) => s.session_date === todayStr);
+      const studyHoursToday = Math.round((sessionsToday.reduce((sum: number, s: any) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10;
 
-    const attempts = questionsRes.data || [];
-    const questionsPracticed = attempts.length;
-    const questionsToday = attempts.filter((a: any) => a.created_at?.startsWith(todayStr)).length;
-    const correctCount = attempts.filter((a: any) => a.is_correct).length;
-    const accuracyPercentage = questionsPracticed > 0 ? Math.round((correctCount / questionsPracticed) * 100) : 0;
+      const attempts = questionsRes.data || [];
+      const questionsPracticed = attempts.length;
+      const questionsToday = attempts.filter((a: any) => a.created_at?.startsWith(todayStr)).length;
+      const correctCount = attempts.filter((a: any) => a.is_correct).length;
+      const accuracyPercentage = questionsPracticed > 0 ? Math.round((correctCount / questionsPracticed) * 100) : 0;
 
-    const mockAttempts = mocksRes.data || [];
-    const mockTestsCompleted = mockAttempts.length;
-    const mockTestsThisMonth = mockAttempts.filter((m: any) => (m.completed_at || m.created_at)?.startsWith(currentMonthPrefix)).length;
+      const mockAttempts = mocksRes.data || [];
+      const mockTestsCompleted = mockAttempts.length;
+      const mockTestsThisMonth = mockAttempts.filter((m: any) => (m.completed_at || m.created_at)?.startsWith(currentMonthPrefix)).length;
 
-    const completedTopicIds = new Set((userProgressRes.data || []).map((p) => p.topic_id));
-    const subjects = courseSubjectsRes.data || [];
+      const completedTopicIds = new Set((userProgressRes.data || []).map((p) => p.topic_id));
+      const subjects = courseSubjectsRes.data || [];
 
-    let totalOfficialTopics = 0;
-    let completedOfficialTopics = 0;
+      let totalOfficialTopics = 0;
+      let completedOfficialTopics = 0;
 
-    const subjectProgress = subjects.map((sub: any) => {
-      let subTotal = 0;
-      let subCompleted = 0;
+      const subjectProgress = subjects.map((sub: any) => {
+        let subTotal = 0;
+        let subCompleted = 0;
 
-      (sub.chapters || []).forEach((ch: any) => {
-        (ch.topics || []).forEach((t: any) => {
-          if (ch.is_official && t.is_official) {
-            subTotal++;
-            totalOfficialTopics++;
-            if (completedTopicIds.has(t.id)) {
-              subCompleted++;
-              completedOfficialTopics++;
+        (sub.chapters || []).forEach((ch: any) => {
+          (ch.topics || []).forEach((t: any) => {
+            if (ch.is_official && t.is_official) {
+              subTotal++;
+              totalOfficialTopics++;
+              if (completedTopicIds.has(t.id)) {
+                subCompleted++;
+                completedOfficialTopics++;
+              }
             }
-          }
+          });
         });
+
+        return {
+          subject_id: sub.id,
+          subject_name: sub.name,
+          total_topics: subTotal,
+          completed_topics: subCompleted,
+          progress_percentage: calculateProgress(subCompleted, subTotal),
+        };
       });
 
+      const officialProgressPercentage = calculateProgress(completedOfficialTopics, totalOfficialTopics);
+
+      const personalTopics = personalTopicsRes.data || [];
+      const totalPersonalTopics = personalTopics.length;
+      const completedPersonalTopics = personalTopics.filter((t) => completedTopicIds.has(t.id)).length;
+      const personalProgressPercentage = calculateProgress(completedPersonalTopics, totalPersonalTopics);
+
       return {
-        subject_id: sub.id,
-        subject_name: sub.name,
-        total_topics: subTotal,
-        completed_topics: subCompleted,
-        progress_percentage: calculateProgress(subCompleted, subTotal),
+        study_hours: studyHours,
+        study_hours_today: studyHoursToday,
+        questions_practiced: questionsPracticed,
+        questions_practiced_today: questionsToday,
+        accuracy_percentage: accuracyPercentage,
+        mock_tests_completed: mockTestsCompleted,
+        mock_tests_this_month: mockTestsThisMonth,
+        study_streak_days: studyStreakDays,
+        official_progress_percentage: officialProgressPercentage,
+        personal_progress_percentage: personalProgressPercentage,
+        total_official_topics: totalOfficialTopics,
+        completed_official_topics: completedOfficialTopics,
+        total_personal_topics: totalPersonalTopics,
+        completed_personal_topics: completedPersonalTopics,
+        recent_activities: (activitiesRes.data as any) || [],
+        subject_progress: subjectProgress,
       };
-    });
-
-    const officialProgressPercentage = calculateProgress(completedOfficialTopics, totalOfficialTopics);
-
-    const personalTopics = personalTopicsRes.data || [];
-    const totalPersonalTopics = personalTopics.length;
-    const completedPersonalTopics = personalTopics.filter((t) => completedTopicIds.has(t.id)).length;
-    const personalProgressPercentage = calculateProgress(completedPersonalTopics, totalPersonalTopics);
-
-    return {
-      study_hours: studyHours,
-      study_hours_today: studyHoursToday,
-      questions_practiced: questionsPracticed,
-      questions_practiced_today: questionsToday,
-      accuracy_percentage: accuracyPercentage,
-      mock_tests_completed: mockTestsCompleted,
-      mock_tests_this_month: mockTestsThisMonth,
-      study_streak_days: studyStreakDays,
-      official_progress_percentage: officialProgressPercentage,
-      personal_progress_percentage: personalProgressPercentage,
-      total_official_topics: totalOfficialTopics,
-      completed_official_topics: completedOfficialTopics,
-      total_personal_topics: totalPersonalTopics,
-      completed_personal_topics: completedPersonalTopics,
-      recent_activities: (activitiesRes.data as any) || [],
-      subject_progress: subjectProgress,
-    };
-  } catch (err) {
-    console.warn("Failed to load dashboard metrics:", err);
-    return {
-      study_hours: 0,
-      study_hours_today: 0,
-      questions_practiced: 0,
-      questions_practiced_today: 0,
-      accuracy_percentage: 0,
-      mock_tests_completed: 0,
-      mock_tests_this_month: 0,
-      study_streak_days: 0,
-      official_progress_percentage: 0,
-      personal_progress_percentage: 0,
-      total_official_topics: 0,
-      completed_official_topics: 0,
-      total_personal_topics: 0,
-      completed_personal_topics: 0,
-      recent_activities: [],
-      subject_progress: [],
-    };
-  }
+    } catch (err) {
+      console.warn("Failed to load dashboard metrics:", err);
+      return {
+        study_hours: 0,
+        study_hours_today: 0,
+        questions_practiced: 0,
+        questions_practiced_today: 0,
+        accuracy_percentage: 0,
+        mock_tests_completed: 0,
+        mock_tests_this_month: 0,
+        study_streak_days: 0,
+        official_progress_percentage: 0,
+        personal_progress_percentage: 0,
+        total_official_topics: 0,
+        completed_official_topics: 0,
+        total_personal_topics: 0,
+        completed_personal_topics: 0,
+        recent_activities: [],
+        subject_progress: [],
+      };
+    }
+  }, forceRefresh);
 }
 
 const DOUBTS_STORAGE_KEY = "@odisha_rank_student_doubts";
