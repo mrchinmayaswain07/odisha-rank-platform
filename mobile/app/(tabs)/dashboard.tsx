@@ -237,101 +237,7 @@ export default function DashboardScreen() {
           </View>
         ) : (
           <>
-            {/* 1. Target Course Progress Banner */}
-            <View style={styles.courseBanner}>
-              <View style={styles.courseHeader}>
-                <View style={styles.badgeRow}>
-                  <Badge
-                    label={activeExam?.conducting_body || "Odisha State Cadre"}
-                    variant="blue"
-                    size="sm"
-                  />
-                  <Text style={styles.subtext}>Official Syllabus</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => router.push("/course-select")}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.changeCourseLink}>Switch</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.courseTitle}>
-                {activeExam?.title || "Choose Your Target Exam"}
-              </Text>
-
-              <View style={styles.progressSection}>
-                <View style={styles.progressRow}>
-                  <Text style={styles.progressLabel}>Official Syllabus Coverage</Text>
-                  <Text style={styles.progressPercent}>
-                    {metrics?.official_progress_percentage || 0}%
-                  </Text>
-                </View>
-                <ProgressBar
-                  progress={metrics?.official_progress_percentage || 0}
-                  color="blue"
-                  height={8}
-                />
-                <Text style={styles.progressNote}>
-                  {metrics?.completed_official_topics || 0} of{" "}
-                  {metrics?.total_official_topics || 0} topics completed
-                </Text>
-              </View>
-            </View>
-
-            {/* 2. Today's Study Plan (Dynamic & Toggleable) */}
-            <View style={styles.planCard}>
-              <View style={styles.planHeader}>
-                <View style={styles.planTitleGroup}>
-                  <Target size={16} color={BRAND_COLORS.primary} />
-                  <Text style={styles.planTitle}>Today&apos;s Study Plan</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setShowLogModal(true)}
-                  style={styles.logSessionPill}
-                  activeOpacity={0.7}
-                >
-                  <Plus size={12} color={BRAND_COLORS.primary} />
-                  <Text style={styles.logSessionText}>Log Study</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.taskList}>
-                {studyPlan.map((task) => (
-                  <TouchableOpacity
-                    key={task.id}
-                    style={styles.taskItem}
-                    onPress={() => toggleTask(task.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.checkboxWrapper}>
-                      {task.completed ? (
-                        <CheckCircle2 size={18} color="#059669" />
-                      ) : (
-                        <Circle size={18} color="#cbd5e1" />
-                      )}
-                    </View>
-                    <View style={styles.taskTextWrapper}>
-                      <Text
-                        style={[
-                          styles.taskTitle,
-                          task.completed && styles.taskTitleCompleted,
-                        ]}
-                      >
-                        {task.title}
-                      </Text>
-                      <View style={styles.taskMetaRow}>
-                        <Text style={styles.taskSubject}>{task.subject}</Text>
-                        <Text style={styles.taskDot}>•</Text>
-                        <Text style={styles.taskDuration}>{task.duration}</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* 3. Key Metrics Grid (Authentic Real Data) */}
+            {/* 1. Key Metrics Grid (Authentic Real Data) */}
             <Text style={styles.sectionTitle}>Preparation Analytics</Text>
             <View style={styles.metricsGrid}>
               {/* Study Hours */}
@@ -408,6 +314,164 @@ export default function DashboardScreen() {
                   <Text style={styles.metricUnit}>days</Text>
                 </Text>
                 <Text style={styles.metricSub}>Daily consistency</Text>
+              </View>
+            </View>
+
+            {/* 2. Quick Actions */}
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.actionGrid}>
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: BRAND_COLORS.primary }]}
+                onPress={() => router.push("/(tabs)/questions")}
+                activeOpacity={0.8}
+              >
+                <HelpCircle size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Practice MCQs</Text>
+                <Text style={styles.actionCardSub}>Topic-wise questions</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: "#059669" }]}
+                onPress={() => router.push("/bodmas" as any)}
+                activeOpacity={0.8}
+              >
+                <Zap size={18} color="#ffffff" fill="#ffffff" />
+                <Text style={styles.actionCardTitle}>BODMAS Lab</Text>
+                <Text style={styles.actionCardSub}>Speed calculation</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: "#ea580c" }]}
+                onPress={() => router.push("/games" as any)}
+                activeOpacity={0.8}
+              >
+                <Gamepad2 size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Brain Games</Text>
+                <Text style={styles.actionCardSub}>32 Mental Puzzles</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: "#0284c7" }]}
+                onPress={() => router.push("/materials" as any)}
+                activeOpacity={0.8}
+              >
+                <BookOpen size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Study Notes & PDFs</Text>
+                <Text style={styles.actionCardSub}>Notes & Drive links</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: "#7c3aed" }]}
+                onPress={() => router.push("/doubts" as any)}
+                activeOpacity={0.8}
+              >
+                <MessageSquare size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Ask Doubts</Text>
+                <Text style={styles.actionCardSub}>Faculty Q&A support</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: BRAND_COLORS.secondary }]}
+                onPress={() => router.push("/(tabs)/mock-tests")}
+                activeOpacity={0.8}
+              >
+                <Award size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Take Mock Test</Text>
+                <Text style={styles.actionCardSub}>Timed simulation</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* 3. Target Course Progress Banner */}
+            <View style={styles.courseBanner}>
+              <View style={styles.courseHeader}>
+                <View style={styles.badgeRow}>
+                  <Badge
+                    label={activeExam?.conducting_body || "Odisha State Cadre"}
+                    variant="blue"
+                    size="sm"
+                  />
+                  <Text style={styles.subtext}>Official Syllabus</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => router.push("/course-select")}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.changeCourseLink}>Switch</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.courseTitle}>
+                {activeExam?.title || "Choose Your Target Exam"}
+              </Text>
+
+              <View style={styles.progressSection}>
+                <View style={styles.progressRow}>
+                  <Text style={styles.progressLabel}>Official Syllabus Coverage</Text>
+                  <Text style={styles.progressPercent}>
+                    {metrics?.official_progress_percentage || 0}%
+                  </Text>
+                </View>
+                <ProgressBar
+                  progress={metrics?.official_progress_percentage || 0}
+                  color="blue"
+                  height={8}
+                />
+                <Text style={styles.progressNote}>
+                  {metrics?.completed_official_topics || 0} of{" "}
+                  {metrics?.total_official_topics || 0} topics completed
+                </Text>
+              </View>
+            </View>
+
+            {/* 4. Today's Study Plan (Dynamic & Toggleable) */}
+            <View style={styles.planCard}>
+              <View style={styles.planHeader}>
+                <View style={styles.planTitleGroup}>
+                  <Target size={16} color={BRAND_COLORS.primary} />
+                  <Text style={styles.planTitle}>Today&apos;s Study Plan</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowLogModal(true)}
+                  style={styles.logSessionPill}
+                  activeOpacity={0.7}
+                >
+                  <Plus size={12} color={BRAND_COLORS.primary} />
+                  <Text style={styles.logSessionText}>Log Study</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.taskList}>
+                {studyPlan.map((task) => (
+                  <TouchableOpacity
+                    key={task.id}
+                    style={styles.taskItem}
+                    onPress={() => toggleTask(task.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.checkboxWrapper}>
+                      {task.completed ? (
+                        <CheckCircle2 size={18} color="#059669" />
+                      ) : (
+                        <Circle size={18} color="#cbd5e1" />
+                      )}
+                    </View>
+                    <View style={styles.taskTextWrapper}>
+                      <Text
+                        style={[
+                          styles.taskTitle,
+                          task.completed && styles.taskTitleCompleted,
+                        ]}
+                      >
+                        {task.title}
+                      </Text>
+                      <View style={styles.taskMetaRow}>
+                        <Text style={styles.taskSubject}>{task.subject}</Text>
+                        <Text style={styles.taskDot}>•</Text>
+                        <Text style={styles.taskDuration}>{task.duration}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
 
@@ -619,69 +683,6 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* 5. Quick Actions */}
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.actionGrid}>
-              <TouchableOpacity
-                style={[styles.actionCard, { backgroundColor: BRAND_COLORS.primary }]}
-                onPress={() => router.push("/(tabs)/questions")}
-                activeOpacity={0.8}
-              >
-                <HelpCircle size={18} color="#ffffff" />
-                <Text style={styles.actionCardTitle}>Practice MCQs</Text>
-                <Text style={styles.actionCardSub}>Topic-wise questions</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionCard, { backgroundColor: "#059669" }]}
-                onPress={() => router.push("/bodmas" as any)}
-                activeOpacity={0.8}
-              >
-                <Zap size={18} color="#ffffff" fill="#ffffff" />
-                <Text style={styles.actionCardTitle}>BODMAS Lab</Text>
-                <Text style={styles.actionCardSub}>Speed calculation</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionCard, { backgroundColor: "#ea580c" }]}
-                onPress={() => router.push("/games" as any)}
-                activeOpacity={0.8}
-              >
-                <Gamepad2 size={18} color="#ffffff" />
-                <Text style={styles.actionCardTitle}>Brain Games</Text>
-                <Text style={styles.actionCardSub}>32 Mental Puzzles</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionCard, { backgroundColor: "#0284c7" }]}
-                onPress={() => router.push("/materials" as any)}
-                activeOpacity={0.8}
-              >
-                <BookOpen size={18} color="#ffffff" />
-                <Text style={styles.actionCardTitle}>Study Notes & PDFs</Text>
-                <Text style={styles.actionCardSub}>Notes & Drive links</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionCard, { backgroundColor: "#7c3aed" }]}
-                onPress={() => router.push("/doubts" as any)}
-                activeOpacity={0.8}
-              >
-                <MessageSquare size={18} color="#ffffff" />
-                <Text style={styles.actionCardTitle}>Ask Doubts</Text>
-                <Text style={styles.actionCardSub}>Faculty Q&A support</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionCard, { backgroundColor: BRAND_COLORS.secondary }]}
-                onPress={() => router.push("/(tabs)/mock-tests")}
-                activeOpacity={0.8}
-              >
-                <Award size={18} color="#ffffff" />
-                <Text style={styles.actionCardTitle}>Take Mock Test</Text>
-                <Text style={styles.actionCardSub}>Timed simulation</Text>
-              </TouchableOpacity>
-            </View>
 
             {/* 5. Subject Breakdown */}
             {metrics?.subject_progress && metrics.subject_progress.length > 0 ? (
