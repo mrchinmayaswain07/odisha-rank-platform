@@ -17,6 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { NotificationBell } from "./NotificationBell";
 
 interface StudentHeaderProps {
   onOpenMobileMenu: () => void;
@@ -168,11 +169,8 @@ export const StudentHeader: React.FC<StudentHeaderProps> = ({
           <span className="hidden sm:inline">Stopwatch</span>
         </button>
 
-        {/* Notification Bell */}
-        <button className="relative p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
-        </button>
+        {/* Live Dynamic Notification Bell */}
+        <NotificationBell />
 
         {/* Profile Menu */}
         <div className="relative" ref={menuRef}>

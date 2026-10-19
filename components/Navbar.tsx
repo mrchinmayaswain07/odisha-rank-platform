@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/Button";
 import { createClient } from "@/lib/supabase/client";
+import { NotificationBell } from "./NotificationBell";
 
 interface NavbarUser {
   id: string;
@@ -232,6 +233,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
           <div className="hidden sm:flex items-center gap-3">
             {currentUser ? (
               <div className="flex items-center gap-2" ref={dropdownRef}>
+                <NotificationBell userId={currentUser.id} />
                 <Link href="/dashboard">
                   <Button variant="primary" size="sm" className="gap-1.5">
                     <LayoutDashboard className="w-4 h-4" />
