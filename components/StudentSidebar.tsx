@@ -43,6 +43,12 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
       icon: GraduationCap,
     },
     {
+      name: "Speed Math & BODMAS",
+      href: "/speed-math",
+      icon: Zap,
+      badge: "NEW",
+    },
+    {
       name: "Practice Questions",
       href: "/questions",
       icon: HelpCircle,
@@ -51,11 +57,6 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
       name: "Mock Tests",
       href: "/mock-tests",
       icon: Clock,
-    },
-    {
-      name: "Speed Calculation",
-      href: "/speed-math",
-      icon: Zap,
     },
     {
       name: "Study Materials",
@@ -145,18 +146,29 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
                 href={item.href}
                 prefetch={true}
                 onClick={onCloseMobile}
-                className={`flex items-center gap-3.5 px-4 py-2.5 rounded-2xl font-semibold text-xs sm:text-sm transition-all ${
+                className={`flex items-center justify-between gap-2.5 px-4 py-2.5 rounded-2xl font-semibold text-xs sm:text-sm transition-all ${
                   isActive
                     ? "bg-blue-50 text-blue-600 shadow-xs font-bold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                 }`}
               >
-                <Icon
-                  className={`w-4 h-4 transition-colors ${
-                    isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
-                  }`}
-                />
-                <span>{item.name}</span>
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <Icon
+                    className={`w-4 h-4 transition-colors shrink-0 ${
+                      isActive
+                        ? "text-blue-600"
+                        : (item as any).badge
+                        ? "text-amber-500 fill-amber-400"
+                        : "text-slate-400 group-hover:text-slate-600"
+                    }`}
+                  />
+                  <span className="truncate">{item.name}</span>
+                </div>
+                {(item as any).badge && (
+                  <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded-md bg-amber-400 text-slate-950 shadow-2xs shrink-0">
+                    {(item as any).badge}
+                  </span>
+                )}
               </Link>
             );
           })}

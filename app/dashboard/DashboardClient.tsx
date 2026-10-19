@@ -580,6 +580,19 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
             </Link>
 
             <Link
+              href="/speed-math"
+              className="flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl font-medium text-sm text-amber-900 bg-amber-50/80 hover:bg-amber-100/90 border border-amber-200/70 transition-all group"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <Zap className="w-4 h-4 text-amber-500 fill-amber-400 group-hover:scale-110 transition-transform shrink-0" />
+                <span className="font-bold text-slate-900 truncate">Speed Math & BODMAS</span>
+              </div>
+              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase rounded-md bg-amber-400 text-slate-950 shadow-2xs shrink-0">
+                NEW
+              </span>
+            </Link>
+
+            <Link
               href="/questions"
               className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
             >
@@ -1149,6 +1162,9 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
           {/* ========================================================= */}
           {/* SPEED CALCULATION & MENTAL MATH PRACTICE PROMO CARD        */}
           {/* ========================================================= */}
+          {/* ========================================================= */}
+          {/* SPEED CALCULATION & MENTAL MATH PRACTICE PROMO CARD        */}
+          {/* ========================================================= */}
           <Link
             href="/speed-math"
             className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-md shadow-blue-950/20 hover:shadow-lg hover:scale-[1.005] transition-all border border-blue-700/40 group"
@@ -1159,13 +1175,13 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-black tracking-tight">Speed Calculation Practice</h3>
+                  <h3 className="text-base font-black tracking-tight">Speed Math & BODMAS Drills</h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-400 text-slate-950">
                     NEW FEATURE
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  16 drill categories: Addition, Squares, Cubes, BODMAS, Tables, Percentages, and DI fast calculations.
+                  16 mental math categories: BODMAS, Addition, Subtraction, Squares, Cubes, Tables, Roots, and DI fast calculations.
                 </p>
               </div>
             </div>
@@ -1174,6 +1190,79 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </div>
           </Link>
+
+          {/* ========================================================= */}
+          {/* AVAILABLE COURSES & EXAMS STRIP (SWITCH OR EXPLORE)       */}
+          {/* ========================================================= */}
+          {allExams && allExams.length > 0 && (
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <GraduationCap className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Available Courses & Target Exams</h3>
+                    <p className="text-[11px] text-slate-400">Switch your target course anytime to personalize syllabus and tests</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCourseModal(true)}
+                  className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+                >
+                  <span>View All ({allExams.length})</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
+                {allExams.slice(0, 4).map((exam) => {
+                  const isActive = exam.id === targetExam?.id;
+                  return (
+                    <div
+                      key={exam.id}
+                      onClick={() => {
+                        if (!isActive) {
+                          setShowCourseModal(true);
+                        }
+                      }}
+                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                        isActive
+                          ? "bg-blue-50/80 border-blue-500/60 shadow-xs"
+                          : "bg-slate-50/50 hover:bg-slate-50 border-slate-200/80 hover:border-blue-300"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
+                            isActive ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-700"
+                          }`}>
+                            {exam.conducting_body || "Odisha Govt"}
+                          </span>
+                          {isActive && (
+                            <span className="text-[10px] font-black text-blue-600 flex items-center gap-0.5">
+                              <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 line-clamp-2" title={exam.title}>
+                          {exam.title}
+                        </h4>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-[11px]">
+                        <span className="text-slate-400 font-medium">Batch {profile?.target_year || 2026}</span>
+                        <span className={`font-bold ${isActive ? "text-blue-600" : "text-slate-600"}`}>
+                          {isActive ? "Studying Now" : "Switch Course →"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* ========================================================= */}
           {/* ROW 2: (1) TODAY'S STUDY PLAN (2) OVERALL COURSE PROGRESS */}

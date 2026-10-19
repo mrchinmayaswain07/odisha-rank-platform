@@ -6,7 +6,7 @@ import { getStudentProfile, getExams } from "@/lib/data-service";
 import { SpeedMathClient } from "./SpeedMathClient";
 
 export const metadata: Metadata = {
-  title: "Speed Calculation & Mental Math Practice | OdishaRank",
+  title: "Speed Math & BODMAS Practice | OdishaRank",
   description:
     "Master fast mental calculations, BODMAS, square roots, cube roots, percentage fractions, and DI additions for OSSC CGL, OSSSC, and OPSC examinations.",
 };

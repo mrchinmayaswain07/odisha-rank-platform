@@ -556,13 +556,13 @@ export default function SpeedMathScreen() {
           {/* Hero Banner */}
           <View style={styles.heroBanner}>
             <View style={styles.heroBadge}>
-              <Zap size={14} color="#f59e0b" />
-              <Text style={styles.heroBadgeText}>Speed Calculation</Text>
+              <Zap size={14} color="#f59e0b" fill="#f59e0b" />
+              <Text style={styles.heroBadgeText}>Speed Math & BODMAS</Text>
             </View>
-            <Text style={styles.heroTitle}>Mental Math Practice</Text>
+            <Text style={styles.heroTitle}>BODMAS & Speed Drills</Text>
             <Text style={styles.heroSub}>
               Build lightning calculation speed for OSSC, OSSSC, and OPSC exams with 16 dedicated
-              speed drills.
+              speed drills including BODMAS, powers, roots, and percentages.
             </Text>
           </View>
 

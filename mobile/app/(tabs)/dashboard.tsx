@@ -408,7 +408,7 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            {/* Speed Calculation Practice Banner */}
+            {/* Speed Math & BODMAS Practice Banner */}
             <TouchableOpacity
               style={styles.speedMathBanner}
               onPress={() => router.push("/speed-math" as any)}
@@ -420,11 +420,11 @@ export default function DashboardScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={styles.speedMathBadgeRow}>
-                    <Text style={styles.speedMathBadgeText}>NEW PRACTICE</Text>
+                    <Text style={styles.speedMathBadgeText}>NEW SPEED DRILLS</Text>
                   </View>
-                  <Text style={styles.speedMathTitle}>Speed Calculation Drills</Text>
+                  <Text style={styles.speedMathTitle}>Speed Math & BODMAS Drills</Text>
                   <Text style={styles.speedMathSub}>
-                    16 categories: Add, Subtract, Squares, Cubes, Tables & DI
+                    16 categories: BODMAS, Addition, Squares, Cubes, Tables & DI
                   </Text>
                 </View>
               </View>

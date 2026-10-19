@@ -634,7 +634,7 @@ export const SpeedMathClient: React.FC<SpeedMathClientProps> = ({
                     Quantitative Aptitude & Speed Drills
                   </div>
                   <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
-                    Speed Calculation Practice
+                    Speed Math & BODMAS Practice
                   </h1>
                   <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                     Master rapid mental calculations, speed arithmetic, squares, cubes, tables, percentage
