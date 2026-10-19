@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { router } from "expo-router";
-import { ChevronLeft, GraduationCap, ArrowLeftRight } from "lucide-react-native";
+import { ChevronLeft, GraduationCap, ArrowLeftRight, Bell } from "lucide-react-native";
 import { BRAND_COLORS } from "@odisha-rank/shared";
 import { useAuth } from "../lib/auth-context";
 
@@ -10,6 +10,9 @@ interface HeaderProps {
   subtitle?: string;
   showBack?: boolean;
   showCoursePill?: boolean;
+  showNotificationBell?: boolean;
+  unreadNotificationsCount?: number;
+  onPressNotification?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +20,9 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle,
   showBack = false,
   showCoursePill = true,
+  showNotificationBell = false,
+  unreadNotificationsCount = 0,
+  onPressNotification,
 }) => {
   const { activeExam } = useAuth();
 
@@ -45,19 +51,38 @@ export const Header: React.FC<HeaderProps> = ({
           </View>
         </View>
 
-        {showCoursePill && (
-          <TouchableOpacity
-            style={styles.coursePill}
-            activeOpacity={0.8}
-            onPress={() => router.push("/course-select")}
-          >
-            <GraduationCap size={14} color={BRAND_COLORS.primary} />
-            <Text style={styles.courseText} numberOfLines={1}>
-              {activeExam?.conducting_body || "Course"}
-            </Text>
-            <ArrowLeftRight size={12} color={BRAND_COLORS.primary} />
-          </TouchableOpacity>
-        )}
+        <View style={styles.rightActions}>
+          {showNotificationBell && (
+            <TouchableOpacity
+              style={styles.notifButton}
+              activeOpacity={0.75}
+              onPress={onPressNotification}
+            >
+              <Bell size={18} color={BRAND_COLORS.textPrimary} />
+              {unreadNotificationsCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>
+                    {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {showCoursePill && (
+            <TouchableOpacity
+              style={styles.coursePill}
+              activeOpacity={0.8}
+              onPress={() => router.push("/course-select")}
+            >
+              <GraduationCap size={14} color={BRAND_COLORS.primary} />
+              <Text style={styles.courseText} numberOfLines={1}>
+                {activeExam?.conducting_body || "Course"}
+              </Text>
+              <ArrowLeftRight size={12} color={BRAND_COLORS.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -97,6 +122,41 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: BRAND_COLORS.textSecondary,
     marginTop: 2,
+  },
+  rightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  notifButton: {
+    position: "relative",
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notifBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    backgroundColor: "#ef4444",
+    borderRadius: 9,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: "#ffffff",
+  },
+  notifBadgeText: {
+    color: "#ffffff",
+    fontSize: 9,
+    fontWeight: "900",
   },
   coursePill: {
     flexDirection: "row",

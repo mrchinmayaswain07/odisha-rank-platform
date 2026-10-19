@@ -34,7 +34,11 @@ import {
   Gamepad2,
   Brain,
   BookOpen,
+  Timer,
+  Trash2,
+  Flame,
 } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BRAND_COLORS, DashboardMetrics } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
 import { getDashboardMetrics, logStudySession } from "../../src/lib/data-service";
@@ -42,15 +46,14 @@ import { supabase } from "../../src/lib/supabase";
 import { Header } from "../../src/components/Header";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { Badge } from "../../src/components/Badge";
+import { AddGoalModal, TodayGoalItem } from "../../src/components/AddGoalModal";
+import { StopwatchModal } from "../../src/components/StopwatchModal";
+import { NotificationsModal } from "../../src/components/NotificationsModal";
+import { fetchStudentNotifications, AppNotification } from "../../src/lib/notification-service";
 
-interface StudyTask {
-  id: string;
-  topic_id: string;
-  title: string;
-  subject: string;
-  duration: string;
-  completed: boolean;
-}
+const TODAY_GOALS_KEY = "odisharank_today_goals_";
+const TARGET_HOURS_KEY = "odisharank_target_hours_";
+const getTodayDateStr = () => new Date().toISOString().split("T")[0];
 
 export default function DashboardScreen() {
   const { user, profile, activeExam } = useAuth();
@@ -58,52 +61,92 @@ export default function DashboardScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Study Session Logger Modal
+  // Today's Goal State
+  const [targetHours, setTargetHours] = useState<number>(3);
+  const [todayGoals, setTodayGoals] = useState<TodayGoalItem[]>([]);
+  const [showAddGoalModal, setShowAddGoalModal] = useState<boolean>(false);
+  const [showStopwatchModal, setShowStopwatchModal] = useState<boolean>(false);
+  const [activeStopwatchTopic, setActiveStopwatchTopic] = useState<string>("Focused Preparation");
+
+  // Notifications State
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
+
+  // Study Session Logger Modal (Manual)
   const [showLogModal, setShowLogModal] = useState(false);
   const [logMinutes, setLogMinutes] = useState(45);
   const [logNotes, setLogNotes] = useState("");
   const [isLogging, setIsLogging] = useState(false);
 
-  // Dynamic Study Plan
-  const defaultTasks: StudyTask[] = useMemo(() => {
+  // Load Today's Goals from AsyncStorage with dynamic syllabus fallbacks
+  const loadTodayGoals = useCallback(async () => {
+    if (!user) return;
+    const today = getTodayDateStr();
+    try {
+      const savedHours = await AsyncStorage.getItem(`${TARGET_HOURS_KEY}${user.id}`);
+      if (savedHours) setTargetHours(Number(savedHours) || 3);
+
+      const raw = await AsyncStorage.getItem(`${TODAY_GOALS_KEY}${user.id}_${today}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTodayGoals(parsed);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load today's goals:", err);
+    }
+
+    // Default dynamic goals based on active exam
     const examCode = activeExam?.conducting_body || "OSSC";
-    return [
+    const initialGoals: TodayGoalItem[] = [
       {
-        id: "m-sp-1",
-        topic_id: "m-sp-1",
+        id: "tg-1",
         title: `${examCode} General Studies – Indian Polity`,
         subject: "Polity",
-        duration: "45 min",
+        chapter: "Constitution & Governance",
+        durationMinutes: 45,
         completed: false,
       },
       {
-        id: "m-sp-2",
-        topic_id: "m-sp-2",
+        id: "tg-2",
         title: "Odisha Special – History & Geography of Odisha",
         subject: "Odisha GK",
-        duration: "45 min",
+        chapter: "Historical Heritage",
+        durationMinutes: 45,
         completed: false,
       },
       {
-        id: "m-sp-3",
-        topic_id: "m-sp-3",
-        title: "Quantitative Aptitude – Simplification & Number System",
+        id: "tg-3",
+        title: "Quantitative Aptitude – Simplification Sprint",
         subject: "Math",
-        duration: "30 min",
+        chapter: "Number System",
+        durationMinutes: 30,
         completed: false,
       },
       {
-        id: "m-sp-4",
-        topic_id: "m-sp-4",
-        title: `Attempt Mock Test (${examCode} Sectional)`,
+        id: "tg-4",
+        title: `Attempt Mock Test (${examCode} Sectional Simulation)`,
         subject: "Simulation",
-        duration: "60 min",
+        chapter: "Full Paper",
+        durationMinutes: 60,
         completed: false,
       },
     ];
-  }, [activeExam]);
+    setTodayGoals(initialGoals);
+  }, [user, activeExam]);
 
-  const [studyPlan, setStudyPlan] = useState<StudyTask[]>(defaultTasks);
+  // Load Notifications
+  const loadNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const list = await fetchStudentNotifications(user.id, activeExam?.id);
+      setNotifications(list);
+    } catch (err) {
+      console.warn("Failed to load notifications:", err);
+    }
+  }, [user, activeExam]);
 
   const fetchMetrics = useCallback(async () => {
     if (!user) return;
@@ -120,72 +163,78 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     fetchMetrics();
-  }, [fetchMetrics]);
+    loadTodayGoals();
+    loadNotifications();
+  }, [fetchMetrics, loadTodayGoals, loadNotifications]);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchMetrics();
+    loadTodayGoals();
+    loadNotifications();
   };
 
-  // Toggle study plan task
-  const toggleTask = async (taskId: string) => {
-    const task = studyPlan.find((t) => t.id === taskId);
-    if (!task) return;
-
-    const willBeCompleted = !task.completed;
-
-    // Optimistic UI update
-    setStudyPlan((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, completed: willBeCompleted } : t))
+  // Toggle Today's Goal Item
+  const toggleGoal = async (goalId: string) => {
+    const today = getTodayDateStr();
+    const updated = todayGoals.map((g) =>
+      g.id === goalId ? { ...g, completed: !g.completed } : g
     );
-
-    // Update metrics count and percentage in real-time
-    setMetrics((prev) => {
-      if (!prev) return prev;
-      const delta = willBeCompleted ? 1 : -1;
-      const newCompleted = Math.max(0, (prev.completed_official_topics || 0) + delta);
-      const total = Math.max(1, prev.total_official_topics || 1);
-      const newPct = Math.min(100, Math.round((newCompleted / total) * 100));
-
-      return {
-        ...prev,
-        completed_official_topics: newCompleted,
-        official_progress_percentage: newPct,
-      };
-    });
-
-    // Sync to Supabase
+    setTodayGoals(updated);
     if (user) {
-      try {
-        await supabase.from("student_topic_progress").upsert(
-          {
-            user_id: user.id,
-            topic_id: task.topic_id,
-            status: willBeCompleted ? "completed" : "not_started",
-            completed_at: willBeCompleted ? new Date().toISOString() : null,
-            last_studied_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,topic_id" }
-        );
-      } catch (err) {
-        console.warn("Topic progress toggle error:", err);
-      }
+      await AsyncStorage.setItem(`${TODAY_GOALS_KEY}${user.id}_${today}`, JSON.stringify(updated));
     }
   };
 
-  // Log study session
-  const handleSaveStudySession = async () => {
+  // Add Today's Goal Item
+  const handleAddGoalItem = async (newItem: TodayGoalItem) => {
+    const today = getTodayDateStr();
+    const updated = [newItem, ...todayGoals];
+    setTodayGoals(updated);
+    if (user) {
+      await AsyncStorage.setItem(`${TODAY_GOALS_KEY}${user.id}_${today}`, JSON.stringify(updated));
+    }
+  };
+
+  // Delete Today's Goal Item
+  const handleDeleteGoalItem = async (goalId: string) => {
+    const today = getTodayDateStr();
+    const updated = todayGoals.filter((g) => g.id !== goalId);
+    setTodayGoals(updated);
+    if (user) {
+      await AsyncStorage.setItem(`${TODAY_GOALS_KEY}${user.id}_${today}`, JSON.stringify(updated));
+    }
+  };
+
+  // Save Target Hours
+  const handleSaveTargetHours = async (hours: number) => {
+    setTargetHours(hours);
+    if (user) {
+      await AsyncStorage.setItem(`${TARGET_HOURS_KEY}${user.id}`, String(hours));
+    }
+  };
+
+  // Start Stopwatch for a specific topic
+  const handleStartStopwatchForTopic = (topicTitle: string) => {
+    setActiveStopwatchTopic(topicTitle);
+    setShowStopwatchModal(true);
+  };
+
+  // Log study session (from Stopwatch or manual logger)
+  const handleSaveStudySession = async (minutesParam?: number, notesParam?: string) => {
     if (!user) return;
+    const duration = minutesParam || logMinutes;
+    const noteText = notesParam || logNotes || "Focused Self-Study";
     setIsLogging(true);
     try {
       const success = await logStudySession({
         userId: user.id,
-        durationMinutes: logMinutes,
-        notes: logNotes || "Mobile self-study revision",
+        durationMinutes: duration,
+        notes: noteText,
       });
 
       if (success) {
-        const addedHours = Math.round((logMinutes / 60) * 10) / 10;
+        const addedHours = Math.round((duration / 60) * 10) / 10;
         setMetrics((prev) => {
           if (!prev) return prev;
           return {
@@ -195,12 +244,29 @@ export default function DashboardScreen() {
             study_streak_days: prev.study_streak_days === 0 ? 1 : prev.study_streak_days,
           };
         });
+
+        // Mark goal completed if note matches topic
+        const updated = todayGoals.map((g) => {
+          if (
+            noteText.toLowerCase().includes(g.subject.toLowerCase()) ||
+            noteText.toLowerCase().includes(g.title.toLowerCase())
+          ) {
+            return { ...g, completed: true };
+          }
+          return g;
+        });
+        setTodayGoals(updated);
+        if (user) {
+          const today = getTodayDateStr();
+          await AsyncStorage.setItem(`${TODAY_GOALS_KEY}${user.id}_${today}`, JSON.stringify(updated));
+        }
+
         setShowLogModal(false);
         setLogNotes("");
-        Alert.alert("Session Logged!", `Recorded ${logMinutes} minutes of focused study time.`);
-      } else {
-        Alert.alert("Log Notice", "Recorded study session locally.");
-        setShowLogModal(false);
+        loadNotifications();
+        if (!minutesParam) {
+          Alert.alert("Session Logged!", `Recorded ${duration} minutes of focused study time.`);
+        }
       }
     } catch {
       setShowLogModal(false);
@@ -212,12 +278,29 @@ export default function DashboardScreen() {
   const displayName =
     profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Aspirant";
 
+  const completedGoalsCount = todayGoals.filter((g) => g.completed).length;
+  const totalGoalsCount = todayGoals.length;
+  const completedGoalMinutes = todayGoals
+    .filter((g) => g.completed)
+    .reduce((sum, g) => sum + (g.durationMinutes || 0), 0);
+  const hoursStudiedToday =
+    metrics?.study_hours_today !== undefined && metrics?.study_hours_today !== null
+      ? metrics.study_hours_today
+      : Math.round((completedGoalMinutes / 60) * 10) / 10;
+  const goalProgressPercentage = Math.min(
+    100,
+    Math.round((hoursStudiedToday / Math.max(1, targetHours)) * 100)
+  );
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <Header
         title="OdishaRank"
         subtitle={`Namaskar, ${displayName}!`}
         showCoursePill={true}
+        showNotificationBell={true}
+        unreadNotificationsCount={notifications.filter((n) => !n.isRead).length}
+        onPressNotification={() => setShowNotificationsModal(true)}
       />
 
       <ScrollView
@@ -382,55 +465,222 @@ export default function DashboardScreen() {
             </View>
 
 
-            {/* 4. Today's Study Plan (Dynamic & Toggleable) */}
-            <View style={styles.planCard}>
-              <View style={styles.planHeader}>
-                <View style={styles.planTitleGroup}>
-                  <Target size={16} color={BRAND_COLORS.primary} />
-                  <Text style={styles.planTitle}>Today&apos;s Study Plan</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setShowLogModal(true)}
-                  style={styles.logSessionPill}
-                  activeOpacity={0.7}
-                >
-                  <Plus size={12} color={BRAND_COLORS.primary} />
-                  <Text style={styles.logSessionText}>Log Study</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.taskList}>
-                {studyPlan.map((task) => (
-                  <TouchableOpacity
-                    key={task.id}
-                    style={styles.taskItem}
-                    onPress={() => toggleTask(task.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.checkboxWrapper}>
-                      {task.completed ? (
-                        <CheckCircle2 size={18} color="#059669" />
-                      ) : (
-                        <Circle size={18} color="#cbd5e1" />
-                      )}
-                    </View>
-                    <View style={styles.taskTextWrapper}>
-                      <Text
-                        style={[
-                          styles.taskTitle,
-                          task.completed && styles.taskTitleCompleted,
-                        ]}
-                      >
-                        {task.title}
-                      </Text>
-                      <View style={styles.taskMetaRow}>
-                        <Text style={styles.taskSubject}>{task.subject}</Text>
-                        <Text style={styles.taskDot}>•</Text>
-                        <Text style={styles.taskDuration}>{task.duration}</Text>
+            {/* 4. Today's Goal (Dynamic Target & Syllabus Lookup & Stopwatch) */}
+            <View style={styles.goalCard}>
+              <View style={styles.goalCardHeader}>
+                <View style={styles.goalHeaderTitleGroup}>
+                  <View style={styles.goalTargetIconBadge}>
+                    <Target size={18} color={BRAND_COLORS.primary} />
+                  </View>
+                  <View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={styles.goalCardTitle}>Today&apos;s Goal</Text>
+                      <View style={styles.todayDatePill}>
+                        <Text style={styles.todayDateText}>Today</Text>
                       </View>
                     </View>
+                    <Text style={styles.goalCardSub}>
+                      {completedGoalsCount} of {totalGoalsCount} topics completed
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.goalHeaderActions}>
+                  <TouchableOpacity
+                    style={styles.headerStopwatchBtn}
+                    onPress={() => {
+                      setActiveStopwatchTopic("Focused Study Session");
+                      setShowStopwatchModal(true);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Timer size={13} color="#ffffff" />
+                    <Text style={styles.headerStopwatchText}>Stopwatch</Text>
                   </TouchableOpacity>
-                ))}
+
+                  <TouchableOpacity
+                    style={styles.headerAddGoalBtn}
+                    onPress={() => setShowAddGoalModal(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Plus size={13} color={BRAND_COLORS.primary} />
+                    <Text style={styles.headerAddGoalText}>+ Topic</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Study Time Target Tracker */}
+              <View style={styles.goalTargetProgressBox}>
+                <View style={styles.goalTargetProgressHeader}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Clock size={13} color={BRAND_COLORS.primary} />
+                    <Text style={styles.goalTargetProgressLabel}>Daily Target Hours</Text>
+                  </View>
+                  <Text style={styles.goalTargetProgressValue}>
+                    {hoursStudiedToday} hrs{" "}
+                    <Text style={{ color: BRAND_COLORS.textMuted, fontWeight: "500", fontSize: 11 }}>
+                      / {targetHours} hrs target ({goalProgressPercentage}%)
+                    </Text>
+                  </Text>
+                </View>
+
+                {/* Progress bar track */}
+                <View style={styles.goalProgressBarTrack}>
+                  <View
+                    style={[
+                      styles.goalProgressBarFill,
+                      { width: `${goalProgressPercentage}%` },
+                      goalProgressPercentage >= 100 && { backgroundColor: "#10b981" },
+                    ]}
+                  />
+                </View>
+
+                {/* Quick Target Hour Chips: 1h, 2h, 3h, 4h, 5h, 6h */}
+                <View style={styles.goalHourChipsRow}>
+                  <Text style={styles.goalHourChipsPrompt}>Target:</Text>
+                  {[1, 2, 3, 4, 5, 6].map((h) => (
+                    <TouchableOpacity
+                      key={h}
+                      style={[
+                        styles.goalHourChip,
+                        targetHours === h && styles.goalHourChipActive,
+                      ]}
+                      onPress={() => handleSaveTargetHours(h)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.goalHourChipText,
+                          targetHours === h && styles.goalHourChipTextActive,
+                        ]}
+                      >
+                        {h}h
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Dynamic Goal Topics Checklist */}
+              {todayGoals.length === 0 ? (
+                <View style={styles.goalEmptyContainer}>
+                  <Target size={26} color="#94a3b8" />
+                  <Text style={styles.goalEmptyTitle}>No study goals set for today</Text>
+                  <Text style={styles.goalEmptySub}>
+                    Choose topics from your active syllabus to build today&apos;s goal.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.goalEmptyAddBtn}
+                    onPress={() => setShowAddGoalModal(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Plus size={14} color="#ffffff" />
+                    <Text style={styles.goalEmptyAddBtnText}>Add First Study Topic</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.goalList}>
+                  {todayGoals.map((task) => (
+                    <View
+                      key={task.id}
+                      style={[
+                        styles.goalItemCard,
+                        task.completed && styles.goalItemCardCompleted,
+                      ]}
+                    >
+                      {/* Left: Checkbox toggle */}
+                      <TouchableOpacity
+                        style={styles.goalCheckBtn}
+                        onPress={() => toggleGoal(task.id)}
+                        activeOpacity={0.7}
+                      >
+                        {task.completed ? (
+                          <CheckCircle2 size={19} color="#10b981" />
+                        ) : (
+                          <Circle size={19} color="#cbd5e1" />
+                        )}
+                      </TouchableOpacity>
+
+                      {/* Middle: Title, Subject & Chapter info */}
+                      <TouchableOpacity
+                        style={styles.goalContentCol}
+                        onPress={() => toggleGoal(task.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.goalItemTitle,
+                            task.completed && styles.goalItemTitleCompleted,
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {task.title}
+                        </Text>
+                        <View style={styles.goalItemMetaRow}>
+                          <View style={styles.goalSubjectChip}>
+                            <Text style={styles.goalSubjectChipText}>{task.subject}</Text>
+                          </View>
+                          {task.chapter ? (
+                            <Text style={styles.goalChapterName} numberOfLines={1}>
+                              {task.chapter}
+                            </Text>
+                          ) : null}
+                          <View style={styles.goalDurationBadge}>
+                            <Clock size={10} color="#64748b" />
+                            <Text style={styles.goalDurationText}>
+                              {task.durationMinutes}m
+                            </Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+
+                      {/* Right actions: Stopwatch timer launch + delete */}
+                      <View style={styles.goalItemRightActions}>
+                        <TouchableOpacity
+                          style={styles.goalItemTimerBtn}
+                          onPress={() => handleStartStopwatchForTopic(`${task.subject}: ${task.title}`)}
+                          activeOpacity={0.7}
+                          accessibilityLabel="Time this topic"
+                        >
+                          <Play size={11} color="#2563eb" fill="#2563eb" />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.goalItemDeleteBtn}
+                          onPress={() => handleDeleteGoalItem(task.id)}
+                          activeOpacity={0.7}
+                          accessibilityLabel="Delete goal"
+                        >
+                          <Trash2 size={13} color="#94a3b8" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Bottom Card Footer Actions */}
+              <View style={styles.goalCardFooter}>
+                <TouchableOpacity
+                  style={styles.footerAddBtn}
+                  onPress={() => setShowAddGoalModal(true)}
+                  activeOpacity={0.8}
+                >
+                  <Plus size={13} color={BRAND_COLORS.primary} />
+                  <Text style={styles.footerAddBtnText}>Add Syllabus Topic</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.footerTimerBtn}
+                  onPress={() => {
+                    setActiveStopwatchTopic("Focused Preparation");
+                    setShowStopwatchModal(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Timer size={13} color="#475569" />
+                  <Text style={styles.footerTimerBtnText}>Stopwatch Timer</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -735,7 +985,7 @@ export default function DashboardScreen() {
             {/* Save Button */}
             <TouchableOpacity
               style={[styles.saveBtn, isLogging && styles.saveBtnDisabled]}
-              onPress={handleSaveStudySession}
+              onPress={() => handleSaveStudySession()}
               disabled={isLogging}
               activeOpacity={0.85}
             >
@@ -753,6 +1003,36 @@ export default function DashboardScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Dynamic Add Goal Modal with Subject -> Chapter/Topic dynamic lookup */}
+      <AddGoalModal
+        visible={showAddGoalModal}
+        onClose={() => setShowAddGoalModal(false)}
+        examId={activeExam?.id}
+        userId={user?.id}
+        currentTargetHours={targetHours}
+        onSaveTargetHours={handleSaveTargetHours}
+        onAddGoalItem={handleAddGoalItem}
+      />
+
+      {/* Live Stopwatch Study Session Timer */}
+      <StopwatchModal
+        visible={showStopwatchModal}
+        onClose={() => setShowStopwatchModal(false)}
+        onSessionLogged={async (minutes, notes) => {
+          await handleSaveStudySession(minutes, notes);
+        }}
+        activeTopicTitle={activeStopwatchTopic}
+      />
+
+      {/* Student Personalized Notifications Modal */}
+      <NotificationsModal
+        visible={showNotificationsModal}
+        onClose={() => setShowNotificationsModal(false)}
+        notifications={notifications}
+        userId={user?.id || ""}
+        onRefreshNotifications={loadNotifications}
+      />
     </SafeAreaView>
   );
 }
@@ -839,91 +1119,325 @@ const styles = StyleSheet.create({
     color: BRAND_COLORS.textMuted,
     marginTop: 6,
   },
-  // Today's Study Plan
-  planCard: {
+  // Today's Goal Styles
+  goalCard: {
     backgroundColor: "#ffffff",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: BRAND_COLORS.border,
     marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  planHeader: {
+  goalCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
   },
-  planTitleGroup: {
+  goalHeaderTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  goalTargetIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(37, 99, 235, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  goalCardTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: BRAND_COLORS.textPrimary,
+  },
+  todayDatePill: {
+    backgroundColor: "rgba(37, 99, 235, 0.12)",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  todayDateText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: BRAND_COLORS.primary,
+  },
+  goalCardSub: {
+    fontSize: 11,
+    color: BRAND_COLORS.textSecondary,
+    fontWeight: "500",
+    marginTop: 1,
+  },
+  goalHeaderActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-  planTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: BRAND_COLORS.textPrimary,
-  },
-  logSessionPill: {
+  headerStopwatchBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#eff6ff",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: BRAND_COLORS.primary,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
-  logSessionText: {
+  headerStopwatchText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  headerAddGoalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  headerAddGoalText: {
+    fontSize: 11,
+    fontWeight: "700",
     color: BRAND_COLORS.primary,
   },
-  taskList: {
-    gap: 10,
+  // Target Progress Box
+  goalTargetProgressBox: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginBottom: 14,
   },
-  taskItem: {
+  goalTargetProgressHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    paddingVertical: 4,
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
   },
-  checkboxWrapper: {
-    marginTop: 2,
-  },
-  taskTextWrapper: {
-    flex: 1,
-  },
-  taskTitle: {
-    fontSize: 13,
-    fontWeight: "600",
+  goalTargetProgressLabel: {
+    fontSize: 12,
+    fontWeight: "700",
     color: BRAND_COLORS.textPrimary,
-    lineHeight: 18,
   },
-  taskTitleCompleted: {
-    textDecorationLine: "line-through",
-    color: BRAND_COLORS.textMuted,
+  goalTargetProgressValue: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: BRAND_COLORS.primary,
   },
-  taskMetaRow: {
+  goalProgressBarTrack: {
+    height: 8,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 10,
+  },
+  goalProgressBarFill: {
+    height: "100%",
+    backgroundColor: BRAND_COLORS.primary,
+    borderRadius: 4,
+  },
+  goalHourChipsRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginTop: 2,
   },
-  taskSubject: {
+  goalHourChipsPrompt: {
     fontSize: 11,
-    color: BRAND_COLORS.primary,
-    fontWeight: "500",
+    color: BRAND_COLORS.textSecondary,
+    fontWeight: "600",
+    marginRight: 2,
   },
-  taskDot: {
+  goalHourChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+  },
+  goalHourChipActive: {
+    backgroundColor: BRAND_COLORS.primary,
+    borderColor: BRAND_COLORS.primary,
+  },
+  goalHourChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: BRAND_COLORS.textSecondary,
+  },
+  goalHourChipTextActive: {
+    color: "#ffffff",
+  },
+  // Goal List
+  goalList: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  goalItemCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+    gap: 8,
+  },
+  goalItemCardCompleted: {
+    backgroundColor: "#f0fdf4",
+    borderColor: "#dcfce7",
+  },
+  goalCheckBtn: {
+    padding: 2,
+  },
+  goalContentCol: {
+    flex: 1,
+  },
+  goalItemTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: BRAND_COLORS.textPrimary,
+    lineHeight: 18,
+  },
+  goalItemTitleCompleted: {
+    textDecorationLine: "line-through",
+    color: "#64748b",
+  },
+  goalItemMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+    flexWrap: "wrap",
+  },
+  goalSubjectChip: {
+    backgroundColor: "rgba(37, 99, 235, 0.1)",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  goalSubjectChipText: {
     fontSize: 10,
-    color: BRAND_COLORS.textMuted,
+    fontWeight: "700",
+    color: BRAND_COLORS.primary,
   },
-  taskDuration: {
+  goalChapterName: {
+    fontSize: 11,
+    color: BRAND_COLORS.textSecondary,
+    fontWeight: "500",
+    maxWidth: 130,
+  },
+  goalDurationBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#e2e8f0",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  goalDurationText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  goalItemRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  goalItemTimerBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(37, 99, 235, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  goalItemDeleteBtn: {
+    padding: 4,
+  },
+  // Empty Goal State
+  goalEmptyContainer: {
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderStyle: "dashed",
+    marginBottom: 12,
+  },
+  goalEmptyTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: BRAND_COLORS.textPrimary,
+    marginTop: 8,
+  },
+  goalEmptySub: {
     fontSize: 11,
     color: BRAND_COLORS.textMuted,
+    textAlign: "center",
+    marginTop: 2,
+    marginBottom: 12,
+  },
+  goalEmptyAddBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: BRAND_COLORS.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  goalEmptyAddBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  // Footer
+  goalCardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+  },
+  footerAddBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  footerAddBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: BRAND_COLORS.primary,
+  },
+  footerTimerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: "#f1f5f9",
+  },
+  footerTimerBtnText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#475569",
   },
   // Metrics Grid
   sectionTitle: {
