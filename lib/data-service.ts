@@ -281,6 +281,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const MATERIALS_FILE_PATH = path.join(process.cwd(), "data", "study-materials.json");
+const DELETED_MATERIALS_FILE_PATH = path.join(process.cwd(), "data", "deleted-materials.json");
 
 function loadFileMaterials(): StudyMaterial[] {
   if (typeof window !== "undefined") return [];
@@ -305,11 +306,112 @@ function saveFileMaterials(materials: StudyMaterial[]): void {
   } catch {}
 }
 
+function loadFileDeletedIds(): string[] {
+  if (typeof window !== "undefined") return [];
+  try {
+    if (fs.existsSync(DELETED_MATERIALS_FILE_PATH)) {
+      const content = fs.readFileSync(DELETED_MATERIALS_FILE_PATH, "utf-8");
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
+function saveFileDeletedIds(ids: string[]): void {
+  if (typeof window !== "undefined") return;
+  try {
+    const dir = path.dirname(DELETED_MATERIALS_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(DELETED_MATERIALS_FILE_PATH, JSON.stringify(ids, null, 2), "utf-8");
+  } catch {}
+}
+
 // In-memory runtime materials cache synchronized with persistent disk storage
 const initialFileMaterials = loadFileMaterials();
 let RUNTIME_MATERIALS: StudyMaterial[] = initialFileMaterials.length > 0 ? initialFileMaterials : [...SEED_MATERIALS];
 if (initialFileMaterials.length === 0) {
   saveFileMaterials(RUNTIME_MATERIALS);
+}
+
+const RUNTIME_DELETED_MATERIAL_IDS = new Set<string>(loadFileDeletedIds());
+
+/**
+ * Loads all permanently deleted material IDs across local and remote stores.
+ */
+export async function getDeletedMaterialIds(): Promise<Set<string>> {
+  // Sync from disk file
+  const fileIds = loadFileDeletedIds();
+  fileIds.forEach((id) => RUNTIME_DELETED_MATERIAL_IDS.add(id));
+
+  // Sync from remote Supabase tombstone record if available
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = await createClient();
+      const { data } = await supabase
+        .from("study_materials")
+        .select("content")
+        .eq("title", "[SYSTEM_DELETED_MATERIALS]")
+        .maybeSingle();
+
+      if (data?.content) {
+        try {
+          const parsed = JSON.parse(data.content);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((id: string) => RUNTIME_DELETED_MATERIAL_IDS.add(id));
+          }
+        } catch {}
+      }
+    } catch {}
+  }
+
+  return RUNTIME_DELETED_MATERIAL_IDS;
+}
+
+/**
+ * Permanently records a material deletion so it NEVER resurfaces across page refreshes or Vercel lambda cold starts.
+ */
+export async function recordDeletedMaterialId(id: string): Promise<void> {
+  invalidateCatalogCache("materials_");
+  RUNTIME_DELETED_MATERIAL_IDS.add(id);
+  saveFileDeletedIds(Array.from(RUNTIME_DELETED_MATERIAL_IDS));
+  deleteRuntimeMaterial(id);
+
+  if (isSupabaseConfigured()) {
+    try {
+      let supabase: any;
+      try {
+        supabase = createAdminClient();
+      } catch {
+        supabase = await createClient();
+      }
+
+      // 1. Delete physical row from database if present
+      try {
+        await supabase.from("study_materials").delete().eq("id", id);
+      } catch {}
+
+      // 2. Persist tombstone list to study_materials
+      try {
+        await supabase.from("study_materials").upsert(
+          {
+            id: "00000000-0000-0000-0000-000000000001",
+            topic_id: "c1111111-1111-1111-1111-111111111111",
+            title: "[SYSTEM_DELETED_MATERIALS]",
+            content: JSON.stringify(Array.from(RUNTIME_DELETED_MATERIAL_IDS)),
+            material_type: "note",
+            category: "system",
+            status: "archived",
+            is_official: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
+      } catch {}
+    } catch {}
+  }
 }
 
 export function getRuntimeMaterials(): StudyMaterial[] {
@@ -322,6 +424,10 @@ export function getRuntimeMaterials(): StudyMaterial[] {
 
 export function saveRuntimeMaterial(mat: StudyMaterial): StudyMaterial {
   invalidateCatalogCache("materials_");
+  if (RUNTIME_DELETED_MATERIAL_IDS.has(mat.id)) {
+    RUNTIME_DELETED_MATERIAL_IDS.delete(mat.id);
+    saveFileDeletedIds(Array.from(RUNTIME_DELETED_MATERIAL_IDS));
+  }
   const currentList = getRuntimeMaterials();
   const existingIdx = currentList.findIndex((m) => m.id === mat.id);
   if (existingIdx >= 0) {
@@ -337,6 +443,8 @@ export function saveRuntimeMaterial(mat: StudyMaterial): StudyMaterial {
 
 export function deleteRuntimeMaterial(id: string): boolean {
   invalidateCatalogCache("materials_");
+  RUNTIME_DELETED_MATERIAL_IDS.add(id);
+  saveFileDeletedIds(Array.from(RUNTIME_DELETED_MATERIAL_IDS));
   const currentList = getRuntimeMaterials();
   const existingIdx = currentList.findIndex((m) => m.id === id);
   if (existingIdx >= 0) {
@@ -995,10 +1103,14 @@ export async function getStudyMaterials(filters?: {
     return cached.data;
   }
 
+  const deletedIds = await getDeletedMaterialIds();
   const localMaterials = getRuntimeMaterials();
 
   if (!isSupabaseConfigured()) {
-    const res = applyMaterialFilters(localMaterials, filters);
+    const activeLocal = localMaterials.filter(
+      (m) => !deletedIds.has(m.id) && !m.title?.startsWith("[SYSTEM_")
+    );
+    const res = applyMaterialFilters(activeLocal, filters);
     catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
     return res;
   }
@@ -1028,8 +1140,30 @@ export async function getStudyMaterials(filters?: {
     // Combine remote materials and local persistent materials
     const combinedMap = new Map<string, StudyMaterial>();
 
-    // 1. Add remote materials
+    // 1. Add remote materials (filtering out tombstone rows, custom containers, and deleted IDs)
     remoteList.forEach((m) => {
+      if (m.title?.startsWith("[SYSTEM_") || deletedIds.has(m.id)) {
+        if (m.title === "[SYSTEM_CUSTOM_MATERIALS]" && m.content) {
+          try {
+            const parsed = JSON.parse(m.content);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((customMat: StudyMaterial) => {
+                if (customMat.id && !deletedIds.has(customMat.id)) {
+                  combinedMap.set(customMat.id, {
+                    ...customMat,
+                    material_type: customMat.material_type || (customMat.category === "pdf" ? "pdf" : "note"),
+                    file_url: customMat.file_url || customMat.url || null,
+                    url: customMat.url || customMat.file_url || null,
+                    content: customMat.content || customMat.description || "",
+                  });
+                }
+              });
+            }
+          } catch {}
+        }
+        return;
+      }
+
       combinedMap.set(m.id, {
         ...m,
         material_type: m.material_type || (m.category === "pdf" ? "pdf" : "note"),
@@ -1039,8 +1173,11 @@ export async function getStudyMaterials(filters?: {
       });
     });
 
-    // 2. Add local persistent materials (includes newly uploaded Google Drive files, PDFs, notes)
+    // 2. Add local persistent materials (strictly skipping any deleted IDs or system rows)
     localMaterials.forEach((m) => {
+      if (deletedIds.has(m.id) || m.title?.startsWith("[SYSTEM_")) {
+        return;
+      }
       const existing = combinedMap.get(m.id);
       if (!existing) {
         combinedMap.set(m.id, m);
@@ -1055,12 +1192,19 @@ export async function getStudyMaterials(filters?: {
       }
     });
 
-    const combinedList = Array.from(combinedMap.values());
+    // 3. Guarantee that no deleted material or system container row can ever be present
+    const combinedList = Array.from(combinedMap.values()).filter(
+      (m) => !deletedIds.has(m.id) && !m.title?.startsWith("[SYSTEM_")
+    );
+
     const res = applyMaterialFilters(combinedList, filters);
     catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
     return res;
   } catch {
-    const res = applyMaterialFilters(localMaterials, filters);
+    const activeLocal = localMaterials.filter(
+      (m) => !deletedIds.has(m.id) && !m.title?.startsWith("[SYSTEM_")
+    );
+    const res = applyMaterialFilters(activeLocal, filters);
     catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
     return res;
   }

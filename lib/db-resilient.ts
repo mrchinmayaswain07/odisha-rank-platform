@@ -48,12 +48,37 @@ export async function resilientInsert(
 
   // Table specific adjustments for schema backwards compatibility
   if (tableName === "study_materials") {
-    const adjust = (item: any) => ({
-      url: item.file_url || item.url || null,
-      content: item.description || item.content || item.title || "Study material notes",
-      material_type: item.material_type || (item.category?.toLowerCase().includes("pdf") ? "link" : "note"),
-      ...item,
-    });
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const adjust = (item: any) => {
+      const copy = { ...item };
+      // 1. Ensure valid UUID id if present, otherwise strip it to let DB generate gen_random_uuid()
+      if (copy.id && !uuidRegex.test(copy.id)) {
+        delete copy.id;
+      }
+      // 2. Ensure topic_id is a valid UUID (NOT NULL in schema)
+      if (!copy.topic_id || !uuidRegex.test(copy.topic_id)) {
+        copy.topic_id = "c1111111-1111-1111-1111-111111111111";
+      }
+      // 3. Ensure material_type is strictly one of 'link', 'summary', 'text', 'note'
+      let mType = (copy.material_type || "").toLowerCase();
+      if (mType === "pdf" || copy.category?.toLowerCase() === "pdf" || copy.file_url || copy.url) {
+        mType = "link";
+      } else if (mType !== "link" && mType !== "summary" && mType !== "text" && mType !== "note") {
+        mType = "note";
+      }
+      copy.material_type = mType;
+      // 4. Ensure foreign key UUIDs are valid or null
+      if (copy.exam_id && !uuidRegex.test(copy.exam_id)) copy.exam_id = null;
+      if (copy.subject_id && !uuidRegex.test(copy.subject_id)) copy.subject_id = null;
+      if (copy.chapter_id && !uuidRegex.test(copy.chapter_id)) copy.chapter_id = null;
+      // 5. Ensure url and content are valid
+      copy.url = copy.file_url || copy.url || null;
+      copy.file_url = copy.file_url || copy.url || null;
+      copy.content = copy.content || copy.description || copy.title || "Study material notes";
+      copy.is_official = copy.is_official ?? true;
+      copy.status = copy.status || "published";
+      return copy;
+    };
     currentPayload = Array.isArray(currentPayload)
       ? currentPayload.map(adjust)
       : adjust(currentPayload);

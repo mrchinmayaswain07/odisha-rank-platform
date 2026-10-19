@@ -40,7 +40,12 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data });
 }
 
-import { saveRuntimeMaterial, updateRuntimeMaterialStatus, deleteRuntimeMaterial } from "@/lib/data-service";
+import {
+  saveRuntimeMaterial,
+  updateRuntimeMaterialStatus,
+  deleteRuntimeMaterial,
+  recordDeletedMaterialId,
+} from "@/lib/data-service";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -72,19 +77,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Material title is required" }, { status: 400 });
     }
 
-    const payload = {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const cleanTopicId = (topic_id && uuidRegex.test(topic_id)) ? topic_id : "c1111111-1111-1111-1111-111111111111";
+    const cleanExamId = (exam_id && uuidRegex.test(exam_id)) ? exam_id : null;
+    const cleanSubjectId = (subject_id && uuidRegex.test(subject_id)) ? subject_id : null;
+    const cleanChapterId = (chapter_id && uuidRegex.test(chapter_id)) ? chapter_id : null;
+
+    let mType = (material_type || "").toLowerCase();
+    if (mType === "pdf" || category === "pdf" || file_url) {
+      mType = "link";
+    } else if (mType !== "link" && mType !== "summary" && mType !== "text" && mType !== "note") {
+      mType = "note";
+    }
+
+    const cleanPayload = {
+      id: crypto.randomUUID(),
       title: title.trim(),
       description: description?.trim() || null,
       content: content?.trim() || description?.trim() || title.trim(),
       category: category || "notes",
-      material_type: material_type || (category === "pdf" ? "pdf" : "note"),
+      material_type: mType,
       url: file_url?.trim() || null,
       file_url: file_url?.trim() || null,
       file_size: file_size || 0,
-      exam_id: exam_id || null,
-      subject_id: subject_id || null,
-      chapter_id: chapter_id || null,
-      topic_id: topic_id || null,
+      exam_id: cleanExamId,
+      subject_id: cleanSubjectId,
+      chapter_id: cleanChapterId,
+      topic_id: cleanTopicId,
       status: status || "published",
       is_official: true,
       created_by: authData.user?.id || null,
@@ -95,16 +114,22 @@ export async function POST(request: NextRequest) {
     let createdItem: any = null;
 
     try {
-      const { data, error } = await resilientInsert(client, "study_materials", payload);
+      const { data, error } = await resilientInsert(client, "study_materials", cleanPayload);
       if (!error && data) {
         createdItem = data;
+      } else if (error) {
+        console.warn("[Materials POST] Supabase resilientInsert notice:", error.message || error);
       }
-    } catch {}
+    } catch (insertErr: any) {
+      console.warn("[Materials POST] Supabase insert exception:", insertErr?.message || insertErr);
+    }
 
     const finalItem = {
-      id: createdItem?.id || `mat-${Date.now()}`,
+      ...cleanPayload,
+      ...(createdItem || {}),
+      id: createdItem?.id || cleanPayload.id,
       created_at: new Date().toISOString(),
-      ...payload,
+      updated_at: new Date().toISOString(),
     };
 
     saveRuntimeMaterial(finalItem as any);
@@ -153,9 +178,14 @@ export async function PATCH(request: NextRequest) {
     const finalItem = {
       id,
       ...updatePayload,
+      ...(updatedData || {}),
     };
 
     saveRuntimeMaterial(finalItem as any);
+
+    if (updates.status) {
+      updateRuntimeMaterialStatus(id, updates.status);
+    }
 
     return NextResponse.json({ success: true, data: finalItem });
   } catch (err: any) {
@@ -181,15 +211,15 @@ export async function DELETE(request: NextRequest) {
     const client = getClient(supabase);
 
     if (permanent) {
-      // Hard delete from database
+      // 1. Delete directly from Supabase database
       try {
         await client.from("study_materials").delete().eq("id", id);
       } catch (err) {
         console.warn("Supabase hard delete failed:", err);
       }
 
-      // Hard delete from persistent JSON file and runtime
-      deleteRuntimeMaterial(id);
+      // 2. Permanently record deletion tombstone in memory, local disk, and remote database
+      await recordDeletedMaterialId(id);
 
       return NextResponse.json({ success: true, message: "Material permanently deleted successfully" });
     } else {

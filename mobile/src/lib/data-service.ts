@@ -208,7 +208,7 @@ export async function getStudyMaterials(
 
       const { data, error } = await query;
       if (error || !data) return [];
-      return data as StudyMaterial[];
+      return (data as StudyMaterial[]).filter((m) => !m.title?.startsWith("[SYSTEM_"));
     } catch {
       return [];
     }
@@ -842,7 +842,7 @@ export async function getAdminMaterialsList(): Promise<any[]> {
       .select("*, topics(title)")
       .order("created_at", { ascending: false });
     if (error || !data) return [];
-    return data;
+    return data.filter((m: any) => !m.title?.startsWith("[SYSTEM_"));
   } catch {
     return [];
   }

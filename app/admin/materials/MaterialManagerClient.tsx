@@ -201,6 +201,7 @@ export const MaterialManagerClient: React.FC<MaterialManagerClientProps> = ({
         setMaterials((prev) =>
           prev.map((item) => (item.id === mat.id ? { ...item, status: newStatus } : item))
         );
+        router.refresh();
       }
     } catch (err) {
       console.error(err);
@@ -219,6 +220,7 @@ export const MaterialManagerClient: React.FC<MaterialManagerClientProps> = ({
         setMaterials((prev) =>
           prev.map((item) => (item.id === matId ? { ...item, status: "archived" } : item))
         );
+        router.refresh();
       }
     } catch (err) {
       console.error(err);
