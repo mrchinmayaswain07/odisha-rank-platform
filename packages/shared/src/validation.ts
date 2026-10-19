@@ -30,7 +30,10 @@ export const resetPasswordSchema = z.object({
 export const profileSchema = z.object({
   full_name: z.string().min(2, "Name must be at least 2 characters").max(100),
   target_exam_id: z.string().uuid("Please select a target examination").nullable().optional(),
-  target_year: z.coerce.number().min(2024).max(2030),
+  target_year: z.coerce
+    .number()
+    .min(2026, "Target exam year must be between 2026 and 2030")
+    .max(2030, "Target exam year must be between 2026 and 2030"),
   district: z.string().min(2, "Please select your district").max(50).nullable().optional(),
   phone: z.string().regex(/^[6-9]\d{9}$/, "Please enter a valid 10-digit Indian mobile number").nullable().optional().or(z.literal("")),
   bio: z.string().max(300, "Bio cannot exceed 300 characters").nullable().optional(),

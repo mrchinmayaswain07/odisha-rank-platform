@@ -52,7 +52,7 @@ export const ProfileClient: React.FC<ProfileClientProps> = ({
   const [formData, setFormData] = useState({
     full_name: initialProfile.full_name || "",
     target_exam_id: initialProfile.target_exam_id || exams[0]?.id || "",
-    target_year: initialProfile.target_year || 2026,
+    target_year: initialProfile.target_year && initialProfile.target_year >= 2026 ? initialProfile.target_year : 2026,
     district: initialProfile.district || ODISHA_DISTRICTS[18], // Default to Khordha
     phone: initialProfile.phone || "",
     bio: initialProfile.bio || "",
@@ -213,9 +213,11 @@ export const ProfileClient: React.FC<ProfileClientProps> = ({
                   value={formData.target_year}
                   onChange={(e) => setFormData({ ...formData, target_year: Number(e.target.value) })}
                 >
-                  <option value={2025}>2025</option>
                   <option value={2026}>2026</option>
                   <option value={2027}>2027</option>
+                  <option value={2028}>2028</option>
+                  <option value={2029}>2029</option>
+                  <option value={2030}>2030</option>
                 </select>
               </div>
 

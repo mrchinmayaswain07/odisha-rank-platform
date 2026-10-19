@@ -18,7 +18,7 @@ import { BRAND_COLORS, ODISHA_DISTRICTS, profileSchema } from "@odisha-rank/shar
 import { useAuth } from "../src/lib/auth-context";
 import { Button } from "../src/components/Button";
 
-const TARGET_YEARS = [2024, 2025, 2026, 2027];
+const TARGET_YEARS = [2026, 2027, 2028, 2029, 2030];
 
 export default function EditProfileModal() {
   const { profile, editProfile, refreshProfile } = useAuth();
@@ -26,7 +26,9 @@ export default function EditProfileModal() {
   const [fullName, setFullName] = useState(profile?.full_name || "");
   const [phone, setPhone] = useState(profile?.phone || "");
   const [district, setDistrict] = useState(profile?.district || "Khordha");
-  const [targetYear, setTargetYear] = useState(profile?.target_year || 2026);
+  const [targetYear, setTargetYear] = useState(
+    profile?.target_year && profile.target_year >= 2026 ? profile.target_year : 2026
+  );
   const [bio, setBio] = useState(profile?.bio || "");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -359,11 +361,12 @@ const styles = StyleSheet.create({
   },
   yearRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
   },
   yearChip: {
     flex: 1,
     paddingVertical: 10,
+    paddingHorizontal: 2,
     alignItems: "center",
     borderRadius: 8,
     borderWidth: 1,
@@ -375,8 +378,8 @@ const styles = StyleSheet.create({
     borderColor: BRAND_COLORS.primary,
   },
   yearChipText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     color: BRAND_COLORS.textPrimary,
   },
   yearChipTextActive: {
