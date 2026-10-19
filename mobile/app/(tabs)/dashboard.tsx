@@ -32,6 +32,7 @@ import {
   Check,
   Zap,
   Gamepad2,
+  Brain,
   BookOpen,
 } from "lucide-react-native";
 import { BRAND_COLORS, DashboardMetrics } from "@odisha-rank/shared";
@@ -423,11 +424,11 @@ export default function DashboardScreen() {
                   </View>
                 </View>
                 <TouchableOpacity
-                  onPress={() => router.push("/speed-math" as any)}
+                  onPress={() => router.push("/bodmas" as any)}
                   style={styles.bodmasViewAllBtn}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.bodmasViewAllText}>16 Drills</Text>
+                  <Text style={styles.bodmasViewAllText}>Practice Lab</Text>
                   <ArrowRight size={12} color="#38bdf8" />
                 </TouchableOpacity>
               </View>
@@ -443,7 +444,7 @@ export default function DashboardScreen() {
 
                 <Text style={styles.bodmasMainTitle}>BODMAS Fast Simplification</Text>
                 <Text style={styles.bodmasMainDesc}>
-                  Master bracket evaluation, divisions, and multiplications with live countdown & accuracy metrics.
+                  Master bracket evaluation, divisions, and multiplications with live keypad, step-by-step breakdown & accuracy metrics.
                 </Text>
 
                 {/* Difficulty Quick Start Row */}
@@ -451,7 +452,7 @@ export default function DashboardScreen() {
                   <TouchableOpacity
                     style={[styles.bodmasDiffBtn, { borderColor: "#10b981", backgroundColor: "rgba(16, 185, 129, 0.1)" }]}
                     onPress={() =>
-                      router.push({ pathname: "/speed-math", params: { category: "bodmas", difficulty: "easy" } } as any)
+                      router.push({ pathname: "/bodmas", params: { difficulty: "easy" } } as any)
                     }
                     activeOpacity={0.8}
                   >
@@ -461,7 +462,7 @@ export default function DashboardScreen() {
                   <TouchableOpacity
                     style={[styles.bodmasDiffBtn, { borderColor: "#f59e0b", backgroundColor: "rgba(245, 158, 11, 0.1)" }]}
                     onPress={() =>
-                      router.push({ pathname: "/speed-math", params: { category: "bodmas", difficulty: "medium" } } as any)
+                      router.push({ pathname: "/bodmas", params: { difficulty: "medium" } } as any)
                     }
                     activeOpacity={0.8}
                   >
@@ -471,11 +472,21 @@ export default function DashboardScreen() {
                   <TouchableOpacity
                     style={[styles.bodmasDiffBtn, { borderColor: "#ef4444", backgroundColor: "rgba(239, 68, 68, 0.1)" }]}
                     onPress={() =>
-                      router.push({ pathname: "/speed-math", params: { category: "bodmas", difficulty: "hard" } } as any)
+                      router.push({ pathname: "/bodmas", params: { difficulty: "hard" } } as any)
                     }
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.bodmasDiffText, { color: "#f87171" }]}>Hard (Nested)</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.bodmasDiffBtn, { borderColor: "#ec4899", backgroundColor: "rgba(236, 72, 153, 0.1)" }]}
+                    onPress={() =>
+                      router.push({ pathname: "/bodmas", params: { difficulty: "sprint" } } as any)
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.bodmasDiffText, { color: "#f472b6" }]}>⚡ 60s Sprint</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -489,62 +500,126 @@ export default function DashboardScreen() {
                 <TouchableOpacity
                   style={styles.bodmasSubCard}
                   onPress={() =>
-                    router.push({ pathname: "/speed-math", params: { category: "addition", difficulty: "medium" } } as any)
+                    router.push({ pathname: "/bodmas", params: { difficulty: "easy" } } as any)
                   }
                   activeOpacity={0.8}
                 >
                   <View style={[styles.bodmasSubIconBox, { backgroundColor: "rgba(59, 130, 246, 0.15)" }]}>
                     <Text style={{ fontSize: 16, fontWeight: "900", color: "#3b82f6" }}>＋</Text>
                   </View>
-                  <Text style={styles.bodmasSubCardTitle}>Rapid Addition</Text>
-                  <Text style={styles.bodmasSubCardSub}>2 & 3 Digit Fast Math</Text>
+                  <Text style={styles.bodmasSubCardTitle}>BODMAS Easy</Text>
+                  <Text style={styles.bodmasSubCardSub}>Two-Step Foundations</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.bodmasSubCard}
                   onPress={() =>
-                    router.push({ pathname: "/speed-math", params: { category: "tables", difficulty: "medium" } } as any)
+                    router.push({ pathname: "/bodmas", params: { difficulty: "medium" } } as any)
                   }
                   activeOpacity={0.8}
                 >
                   <View style={[styles.bodmasSubIconBox, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
                     <Text style={{ fontSize: 16, fontWeight: "900", color: "#10b981" }}>×</Text>
                   </View>
-                  <Text style={styles.bodmasSubCardTitle}>Tables (1-30)</Text>
-                  <Text style={styles.bodmasSubCardSub}>Instant Recall Speed</Text>
+                  <Text style={styles.bodmasSubCardTitle}>BODMAS Medium</Text>
+                  <Text style={styles.bodmasSubCardSub}>Multi-Operator Rules</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.bodmasSubCard}
                   onPress={() =>
-                    router.push({ pathname: "/speed-math", params: { category: "squares", difficulty: "medium" } } as any)
+                    router.push({ pathname: "/bodmas", params: { difficulty: "hard" } } as any)
                   }
                   activeOpacity={0.8}
                 >
                   <View style={[styles.bodmasSubIconBox, { backgroundColor: "rgba(139, 92, 246, 0.15)" }]}>
                     <Text style={{ fontSize: 16, fontWeight: "900", color: "#8b5cf6" }}>x²</Text>
                   </View>
-                  <Text style={styles.bodmasSubCardTitle}>Squares (1-50)</Text>
-                  <Text style={styles.bodmasSubCardSub}>Roots & Powers</Text>
+                  <Text style={styles.bodmasSubCardTitle}>BODMAS Hard</Text>
+                  <Text style={styles.bodmasSubCardSub}>Nested Brackets</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.bodmasSubCard}
                   onPress={() =>
-                    router.push({ pathname: "/speed-math", params: { category: "percent_to_fraction", difficulty: "medium" } } as any)
+                    router.push({ pathname: "/bodmas", params: { difficulty: "sprint" } } as any)
                   }
                   activeOpacity={0.8}
                 >
                   <View style={[styles.bodmasSubIconBox, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
-                    <Text style={{ fontSize: 16, fontWeight: "900", color: "#f59e0b" }}>%</Text>
+                    <Text style={{ fontSize: 16, fontWeight: "900", color: "#f59e0b" }}>⚡</Text>
                   </View>
-                  <Text style={styles.bodmasSubCardTitle}>DI Percentages</Text>
-                  <Text style={styles.bodmasSubCardSub}>Fraction Shortcuts</Text>
+                  <Text style={styles.bodmasSubCardTitle}>Speed Sprint</Text>
+                  <Text style={styles.bodmasSubCardSub}>60s Timed Challenge</Text>
                 </TouchableOpacity>
               </ScrollView>
             </View>
 
-            {/* 4. Quick Actions (With Notes & Doubts) */}
+            {/* 4. Dedicated Brain Games & Mental Training Zone */}
+            <View style={styles.gamesHeroSection}>
+              <View style={styles.bodmasHeaderRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={[styles.bodmasHeaderIconBadge, { backgroundColor: "rgba(99, 102, 241, 0.15)" }]}>
+                    <Gamepad2 size={16} color="#818cf8" />
+                  </View>
+                  <View>
+                    <Text style={styles.bodmasSectionTitle}>Brain Games & Logic Lab</Text>
+                    <Text style={styles.bodmasSectionSub}>32 Mental Puzzles for OSSC/OSSSC Aptitude</Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => router.push("/games" as any)}
+                  style={[styles.bodmasViewAllBtn, { borderColor: "#4f46e5" }]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.bodmasViewAllText, { color: "#a5b4fc" }]}>All 32 Games</Text>
+                  <ArrowRight size={12} color="#a5b4fc" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Featured Games Quick Launch Carousel */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.bodmasScrollCards}
+              >
+                {[
+                  { id: "game-24", title: "24 Game", cat: "Math", color: "#3b82f6", emoji: "🎯" },
+                  { id: "sudoku", title: "Sudoku", cat: "Logic", color: "#8b5cf6", emoji: "🔢" },
+                  { id: "game-2048", title: "2048", cat: "Math", color: "#ea580c", emoji: "🧩" },
+                  { id: "minesweeper", title: "Minesweeper", cat: "Logic", color: "#ef4444", emoji: "💣" },
+                  { id: "memory-matrix", title: "Memory Matrix", cat: "Memory", color: "#10b981", emoji: "🧠" },
+                  { id: "nerdle", title: "Nerdle", cat: "Math", color: "#9333ea", emoji: "🧮" },
+                  { id: "number-bonds", title: "Number Bonds", cat: "Math", color: "#059669", emoji: "🔗" },
+                  { id: "tower-of-hanoi", title: "Tower of Hanoi", cat: "Logic", color: "#d97706", emoji: "🗼" },
+                ].map((gm) => (
+                  <TouchableOpacity
+                    key={gm.id}
+                    style={styles.gameCarouselCard}
+                    onPress={() => router.push(`/games/${gm.id}` as any)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.gameEmojiBox, { backgroundColor: `${gm.color}22` }]}>
+                      <Text style={{ fontSize: 20 }}>{gm.emoji}</Text>
+                    </View>
+                    <Text style={styles.gameCarouselTitle} numberOfLines={1}>{gm.title}</Text>
+                    <Text style={styles.gameCarouselCat}>{gm.cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <TouchableOpacity
+                style={styles.openAllGamesCta}
+                onPress={() => router.push("/games" as any)}
+                activeOpacity={0.8}
+              >
+                <Brain size={16} color="#ffffff" />
+                <Text style={styles.openAllGamesCtaText}>Explore All 32 Brain Games</Text>
+                <ArrowRight size={14} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* 5. Quick Actions */}
             <Text style={styles.sectionTitle}>Quick Actions</Text>
             <View style={styles.actionGrid}>
               <TouchableOpacity
@@ -555,6 +630,26 @@ export default function DashboardScreen() {
                 <HelpCircle size={18} color="#ffffff" />
                 <Text style={styles.actionCardTitle}>Practice MCQs</Text>
                 <Text style={styles.actionCardSub}>Topic-wise questions</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: "#059669" }]}
+                onPress={() => router.push("/bodmas" as any)}
+                activeOpacity={0.8}
+              >
+                <Zap size={18} color="#ffffff" fill="#ffffff" />
+                <Text style={styles.actionCardTitle}>BODMAS Lab</Text>
+                <Text style={styles.actionCardSub}>Speed calculation</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: "#ea580c" }]}
+                onPress={() => router.push("/games" as any)}
+                activeOpacity={0.8}
+              >
+                <Gamepad2 size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Brain Games</Text>
+                <Text style={styles.actionCardSub}>32 Mental Puzzles</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -585,16 +680,6 @@ export default function DashboardScreen() {
                 <Award size={18} color="#ffffff" />
                 <Text style={styles.actionCardTitle}>Take Mock Test</Text>
                 <Text style={styles.actionCardSub}>Timed simulation</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionCard, { backgroundColor: "#ea580c" }]}
-                onPress={() => router.push("/games" as any)}
-                activeOpacity={0.8}
-              >
-                <Gamepad2 size={18} color="#ffffff" />
-                <Text style={styles.actionCardTitle}>Brain Games</Text>
-                <Text style={styles.actionCardSub}>32 Mental Puzzles</Text>
               </TouchableOpacity>
             </View>
 
@@ -1275,5 +1360,58 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#94a3b8",
     marginTop: 2,
+  },
+  // Brain Games Hero Section
+  gamesHeroSection: {
+    backgroundColor: "#0d1322",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#312e81",
+  },
+  gameCarouselCard: {
+    backgroundColor: "#131b2e",
+    borderRadius: 14,
+    padding: 12,
+    width: 115,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    alignItems: "center",
+  },
+  gameEmojiBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  gameCarouselTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#ffffff",
+    textAlign: "center",
+  },
+  gameCarouselCat: {
+    fontSize: 10,
+    color: "#94a3b8",
+    marginTop: 2,
+    fontWeight: "600",
+  },
+  openAllGamesCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#4f46e5",
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 14,
+  },
+  openAllGamesCtaText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });

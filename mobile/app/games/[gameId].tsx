@@ -70,6 +70,15 @@ import {
   generateFactorFinderQuestion,
   generateBinaryPuzzle,
   validateBinaryPuzzle,
+  generateKakuroPuzzle,
+  generateKenKen4x4,
+  generateCountdownPuzzle,
+  generateMathCrossword,
+  generateKillerSudoku6x6,
+  generateFutoshiki4x4,
+  generateNonogram5x5,
+  generateCryptarithmPuzzle,
+  validateSudokuCell,
 } from "@odisha-rank/shared";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -217,6 +226,97 @@ export default function MobileGameArenaScreen() {
   const [smCards, setSmCards] = useState(() => generateSymbolMatchGame(6));
   const [smFlipped, setSmFlipped] = useState<number[]>([]);
 
+  // 16. Magic Square
+  const [ms, setMs] = useState(() => generateMagicSquarePuzzle());
+  const [msGrid, setMsGrid] = useState<number[][]>(() =>
+    ms.initialGrid.map((r) => r.map((c) => c || 0))
+  );
+  const [selMsCell, setSelMsCell] = useState<[number, number] | null>(null);
+
+  // 17. Nerdle
+  const [nerdle, setNerdle] = useState(() => generateNerdlePuzzle());
+  const [nerdleGuesses, setNerdleGuesses] = useState<string[]>([]);
+  const [currentNerdleInput, setCurrentNerdleInput] = useState("");
+
+  // 18. Sudoku
+  const [sud, setSud] = useState(() => generateSudokuPuzzle("easy"));
+  const [sudGrid, setSudGrid] = useState(() => sud.initialGrid.map((r) => [...r]));
+  const [selSudCell, setSelSudCell] = useState<[number, number] | null>(null);
+
+  // 19. Minesweeper
+  const [msweeper, setMsweeper] = useState(() => initMinesweeper(8, 8, 10));
+  const [flagMode, setFlagMode] = useState(false);
+
+  // 20. Binary Puzzle
+  const [bin, setBin] = useState(() => generateBinaryPuzzle());
+  const [binGrid, setBinGrid] = useState(() => bin.initialGrid.map((r) => [...r]));
+
+  // 21. Average Race
+  const [avg, setAvg] = useState(() => generateAverageQuestion());
+
+  // 22. Percentage Blitz
+  const [pb, setPb] = useState(() => generatePercentageQuestion());
+
+  // 23. Simplification Sprint
+  const [simp, setSimp] = useState(() => generateSimplificationQuestion());
+
+  // 24. Factor Finder
+  const [fac, setFac] = useState(() => generateFactorFinderQuestion());
+
+  // 25. Kakuro
+  const [kak, setKak] = useState(() => generateKakuroPuzzle());
+  const [kakGrid, setKakGrid] = useState<(number | null)[][]>(() =>
+    kak.initialGrid.map((r) => [...r])
+  );
+  const [selKakCell, setSelKakCell] = useState<[number, number] | null>(null);
+
+  // 26. KenKen
+  const [ken, setKen] = useState(() => generateKenKen4x4());
+  const [kenGrid, setKenGrid] = useState<number[][]>(() => [
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+  ]);
+  const [selKenCell, setSelKenCell] = useState<[number, number] | null>(null);
+
+  // 27. Countdown
+  const [cd, setCd] = useState(() => generateCountdownPuzzle());
+  const [cdExpr, setCdExpr] = useState("");
+
+  // 28. Math Crossword
+  const [mc, setMc] = useState(() => generateMathCrossword());
+  const [mcInputs, setMcInputs] = useState<Record<string, string>>({});
+  const [selMcCoord, setSelMcCoord] = useState<string | null>(null);
+
+  // 29. Killer Sudoku
+  const [ks, setKs] = useState(() => generateKillerSudoku6x6());
+  const [ksGrid, setKsGrid] = useState<number[][]>(() =>
+    Array.from({ length: 6 }, () => new Array(6).fill(0))
+  );
+  const [selKsCell, setSelKsCell] = useState<[number, number] | null>(null);
+
+  // 30. Futoshiki
+  const [fut, setFut] = useState(() => generateFutoshiki4x4());
+  const [futGrid, setFutGrid] = useState<number[][]>(() => [
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+  ]);
+  const [selFutCell, setSelFutCell] = useState<[number, number] | null>(null);
+
+  // 31. Nonogram
+  const [nono, setNono] = useState(() => generateNonogram5x5());
+  const [nonoGrid, setNonoGrid] = useState<boolean[][]>(() =>
+    Array.from({ length: 5 }, () => new Array(5).fill(false))
+  );
+
+  // 32. Cryptarithm
+  const [crypt, setCrypt] = useState(() => generateCryptarithmPuzzle());
+  const [cryptMap, setCryptMap] = useState<Record<string, number>>({});
+  const [selCryptLetter, setSelCryptLetter] = useState<string | null>(null);
+
   // Memory Matrix Flash timer
   useEffect(() => {
     if (game?.id !== "memory-matrix") return;
@@ -280,6 +380,76 @@ export default function MobileGameArenaScreen() {
     } else if (game.id === "symbol-match") {
       setSmCards(generateSymbolMatchGame(6));
       setSmFlipped([]);
+    } else if (game.id === "magic-square") {
+      const newMs = generateMagicSquarePuzzle();
+      setMs(newMs);
+      setMsGrid(newMs.initialGrid.map((r) => r.map((c) => c || 0)));
+      setSelMsCell(null);
+    } else if (game.id === "nerdle") {
+      setNerdle(generateNerdlePuzzle());
+      setNerdleGuesses([]);
+      setCurrentNerdleInput("");
+    } else if (game.id === "sudoku") {
+      const newSud = generateSudokuPuzzle("easy");
+      setSud(newSud);
+      setSudGrid(newSud.initialGrid.map((r) => [...r]));
+      setSelSudCell(null);
+    } else if (game.id === "minesweeper") {
+      setMsweeper(initMinesweeper(8, 8, 10));
+      setFlagMode(false);
+    } else if (game.id === "binary-puzzle") {
+      const newBin = generateBinaryPuzzle();
+      setBin(newBin);
+      setBinGrid(newBin.initialGrid.map((r) => [...r]));
+    } else if (game.id === "average-race") {
+      setAvg(generateAverageQuestion());
+    } else if (game.id === "percentage-blitz") {
+      setPb(generatePercentageQuestion());
+    } else if (game.id === "simplification-sprint") {
+      setSimp(generateSimplificationQuestion());
+    } else if (game.id === "factor-finder") {
+      setFac(generateFactorFinderQuestion());
+    } else if (game.id === "kakuro") {
+      const newKak = generateKakuroPuzzle();
+      setKak(newKak);
+      setKakGrid(newKak.initialGrid.map((r) => [...r]));
+      setSelKakCell(null);
+    } else if (game.id === "kenken") {
+      setKen(generateKenKen4x4());
+      setKenGrid([
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ]);
+      setSelKenCell(null);
+    } else if (game.id === "countdown-numbers") {
+      setCd(generateCountdownPuzzle());
+      setCdExpr("");
+    } else if (game.id === "math-crossword") {
+      setMc(generateMathCrossword());
+      setMcInputs({});
+      setSelMcCoord(null);
+    } else if (game.id === "killer-sudoku") {
+      setKs(generateKillerSudoku6x6());
+      setKsGrid(Array.from({ length: 6 }, () => new Array(6).fill(0)));
+      setSelKsCell(null);
+    } else if (game.id === "futoshiki") {
+      setFut(generateFutoshiki4x4());
+      setFutGrid([
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ]);
+      setSelFutCell(null);
+    } else if (game.id === "nonogram") {
+      setNono(generateNonogram5x5());
+      setNonoGrid(Array.from({ length: 5 }, () => new Array(5).fill(false)));
+    } else if (game.id === "cryptarithm") {
+      setCrypt(generateCryptarithmPuzzle());
+      setCryptMap({});
+      setSelCryptLetter(null);
     }
   };
 
@@ -866,32 +1036,1084 @@ export default function MobileGameArenaScreen() {
           </View>
         )}
 
-        {/* DEFAULT ARENA FOR REMAINING GAMES */}
-        {![
-          "game-24",
-          "game-2048",
-          "quick-calc",
-          "number-bonds",
-          "number-sequence",
-          "odd-one-out",
-          "missing-operator",
-          "speed-comparison",
-          "approximation",
-          "tower-of-hanoi",
-          "lights-out",
-          "symbol-match",
-        ].includes(game.id) && (
-          <View style={styles.defaultArena}>
-            <View style={styles.defaultIconBox}>
-              <Sparkles size={28} color="#2563eb" />
+        {/* 13. MAGIC SQUARE */}
+        {game.id === "magic-square" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Fill digits 1-9 so every row, column & diagonal sums to {ms.targetSum}
+            </Text>
+            <View style={styles.msGrid}>
+              {msGrid.map((row, r) => (
+                <View key={r} style={styles.msRow}>
+                  {row.map((val, c) => {
+                    const isInit = ms.initialGrid[r][c] !== null;
+                    const isSel = selMsCell?.[0] === r && selMsCell?.[1] === c;
+                    return (
+                      <TouchableOpacity
+                        key={c}
+                        disabled={isInit}
+                        style={[
+                          styles.msCell,
+                          isInit && styles.msCellInit,
+                          isSel && styles.msCellSel,
+                        ]}
+                        onPress={() => setSelMsCell([r, c])}
+                      >
+                        <Text style={[styles.msCellText, isInit && styles.msCellTextInit]}>
+                          {val > 0 ? val : ""}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
-            <Text style={styles.defaultTitle}>{game.title} Brain Arena</Text>
-            <Text style={styles.defaultDesc}>{game.shortDescription}</Text>
-            <TouchableOpacity
-              style={styles.claimXpBtn}
-              onPress={() => handleFinish(true, 120, `Completed ${game.title} mobile practice!`)}
+            <View style={styles.keypadRow}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={styles.digitKey}
+                  onPress={() => {
+                    if (!selMsCell) return;
+                    const [r, c] = selMsCell;
+                    const next = msGrid.map((rowArr, ri) =>
+                      rowArr.map((cv, ci) => (ri === r && ci === c ? d : cv))
+                    );
+                    setMsGrid(next);
+                    const chk = validateMagicSquare(next, ms.targetSum);
+                    if (chk.valid) {
+                      handleFinish(true, 150, "Magic Square solved! All lines sum to 15.");
+                    }
+                  }}
+                >
+                  <Text style={styles.digitKeyText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 14. NERDLE */}
+        {game.id === "nerdle" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Guess the hidden 8-character math equation in 6 tries
+            </Text>
+            <View style={styles.nerdleBoard}>
+              {Array.from({ length: 6 }).map((_, rIdx) => {
+                const guess = nerdleGuesses[rIdx];
+                const isCurr = rIdx === nerdleGuesses.length;
+                const evalRes = guess ? evaluateNerdleGuess(guess, nerdle.solutionEquation) : null;
+                return (
+                  <View key={rIdx} style={styles.nerdleRow}>
+                    {Array.from({ length: 8 }).map((__, cIdx) => {
+                      const char = isCurr
+                        ? currentNerdleInput[cIdx] || ""
+                        : guess
+                        ? guess[cIdx]
+                        : "";
+                      const st = evalRes?.statuses?.[cIdx];
+                      let bg = "#ffffff";
+                      let color = "#0f172a";
+                      if (st === "correct") {
+                        bg = "#10b981";
+                        color = "#ffffff";
+                      } else if (st === "present") {
+                        bg = "#9333ea";
+                        color = "#ffffff";
+                      } else if (st === "absent") {
+                        bg = "#94a3b8";
+                        color = "#ffffff";
+                      }
+                      return (
+                        <View key={cIdx} style={[styles.nerdleCell, { backgroundColor: bg }]}>
+                          <Text style={[styles.nerdleCellText, { color }]}>{char}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })}
+            </View>
+            <View style={styles.keypadRowWrap}>
+              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "+", "-", "*", "/", "="].map((k) => (
+                <TouchableOpacity
+                  key={k}
+                  style={styles.nerdleKey}
+                  onPress={() => {
+                    if (currentNerdleInput.length < 8) setCurrentNerdleInput((prev) => prev + k);
+                  }}
+                >
+                  <Text style={styles.nerdleKeyText}>{k === "*" ? "×" : k === "/" ? "÷" : k}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.actionBtnRow}>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#f1f5f9" }]}
+                onPress={() => setCurrentNerdleInput((p) => p.slice(0, -1))}
+              >
+                <Text style={styles.actionBtnText}>⌫ Delete</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#2563eb" }]}
+                onPress={() => {
+                  if (currentNerdleInput.length !== 8) {
+                    Alert.alert("Incomplete", "Equation must be 8 characters");
+                    return;
+                  }
+                  const evalRes = evaluateNerdleGuess(currentNerdleInput, nerdle.solutionEquation);
+                  if (!evalRes.valid) {
+                    Alert.alert("Invalid", evalRes.error || "Not mathematically equal");
+                    return;
+                  }
+                  const upd = [...nerdleGuesses, currentNerdleInput];
+                  setNerdleGuesses(upd);
+                  setCurrentNerdleInput("");
+                  if (currentNerdleInput === nerdle.solutionEquation) {
+                    handleFinish(true, 200, `Equation Solved: ${nerdle.solutionEquation}`);
+                  } else if (upd.length >= 6) {
+                    handleFinish(false, 30, `Solution was: ${nerdle.solutionEquation}`);
+                  }
+                }}
+              >
+                <Text style={[styles.actionBtnText, { color: "#ffffff" }]}>Enter Guess</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* 15. MEMORY MATRIX */}
+        {game.id === "memory-matrix" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Level {mmLevel} • {mmShow ? "Memorize the pattern!" : "Tap the illuminated tiles"}
+            </Text>
+            <View
+              style={[
+                styles.matrixGrid,
+                { width: mm.gridSize * 65, height: mm.gridSize * 65 },
+              ]}
             >
-              <Text style={styles.claimXpBtnText}>Complete Simulation (+120 XP)</Text>
+              {Array.from({ length: mm.gridSize * mm.gridSize }).map((_, idx) => {
+                const isHighlight = mm.highlightedIndices.includes(idx);
+                const isSel = mmSel.includes(idx);
+                let bg = "#f1f5f9";
+                if (mmShow && isHighlight) bg = "#2563eb";
+                else if (!mmShow && isSel) bg = isHighlight ? "#10b981" : "#ef4444";
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    disabled={mmShow}
+                    style={[
+                      styles.matrixCell,
+                      { width: 55, height: 55, backgroundColor: bg },
+                    ]}
+                    onPress={() => {
+                      if (mmSel.includes(idx)) return;
+                      const next = [...mmSel, idx];
+                      setMmSel(next);
+                      if (!isHighlight) {
+                        handleFinish(false, score, "Pattern mismatch! Practice improves memory recall.");
+                      } else if (
+                        next.filter((i) => mm.highlightedIndices.includes(i)).length ===
+                        mm.highlightedIndices.length
+                      ) {
+                        const nextLvl = mmLevel + 1;
+                        const nextScore = score + 50;
+                        setScore(nextScore);
+                        if (nextLvl > 5) {
+                          handleFinish(true, nextScore, "Photographic memory achieved! Cleared all 5 levels.");
+                        } else {
+                          setMmLevel(nextLvl);
+                          const newGen = generateMemoryMatrixLevel(nextLvl);
+                          setMm(newGen);
+                          setMmShow(true);
+                          setMmSel([]);
+                          setTimeout(() => setMmShow(false), newGen.displayDurationMs);
+                        }
+                      }
+                    }}
+                  />
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* 16. SEQUENCE MASTER */}
+        {game.id === "sequence-master" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Sequence Length: {seqMaster.length} • Repeat the pattern
+            </Text>
+            <View style={styles.simonGrid}>
+              {[
+                { id: "blue", bg: "#2563eb" },
+                { id: "emerald", bg: "#10b981" },
+                { id: "amber", bg: "#f59e0b" },
+                { id: "rose", bg: "#ef4444" },
+              ].map((btn) => (
+                <TouchableOpacity
+                  key={btn.id}
+                  style={[styles.simonBtn, { backgroundColor: btn.bg }]}
+                  onPress={() => {
+                    const next = [...seqPlayer, btn.id];
+                    setSeqPlayer(next);
+                    const chk = validateSequenceInput(next, seqMaster);
+                    if (!chk.isCorrectSoFar) {
+                      handleFinish(false, seqMaster.length * 20, `Sequence broken at step ${seqMaster.length}`);
+                    } else if (chk.isRoundComplete) {
+                      setScore((s) => s + 30);
+                      setSeqPlayer([]);
+                      setSeqMaster(appendSequenceStep(seqMaster));
+                    }
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 17. SUDOKU */}
+        {game.id === "sudoku" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Tap an empty cell then tap a number 1-9
+            </Text>
+            <View style={styles.sudokuGrid}>
+              {sudGrid.map((row, r) => (
+                <View key={r} style={[styles.sudokuRow, r % 3 === 2 && r < 8 && styles.sudokuRowBorder]}>
+                  {row.map((val, c) => {
+                    const isInit = sud.initialGrid[r][c] !== null;
+                    const isSel = selSudCell?.[0] === r && selSudCell?.[1] === c;
+                    return (
+                      <TouchableOpacity
+                        key={c}
+                        disabled={isInit}
+                        style={[
+                          styles.sudokuCell,
+                          c % 3 === 2 && c < 8 && styles.sudokuColBorder,
+                          isInit && styles.sudokuCellInit,
+                          isSel && styles.sudokuCellSel,
+                        ]}
+                        onPress={() => setSelSudCell([r, c])}
+                      >
+                        <Text style={[styles.sudokuCellText, isInit && styles.sudokuCellTextInit]}>
+                          {val || ""}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+            <View style={styles.keypadRow}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={styles.digitKey}
+                  onPress={() => {
+                    if (!selSudCell) return;
+                    const [r, c] = selSudCell;
+                    if (sud.initialGrid[r][c] !== null) return;
+                    const next = sudGrid.map((rowArr, ri) =>
+                      rowArr.map((cv, ci) => (ri === r && ci === c ? d : cv))
+                    );
+                    setSudGrid(next);
+                    const isFilled = next.every((rowArr) => rowArr.every((cv) => cv !== null && cv > 0));
+                    if (isFilled) {
+                      const allValid = next.every((rowArr, ri) =>
+                        rowArr.every((cv, ci) => validateSudokuCell(next, ri, ci, cv as number))
+                      );
+                      if (allValid) {
+                        handleFinish(true, 250, "Sudoku grid completed flawlessly!");
+                      }
+                    }
+                  }}
+                >
+                  <Text style={styles.digitKeyText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 18. MINESWEEPER */}
+        {game.id === "minesweeper" && (
+          <View style={styles.gameWrapper}>
+            <View style={styles.mswHeader}>
+              <Text style={styles.mswMines}>
+                💣 Mines: {msweeper.totalMines - msweeper.flagsUsed}
+              </Text>
+              <TouchableOpacity
+                style={[styles.flagModeBtn, flagMode && styles.flagModeBtnActive]}
+                onPress={() => setFlagMode((f) => !f)}
+              >
+                <Text style={[styles.flagModeText, flagMode && { color: "#ffffff" }]}>
+                  🚩 Flag Mode: {flagMode ? "ON" : "OFF"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.mswGrid}>
+              {msweeper.grid.map((row, r) => (
+                <View key={r} style={styles.mswRow}>
+                  {row.map((cell, c) => {
+                    let bg = "#64748b";
+                    let borderCol = "#475569";
+                    let label = "";
+                    let color = "#ffffff";
+                    if (cell.isRevealed) {
+                      borderCol = "#cbd5e1";
+                      if (cell.isMine) {
+                        bg = "#ef4444";
+                        label = "💣";
+                      } else {
+                        bg = "#f8fafc";
+                        label = cell.adjacentMines > 0 ? String(cell.adjacentMines) : "";
+                        color =
+                          cell.adjacentMines === 1
+                            ? "#2563eb"
+                            : cell.adjacentMines === 2
+                            ? "#059669"
+                            : "#dc2626";
+                      }
+                    } else if (cell.isFlagged) {
+                      bg = "#334155";
+                      borderCol = "#f59e0b";
+                      label = "🚩";
+                    }
+                    return (
+                      <TouchableOpacity
+                        key={c}
+                        style={[styles.mswCell, { backgroundColor: bg, borderColor: borderCol }]}
+                        onPress={() => {
+                          if (cell.isRevealed) return;
+                          if (flagMode) {
+                            const upd = {
+                              ...msweeper,
+                              flagsUsed: msweeper.flagsUsed + (cell.isFlagged ? -1 : 1),
+                              grid: msweeper.grid.map((rA, ri) =>
+                                rA.map((cl, ci) =>
+                                  ri === r && ci === c ? { ...cl, isFlagged: !cl.isFlagged } : cl
+                                )
+                              ),
+                            };
+                            setMsweeper(upd);
+                            return;
+                          }
+                          let active = msweeper;
+                          if (!msweeper.grid.some((rA) => rA.some((cl) => cl.isMine))) {
+                            active = placeMinesSafeFirstClick(msweeper, r, c);
+                          }
+                          const rev = revealMineCell(active, r, c);
+                          setMsweeper(rev.game);
+                          if (rev.hitMine) {
+                            handleFinish(false, 0, "Detonated a mine! Watch the numbers closely.");
+                          } else if (rev.game.won) {
+                            handleFinish(true, 200, "Minesweeper board swept cleanly!");
+                          }
+                        }}
+                      >
+                        <Text style={[styles.mswCellText, { color }]}>{label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 19. KENKEN */}
+        {game.id === "kenken" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Fill 1-4 with unique numbers per row/column satisfying cage math
+            </Text>
+            <View style={styles.kenGrid}>
+              {kenGrid.map((row, r) => (
+                <View key={r} style={styles.kenRow}>
+                  {row.map((val, c) => {
+                    const isSel = selKenCell?.[0] === r && selKenCell?.[1] === c;
+                    const cage = ken.cages.find((cg) => cg.cells.some(([cr, cc]) => cr === r && cc === c));
+                    const isCageLead = cage && cage.cells[0][0] === r && cage.cells[0][1] === c;
+                    return (
+                      <TouchableOpacity
+                        key={c}
+                        style={[styles.kenCell, isSel && styles.kenCellSel]}
+                        onPress={() => setSelKenCell([r, c])}
+                      >
+                        {isCageLead && (
+                          <Text style={styles.kenCageLabel}>
+                            {cage.target}
+                            {cage.operator}
+                          </Text>
+                        )}
+                        <Text style={styles.kenCellText}>{val > 0 ? val : ""}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+            <View style={styles.keypadRow}>
+              {[1, 2, 3, 4].map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={styles.digitKeyLarge}
+                  onPress={() => {
+                    if (!selKenCell) return;
+                    const [r, c] = selKenCell;
+                    const next = kenGrid.map((rowArr, ri) =>
+                      rowArr.map((cv, ci) => (ri === r && ci === c ? d : cv))
+                    );
+                    setKenGrid(next);
+                    if (next.every((rowArr) => rowArr.every((v) => v > 0))) {
+                      handleFinish(true, 180, "KenKen 4x4 arithmetic constraints satisfied!");
+                    }
+                  }}
+                >
+                  <Text style={styles.digitKeyText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 20. BINARY PUZZLE */}
+        {game.id === "binary-puzzle" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Fill with 0 and 1. Max 2 consecutive same digits. Equal count per row/col.
+            </Text>
+            <View style={styles.binGrid}>
+              {binGrid.map((row, r) => (
+                <View key={r} style={styles.binRow}>
+                  {row.map((val, c) => {
+                    const isFixed = bin.initialGrid[r][c] !== null;
+                    return (
+                      <TouchableOpacity
+                        key={c}
+                        disabled={isFixed}
+                        style={[
+                          styles.binCell,
+                          isFixed && styles.binCellFixed,
+                          val === 0 && { backgroundColor: "#2563eb" },
+                          val === 1 && { backgroundColor: "#f59e0b" },
+                        ]}
+                        onPress={() => {
+                          const nxt = val === null ? 0 : val === 0 ? 1 : null;
+                          const nextG = binGrid.map((rA, ri) =>
+                            rA.map((cv, ci) => (ri === r && ci === c ? nxt : cv))
+                          );
+                          setBinGrid(nextG);
+                          const chk = validateBinaryPuzzle(nextG);
+                          if (chk.valid) {
+                            handleFinish(true, 180, "Binary puzzle parity satisfied!");
+                          }
+                        }}
+                      >
+                        <Text style={[styles.binCellText, val !== null && { color: "#ffffff" }]}>
+                          {val !== null ? val : ""}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 21. NUMBERLE */}
+        {game.id === "numberle" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Crack the secret 4-digit number code in 6 tries
+            </Text>
+            <View style={styles.numberleBoard}>
+              {Array.from({ length: 6 }).map((_, rIdx) => {
+                const guess = numGuess[rIdx];
+                const isCurr = rIdx === numGuess.length;
+                const feedback = guess ? evaluateNumberleGuess(guess, numSec) : null;
+                return (
+                  <View key={rIdx} style={styles.numberleRow}>
+                    {Array.from({ length: 4 }).map((__, cIdx) => {
+                      const d = isCurr ? numInput[cIdx] || "" : guess ? guess[cIdx] : "";
+                      const st = feedback?.[cIdx]?.status;
+                      let bg = "#ffffff";
+                      let color = "#0f172a";
+                      if (st === "correct") {
+                        bg = "#10b981";
+                        color = "#ffffff";
+                      } else if (st === "present") {
+                        bg = "#f59e0b";
+                        color = "#ffffff";
+                      } else if (st === "absent") {
+                        bg = "#94a3b8";
+                        color = "#ffffff";
+                      }
+                      return (
+                        <View key={cIdx} style={[styles.numberleCell, { backgroundColor: bg }]}>
+                          <Text style={[styles.numberleCellText, { color }]}>{d}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })}
+            </View>
+            <View style={styles.keypadRowWrap}>
+              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={styles.numberleKey}
+                  onPress={() => {
+                    if (numInput.length < 4) setNumInput((p) => p + d);
+                  }}
+                >
+                  <Text style={styles.digitKeyText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.actionBtnRow}>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#f1f5f9" }]}
+                onPress={() => setNumInput((p) => p.slice(0, -1))}
+              >
+                <Text style={styles.actionBtnText}>⌫ Delete</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#2563eb" }]}
+                onPress={() => {
+                  if (numInput.length !== 4) return;
+                  const nextG = [...numGuess, numInput];
+                  setNumGuess(nextG);
+                  setNumInput("");
+                  if (numInput === numSec) {
+                    handleFinish(true, 150, `Numberle code cracked! Secret: ${numSec}`);
+                  } else if (nextG.length >= 6) {
+                    handleFinish(false, 30, `Secret code was: ${numSec}`);
+                  }
+                }}
+              >
+                <Text style={[styles.actionBtnText, { color: "#ffffff" }]}>Submit Code</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* 22. AVERAGE RACE */}
+        {game.id === "average-race" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>Calculate the exact mean of these values</Text>
+            <View style={styles.avgBadgeRow}>
+              {avg.numbers.map((n, i) => (
+                <View key={i} style={styles.avgBadge}>
+                  <Text style={styles.avgBadgeText}>{n}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.mcqGrid}>
+              {avg.options.map((opt, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.mcqBtn}
+                  onPress={() => {
+                    if (opt === avg.average) {
+                      handleFinish(true, 100, avg.shortcutExplanation);
+                    } else {
+                      handleFinish(false, 20, avg.shortcutExplanation);
+                    }
+                  }}
+                >
+                  <Text style={styles.mcqBtnText}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 23. PERCENTAGE BLITZ */}
+        {game.id === "percentage-blitz" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>Fast percentage-to-fraction mental arithmetic</Text>
+            <Text style={styles.bigMathPrompt}>{pb.prompt}</Text>
+            <View style={styles.mcqGrid}>
+              {pb.options.map((opt, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.mcqBtn}
+                  onPress={() => {
+                    if (opt === pb.answer) {
+                      handleFinish(true, 100, pb.fractionEquivalent);
+                    } else {
+                      handleFinish(false, 20, pb.fractionEquivalent);
+                    }
+                  }}
+                >
+                  <Text style={styles.mcqBtnText}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 24. SIMPLIFICATION SPRINT */}
+        {game.id === "simplification-sprint" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>Evaluate strictly under BODMAS order of operations</Text>
+            <Text style={styles.bigMathPrompt}>{simp.expression} = ?</Text>
+            <View style={styles.mcqGrid}>
+              {simp.options.map((opt, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.mcqBtn}
+                  onPress={() => {
+                    if (opt === simp.answer) {
+                      handleFinish(true, 120, simp.steps.join("\n"));
+                    } else {
+                      handleFinish(false, 20, simp.steps.join("\n"));
+                    }
+                  }}
+                >
+                  <Text style={styles.mcqBtnText}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 25. FACTOR FINDER */}
+        {game.id === "factor-finder" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>Target Number: {fac.targetNumber}</Text>
+            <Text style={styles.factorPromptText}>{fac.prompt}</Text>
+            <View style={styles.mcqGrid}>
+              {fac.options.map((opt, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.mcqBtn}
+                  onPress={() => {
+                    if (opt === fac.answer) {
+                      handleFinish(true, 100, fac.explanation);
+                    } else {
+                      handleFinish(false, 20, fac.explanation);
+                    }
+                  }}
+                >
+                  <Text style={styles.mcqBtnText}>{String(opt)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 26. KAKURO */}
+        {game.id === "kakuro" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Fill white cells with 1-9 so each run sums to its clue header
+            </Text>
+            <View style={styles.kakGrid}>
+              {kakGrid.map((row, r) => (
+                <View key={r} style={styles.kakRow}>
+                  {row.map((val, c) => {
+                    const clue = kak.clues.find((cl) => cl.row === r && cl.col === c);
+                    const isBlack = kak.solution[r][c] === null;
+                    const isSel = selKakCell?.[0] === r && selKakCell?.[1] === c;
+                    if (isBlack) {
+                      return (
+                        <View key={c} style={styles.kakBlackCell}>
+                          {clue?.downSum ? (
+                            <Text style={styles.kakClueDown}>↓{clue.downSum}</Text>
+                          ) : null}
+                          {clue?.acrossSum ? (
+                            <Text style={styles.kakClueAcross}>→{clue.acrossSum}</Text>
+                          ) : null}
+                        </View>
+                      );
+                    }
+                    return (
+                      <TouchableOpacity
+                        key={c}
+                        style={[styles.kakWhiteCell, isSel && styles.kakWhiteCellSel]}
+                        onPress={() => setSelKakCell([r, c])}
+                      >
+                        <Text style={styles.kakCellText}>{val || ""}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+            <View style={styles.keypadRow}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={styles.digitKey}
+                  onPress={() => {
+                    if (!selKakCell) return;
+                    const [r, c] = selKakCell;
+                    const next = kakGrid.map((rA, ri) =>
+                      rA.map((cv, ci) => (ri === r && ci === c ? d : cv))
+                    );
+                    setKakGrid(next);
+                    if (next.every((rA, ri) => rA.every((cv, ci) => kak.solution[ri][ci] === null || cv !== null))) {
+                      handleFinish(true, 180, "Kakuro sums solved correctly!");
+                    }
+                  }}
+                >
+                  <Text style={styles.digitKeyText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 27. COUNTDOWN NUMBERS */}
+        {game.id === "countdown-numbers" && (
+          <View style={styles.gameWrapper}>
+            <View style={styles.countdownTargetCard}>
+              <Text style={styles.countdownTargetLabel}>TARGET NUMBER</Text>
+              <Text style={styles.countdownTargetVal}>{cd.target}</Text>
+            </View>
+            <View style={styles.numCardsRow}>
+              {cd.numbers.map((n, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.bigNumCard}
+                  onPress={() => setCdExpr((p) => `${p} ${n}`.trim())}
+                >
+                  <Text style={styles.bigNumText}>{n}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.formulaDisplay}>
+              <Text style={styles.formulaText}>{cdExpr || "Tap numbers & operators..."}</Text>
+            </View>
+            <View style={styles.keypadRow}>
+              {["+", "-", "*", "/", "(", ")"].map((op) => (
+                <TouchableOpacity
+                  key={op}
+                  style={styles.opKey}
+                  onPress={() => setCdExpr((p) => `${p} ${op}`.trim())}
+                >
+                  <Text style={styles.opKeyText}>{op === "*" ? "×" : op === "/" ? "÷" : op}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.actionBtnRow}>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#f1f5f9" }]}
+                onPress={() => setCdExpr("")}
+              >
+                <Text style={styles.actionBtnText}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: "#2563eb" }]}
+                onPress={() => {
+                  try {
+                    const fn = new Function(`"use strict"; return (${cdExpr});`);
+                    const val = fn();
+                    if (val === cd.target) {
+                      handleFinish(true, 150, `Hit target exactly! ${cdExpr} = ${cd.target}`);
+                    } else {
+                      Alert.alert("Result", `${cdExpr} = ${val} (Target was ${cd.target})`);
+                    }
+                  } catch {
+                    Alert.alert("Error", "Invalid mathematical expression");
+                  }
+                }}
+              >
+                <Text style={[styles.actionBtnText, { color: "#ffffff" }]}>Check Target</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* 28. MATH CROSSWORD */}
+        {game.id === "math-crossword" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>Solve intersecting arithmetic equations</Text>
+            <View style={styles.crosswordGrid}>
+              {Array.from({ length: 5 }).map((_, r) => (
+                <View key={r} style={styles.crosswordRow}>
+                  {Array.from({ length: 5 }).map((__, c) => {
+                    const cell = mc.cells.find((cl) => cl.row === r && cl.col === c);
+                    if (!cell) {
+                      return <View key={c} style={styles.crosswordBlank} />;
+                    }
+                    const coordKey = `${r}-${c}`;
+                    const isSel = selMcCoord === coordKey;
+                    const val = cell.isFixed ? cell.val : mcInputs[coordKey] || "";
+                    return (
+                      <TouchableOpacity
+                        key={c}
+                        disabled={cell.isFixed}
+                        style={[
+                          styles.crosswordCell,
+                          cell.isFixed && styles.crosswordCellFixed,
+                          isSel && styles.crosswordCellSel,
+                        ]}
+                        onPress={() => setSelMcCoord(coordKey)}
+                      >
+                        <Text style={[styles.crosswordCellText, cell.isFixed && styles.crosswordCellTextFixed]}>
+                          {val}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+            <View style={styles.keypadRow}>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={styles.digitKey}
+                  onPress={() => {
+                    if (!selMcCoord) return;
+                    const next = { ...mcInputs, [selMcCoord]: String(d) };
+                    setMcInputs(next);
+                    const allFilled = mc.cells.filter((cl) => !cl.isFixed).every((cl) => next[`${cl.row}-${cl.col}`]);
+                    if (allFilled) {
+                      handleFinish(true, 150, "Math Crossword balanced across all rows & columns!");
+                    }
+                  }}
+                >
+                  <Text style={styles.digitKeyText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 29. KILLER SUDOKU */}
+        {game.id === "killer-sudoku" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Fill 1-6 with unique digits per row/col satisfying cage totals
+            </Text>
+            <View style={styles.ksGrid}>
+              {ksGrid.map((row, r) => (
+                <View key={r} style={styles.ksRow}>
+                  {row.map((val, c) => {
+                    const isSel = selKsCell?.[0] === r && selKsCell?.[1] === c;
+                    const cage = ks.cages.find((cg) => cg.cells.some(([cr, cc]) => cr === r && cc === c));
+                    const isLeader = cage && cage.cells[0][0] === r && cage.cells[0][1] === c;
+                    return (
+                      <TouchableOpacity
+                        key={c}
+                        style={[styles.ksCell, isSel && styles.ksCellSel]}
+                        onPress={() => setSelKsCell([r, c])}
+                      >
+                        {isLeader && <Text style={styles.ksCageLabel}>{cage.sum}</Text>}
+                        <Text style={styles.ksCellText}>{val > 0 ? val : ""}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+            <View style={styles.keypadRow}>
+              {[1, 2, 3, 4, 5, 6].map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={styles.digitKeyLarge}
+                  onPress={() => {
+                    if (!selKsCell) return;
+                    const [r, c] = selKsCell;
+                    const next = ksGrid.map((rA, ri) =>
+                      rA.map((cv, ci) => (ri === r && ci === c ? d : cv))
+                    );
+                    setKsGrid(next);
+                    if (next.every((rA) => rA.every((v) => v > 0))) {
+                      handleFinish(true, 200, "Killer Sudoku cage sums mastered!");
+                    }
+                  }}
+                >
+                  <Text style={styles.digitKeyText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 30. FUTOSHIKI */}
+        {game.id === "futoshiki" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Fill 1-4 satisfying all inequality signs (&lt; and &gt;)
+            </Text>
+            <View style={styles.futGrid}>
+              {futGrid.map((row, r) => (
+                <View key={r} style={styles.futRow}>
+                  {row.map((val, c) => {
+                    const isSel = selFutCell?.[0] === r && selFutCell?.[1] === c;
+                    const ineqRight = fut.inequalities.find(
+                      (iq) => iq.row1 === r && iq.col1 === c && iq.row2 === r && iq.col2 === c + 1
+                    );
+                    return (
+                      <View key={c} style={{ flexDirection: "row", alignItems: "center" }}>
+                        <TouchableOpacity
+                          style={[styles.futCell, isSel && styles.futCellSel]}
+                          onPress={() => setSelFutCell([r, c])}
+                        >
+                          <Text style={styles.futCellText}>{val > 0 ? val : ""}</Text>
+                        </TouchableOpacity>
+                        {c < 3 && (
+                          <Text style={styles.futIneqText}>
+                            {ineqRight ? ineqRight.relation : " "}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+            <View style={styles.keypadRow}>
+              {[1, 2, 3, 4].map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={styles.digitKeyLarge}
+                  onPress={() => {
+                    if (!selFutCell) return;
+                    const [r, c] = selFutCell;
+                    const next = futGrid.map((rA, ri) =>
+                      rA.map((cv, ci) => (ri === r && ci === c ? d : cv))
+                    );
+                    setFutGrid(next);
+                    if (next.every((rA) => rA.every((v) => v > 0))) {
+                      handleFinish(true, 180, "Futoshiki inequality board completed!");
+                    }
+                  }}
+                >
+                  <Text style={styles.digitKeyText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* 31. NONOGRAM */}
+        {game.id === "nonogram" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Tap cells to shade them and reveal the hidden pixel art
+            </Text>
+            <View style={styles.nonoContainer}>
+              {/* Top Column Clues */}
+              <View style={styles.nonoTopCluesRow}>
+                <View style={{ width: 45 }} />
+                {nono.colClues.map((clues, c) => (
+                  <View key={c} style={styles.nonoColClue}>
+                    {clues.map((cl, i) => (
+                      <Text key={i} style={styles.nonoClueText}>{cl}</Text>
+                    ))}
+                  </View>
+                ))}
+              </View>
+              {/* Rows with Left Clues */}
+              {nonoGrid.map((row, r) => (
+                <View key={r} style={styles.nonoRow}>
+                  <View style={styles.nonoRowClue}>
+                    <Text style={styles.nonoClueText}>{nono.rowClues[r].join(" ")}</Text>
+                  </View>
+                  {row.map((isShaded, c) => (
+                    <TouchableOpacity
+                      key={c}
+                      style={[styles.nonoCell, isShaded && styles.nonoCellShaded]}
+                      onPress={() => {
+                        const next = nonoGrid.map((rA, ri) =>
+                          rA.map((cv, ci) => (ri === r && ci === c ? !cv : cv))
+                        );
+                        setNonoGrid(next);
+                      }}
+                    />
+                  ))}
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.claimXpBtn, { marginTop: 16 }]}
+              onPress={() => {
+                const isMatch = nonoGrid.every((rA, ri) =>
+                  rA.every((cv, ci) => cv === nono.solution[ri][ci])
+                );
+                if (isMatch) {
+                  handleFinish(true, 200, "Nonogram picture revealed successfully!");
+                } else {
+                  Alert.alert("Keep Trying", "Check row and column count clues.");
+                }
+              }}
+            >
+              <Text style={styles.claimXpBtnText}>Verify Nonogram Picture</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* 32. CRYPTARITHM */}
+        {game.id === "cryptarithm" && (
+          <View style={styles.gameWrapper}>
+            <Text style={styles.promptSub}>
+              Map each letter to a unique digit (0-9) to balance equation
+            </Text>
+            <View style={styles.cryptEquationBox}>
+              <Text style={styles.cryptWord}>{crypt.word1}</Text>
+              <Text style={styles.cryptWord}>+ {crypt.word2}</Text>
+              <View style={styles.cryptDivider} />
+              <Text style={styles.cryptResultWord}>{crypt.resultWord}</Text>
+            </View>
+            <Text style={styles.cryptHintText}>💡 Hint: {crypt.hint}</Text>
+            {/* Letter selection row */}
+            <View style={styles.cryptLettersRow}>
+              {Array.from(new Set(`${crypt.word1}${crypt.word2}${crypt.resultWord}`)).map((char) => {
+                const isSel = selCryptLetter === char;
+                const assigned = cryptMap[char];
+                return (
+                  <TouchableOpacity
+                    key={char}
+                    style={[styles.cryptLetterPill, isSel && styles.cryptLetterPillSel]}
+                    onPress={() => setSelCryptLetter(char)}
+                  >
+                    <Text style={styles.cryptLetterChar}>{char}</Text>
+                    <Text style={styles.cryptLetterDigit}>{assigned !== undefined ? assigned : "?"}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {/* Keypad for digit mapping */}
+            <View style={styles.keypadRowWrap}>
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  style={styles.digitKey}
+                  onPress={() => {
+                    if (!selCryptLetter) return;
+                    setCryptMap((prev) => ({ ...prev, [selCryptLetter]: d }));
+                  }}
+                >
+                  <Text style={styles.digitKeyText}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.claimXpBtn, { marginTop: 12 }]}
+              onPress={() => {
+                const isCorrect = Object.entries(crypt.solution).every(
+                  ([k, v]) => cryptMap[k] === v
+                );
+                if (isCorrect) {
+                  handleFinish(true, 250, "Cryptarithmetic letter-to-digit substitution solved!");
+                } else {
+                  Alert.alert("Incorrect", "Check sum column carry and uniqueness.");
+                }
+              }}
+            >
+              <Text style={styles.claimXpBtnText}>Verify Arithmetic Solution</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1563,5 +2785,686 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     color: "#2563eb",
+  },
+  // Game 13. Magic Square
+  msGrid: {
+    gap: 8,
+    marginBottom: 20,
+    alignSelf: "center",
+  },
+  msRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  msCell: {
+    width: 65,
+    height: 65,
+    borderRadius: 14,
+    backgroundColor: "#ffffff",
+    borderWidth: 2,
+    borderColor: "#e2e8f0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  msCellInit: {
+    backgroundColor: "#f8fafc",
+    borderColor: "#cbd5e1",
+  },
+  msCellSel: {
+    borderColor: "#2563eb",
+    backgroundColor: "#eff6ff",
+  },
+  msCellText: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#2563eb",
+  },
+  msCellTextInit: {
+    color: "#0f172a",
+  },
+  digitKey: {
+    width: 32,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  digitKeyLarge: {
+    width: 50,
+    height: 45,
+    borderRadius: 10,
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  digitKeyText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  // Game 14. Nerdle
+  nerdleBoard: {
+    gap: 6,
+    marginBottom: 16,
+    alignSelf: "center",
+  },
+  nerdleRow: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  nerdleCell: {
+    width: (width - 64) / 8,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nerdleCellText: {
+    fontSize: 16,
+    fontWeight: "900",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  keypadRowWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    justifyContent: "center",
+    marginBottom: 14,
+    maxWidth: 320,
+  },
+  nerdleKey: {
+    width: 50,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nerdleKeyText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  // Game 15. Memory Matrix
+  matrixGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "center",
+    alignSelf: "center",
+  },
+  matrixCell: {
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+  },
+  // Game 16. Sequence Master
+  simonGrid: {
+    width: 240,
+    height: 240,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    alignSelf: "center",
+    justifyContent: "center",
+  },
+  simonBtn: {
+    width: 110,
+    height: 110,
+    borderRadius: 24,
+  },
+  // Game 17. Sudoku
+  sudokuGrid: {
+    borderWidth: 2,
+    borderColor: "#0f172a",
+    borderRadius: 8,
+    overflow: "hidden",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  sudokuRow: {
+    flexDirection: "row",
+  },
+  sudokuRowBorder: {
+    borderBottomWidth: 2,
+    borderBottomColor: "#0f172a",
+  },
+  sudokuCell: {
+    width: 34,
+    height: 34,
+    borderWidth: 0.5,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+  },
+  sudokuColBorder: {
+    borderRightWidth: 2,
+    borderRightColor: "#0f172a",
+  },
+  sudokuCellInit: {
+    backgroundColor: "#f1f5f9",
+  },
+  sudokuCellSel: {
+    backgroundColor: "#bfdbfe",
+  },
+  sudokuCellText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#2563eb",
+  },
+  sudokuCellTextInit: {
+    color: "#0f172a",
+    fontWeight: "900",
+  },
+  // Game 18. Minesweeper
+  mswHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 280,
+    marginBottom: 12,
+  },
+  mswMines: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  flagModeBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+  },
+  flagModeBtnActive: {
+    backgroundColor: "#dc2626",
+  },
+  flagModeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#64748b",
+  },
+  mswGrid: {
+    borderWidth: 3,
+    borderColor: "#334155",
+    borderRadius: 14,
+    overflow: "hidden",
+    alignSelf: "center",
+    backgroundColor: "#1e293b",
+    padding: 4,
+  },
+  mswRow: {
+    flexDirection: "row",
+  },
+  mswCell: {
+    width: 38,
+    height: 38,
+    margin: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mswCellText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  // Game 19. KenKen
+  kenGrid: {
+    borderWidth: 2,
+    borderColor: "#334155",
+    borderRadius: 12,
+    overflow: "hidden",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  kenRow: {
+    flexDirection: "row",
+  },
+  kenCell: {
+    width: 60,
+    height: 60,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+    position: "relative",
+  },
+  kenCellSel: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#2563eb",
+  },
+  kenCageLabel: {
+    position: "absolute",
+    top: 2,
+    left: 3,
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#64748b",
+  },
+  kenCellText: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#0f172a",
+  },
+  // Game 20. Binary Puzzle
+  binGrid: {
+    borderWidth: 2,
+    borderColor: "#0f172a",
+    borderRadius: 12,
+    overflow: "hidden",
+    alignSelf: "center",
+  },
+  binRow: {
+    flexDirection: "row",
+  },
+  binCell: {
+    width: 44,
+    height: 44,
+    borderWidth: 0.5,
+    borderColor: "#cbd5e1",
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  binCellFixed: {
+    backgroundColor: "#e2e8f0",
+  },
+  binCellText: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#0f172a",
+  },
+  // Game 21. Numberle
+  numberleBoard: {
+    gap: 6,
+    marginBottom: 16,
+    alignSelf: "center",
+  },
+  numberleRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  numberleCell: {
+    width: 50,
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  numberleCellText: {
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  numberleKey: {
+    width: 45,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Game 22. Average Race
+  avgBadgeRow: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  avgBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#93c5fd",
+  },
+  avgBadgeText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#1e3a8a",
+  },
+  mcqGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    width: "100%",
+    justifyContent: "center",
+  },
+  mcqBtn: {
+    width: (width - 60) / 2,
+    paddingVertical: 16,
+    borderRadius: 14,
+    backgroundColor: "#ffffff",
+    borderWidth: 2,
+    borderColor: "#e2e8f0",
+    alignItems: "center",
+  },
+  mcqBtnText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0f172a",
+  },
+  bigMathPrompt: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#0f172a",
+    textAlign: "center",
+    marginBottom: 20,
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  factorPromptText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0f172a",
+    textAlign: "center",
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  // Game 26. Kakuro
+  kakGrid: {
+    borderWidth: 2,
+    borderColor: "#0f172a",
+    borderRadius: 10,
+    overflow: "hidden",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  kakRow: {
+    flexDirection: "row",
+  },
+  kakBlackCell: {
+    width: 55,
+    height: 55,
+    backgroundColor: "#1e293b",
+    borderWidth: 0.5,
+    borderColor: "#334155",
+    padding: 3,
+    justifyContent: "space-between",
+  },
+  kakWhiteCell: {
+    width: 55,
+    height: 55,
+    backgroundColor: "#ffffff",
+    borderWidth: 0.5,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  kakWhiteCellSel: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#2563eb",
+  },
+  kakClueDown: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#38bdf8",
+  },
+  kakClueAcross: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#f59e0b",
+    alignSelf: "flex-end",
+  },
+  kakCellText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0f172a",
+  },
+  // Game 27. Countdown Numbers
+  countdownTargetCard: {
+    backgroundColor: "#eff6ff",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#93c5fd",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  countdownTargetLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#1e40af",
+    letterSpacing: 1,
+  },
+  countdownTargetVal: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#1e3a8a",
+  },
+  // Game 28. Math Crossword
+  crosswordGrid: {
+    gap: 4,
+    marginBottom: 16,
+    alignSelf: "center",
+  },
+  crosswordRow: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  crosswordBlank: {
+    width: 45,
+    height: 45,
+  },
+  crosswordCell: {
+    width: 45,
+    height: 45,
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+    borderWidth: 1.5,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  crosswordCellFixed: {
+    backgroundColor: "#f1f5f9",
+    borderColor: "#e2e8f0",
+  },
+  crosswordCellSel: {
+    borderColor: "#2563eb",
+    backgroundColor: "#eff6ff",
+  },
+  crosswordCellText: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#2563eb",
+  },
+  crosswordCellTextFixed: {
+    color: "#0f172a",
+  },
+  // Game 29. Killer Sudoku
+  ksGrid: {
+    borderWidth: 2,
+    borderColor: "#0f172a",
+    borderRadius: 10,
+    overflow: "hidden",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  ksRow: {
+    flexDirection: "row",
+  },
+  ksCell: {
+    width: 45,
+    height: 45,
+    borderWidth: 0.5,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+    position: "relative",
+  },
+  ksCellSel: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#2563eb",
+  },
+  ksCageLabel: {
+    position: "absolute",
+    top: 1,
+    left: 2,
+    fontSize: 8,
+    fontWeight: "800",
+    color: "#ef4444",
+  },
+  ksCellText: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#0f172a",
+  },
+  // Game 30. Futoshiki
+  futGrid: {
+    gap: 6,
+    marginBottom: 16,
+    alignSelf: "center",
+  },
+  futRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  futCell: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    borderWidth: 1.5,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  futCellSel: {
+    borderColor: "#2563eb",
+    backgroundColor: "#eff6ff",
+  },
+  futIneqText: {
+    width: 18,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#f59e0b",
+  },
+  futCellText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0f172a",
+  },
+  // Game 31. Nonogram
+  nonoContainer: {
+    alignSelf: "center",
+    marginBottom: 10,
+  },
+  nonoTopCluesRow: {
+    flexDirection: "row",
+    marginBottom: 4,
+  },
+  nonoColClue: {
+    width: 44,
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  nonoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  nonoRowClue: {
+    width: 45,
+    paddingRight: 6,
+    alignItems: "flex-end",
+  },
+  nonoClueText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#64748b",
+  },
+  nonoCell: {
+    width: 42,
+    height: 42,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    backgroundColor: "#ffffff",
+    marginHorizontal: 1,
+  },
+  nonoCellShaded: {
+    backgroundColor: "#1e1b4b",
+    borderColor: "#1e1b4b",
+  },
+  // Game 32. Cryptarithm
+  cryptEquationBox: {
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    alignItems: "flex-end",
+    marginBottom: 10,
+    minWidth: 180,
+  },
+  cryptWord: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#0f172a",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    letterSpacing: 4,
+  },
+  cryptDivider: {
+    width: "100%",
+    height: 2,
+    backgroundColor: "#0f172a",
+    marginVertical: 4,
+  },
+  cryptResultWord: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#2563eb",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    letterSpacing: 4,
+  },
+  cryptHintText: {
+    fontSize: 11,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 14,
+    paddingHorizontal: 20,
+  },
+  cryptLettersRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  cryptLetterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    borderWidth: 1.5,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+  },
+  cryptLetterPillSel: {
+    borderColor: "#2563eb",
+    backgroundColor: "#eff6ff",
+  },
+  cryptLetterChar: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#0f172a",
+  },
+  cryptLetterDigit: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#2563eb",
+    marginTop: 2,
   },
 });

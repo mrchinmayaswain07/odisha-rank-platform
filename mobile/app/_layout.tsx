@@ -54,6 +54,9 @@ export default function RootLayout() {
           <Stack.Screen name="material/[materialId]" options={{ headerShown: false }} />
           <Stack.Screen name="mock-test/[testId]" options={{ headerShown: false }} />
           <Stack.Screen name="mock-test/[testId]/result" options={{ headerShown: false }} />
+          <Stack.Screen name="bodmas" options={{ headerShown: false }} />
+          <Stack.Screen name="speed-math" options={{ headerShown: false }} />
+          <Stack.Screen name="doubts" options={{ headerShown: false }} />
           <Stack.Screen name="games/index" options={{ headerShown: false }} />
           <Stack.Screen name="games/[gameId]" options={{ headerShown: false }} />
         </Stack>
