@@ -19,6 +19,11 @@ import {
   Check,
   X,
   Volume2,
+  VolumeX,
+  Pause,
+  Share2,
+  Zap,
+  ShieldAlert,
 } from "lucide-react";
 import {
   GameMetadata,
@@ -77,6 +82,8 @@ import { StudentHeader } from "@/components/StudentHeader";
 import { StudyTimerModal } from "@/components/StudyTimerModal";
 import { CourseSelectModal } from "@/components/CourseSelectModal";
 import { Button } from "@/components/ui/Button";
+import { gameAudio } from "@/lib/games-audio";
+import { triggerConfetti } from "@/lib/games-confetti";
 
 interface GameArenaClientProps {
   game: GameMetadata;
@@ -84,6 +91,78 @@ interface GameArenaClientProps {
   allExams: Exam[];
   targetExam: Exam | null;
   gameProfile: StudentGameProfile;
+}
+
+// Cognitive Hint Generator for all 32 games
+function getGameHint(gameId: string): string {
+  switch (gameId) {
+    case "game-24":
+      return "💡 Strategy: Try combining two numbers into 6, 8, 3, or 4 first (since 6×4=24 and 8×3=24). Or look for (A + B) × (C - D).";
+    case "game-2048":
+      return "💡 Corner Strategy: Keep your highest-value tile locked in one corner (e.g. bottom-right) and avoid moving it away unless forced.";
+    case "magic-square":
+      return "💡 Magic Constant: Every row, column, and 3-cell diagonal must sum to the same magic number (typically 15 for a 3×3 with 1-9). Center is always 5.";
+    case "kakuro":
+      return "💡 Unique Partitions: Digits 1-9 cannot repeat in a run. Clues like 3 (1+2), 4 (1+3), 16 (7+9), or 17 (8+9) have only one possible combination.";
+    case "number-bonds":
+      return "💡 Mental Complement: Look for numbers whose units digits add up to 10 (e.g., 34 ends in 4, so its bond to 100 must end in 6 -> 66).";
+    case "nerdle":
+      return "💡 BODMAS Rule: Multiplication & Division evaluate before Addition & Subtraction. An equals sign (=) is always present.";
+    case "countdown-numbers":
+      return "💡 Target Approximation: Multiply the largest available numbers to get close to the target, then add or subtract smaller numbers to hit it exact.";
+    case "quick-calc":
+      return "💡 Mental Math Shortcut: Multiplying by 5 is dividing by 2 and multiplying by 10 (e.g. 46 × 5 = 23 × 10 = 230).";
+    case "math-crossword":
+      return "💡 Intersection First: Solve the intersection cell shared by an across and down equation first—it restricts both calculations.";
+    case "approximation":
+      return "💡 Rounding Rule: Round awkward numbers to nearest 10 or 100 (e.g. 498 ≈ 500, 19.8 ≈ 20) to quickly eliminate distant answer choices.";
+    case "average-race":
+      return "💡 Assumed Mean: Pick a nice round middle number (e.g. 50), sum the deviations (+3, -4, +7), divide deviation sum by count, and adjust.";
+    case "percentage-blitz":
+      return "💡 Percentage Reversal: X% of Y equals Y% of X. For example, 16% of 25 = 25% of 16 = 4. 10% is moving decimal one place left.";
+    case "speed-comparison":
+      return "💡 Cross-Multiplication: To compare A/B vs C/D, simply compare (A × D) with (B × C). Whichever product is larger wins!";
+    case "simplification-sprint":
+      return "💡 BODMAS Priority: 1. Brackets (), 2. Orders/Powers, 3. Division & Multiplication (left to right), 4. Addition & Subtraction.";
+    case "factor-finder":
+      return "💡 Divisibility Tests: Even numbers divide by 2; sum of digits multiple of 3 divides by 3; ending in 0 or 5 divides by 5.";
+    case "memory-matrix":
+      return "💡 Visual Chunking: Don't memorize individual dots—visualize the lit squares as a single geometric shape (a letter, cross, or cluster).";
+    case "symbol-match":
+      return "💡 Grid Anchor: Anchor cards in memory by four quadrants: Top-Left, Top-Right, Bottom-Left, Bottom-Right.";
+    case "sequence-master":
+      return "💡 Rhythm & Sound: Speak the pattern rhythmically in your head (e.g., 'Red-Blue-Blue-Green') to leverage auditory working memory.";
+    case "sudoku":
+      return "💡 Elimination & Naked Singles: Scan rows, columns, and 3×3 boxes for numbers already used. If 8 numbers are present, the 9th is forced.";
+    case "minesweeper":
+      return "💡 1-1 & 1-2 Patterns: If a 1 has only one hidden neighbor, it MUST be a mine. If it has all mines flagged, all other neighbors are safe!";
+    case "kenken":
+      return "💡 Cages First: Solve 1-cell cages first (freebies). For 2-cell cage with '3+', options can only be (1, 2) on a 4×4 grid.";
+    case "binary-puzzle":
+      return "💡 Binary Rules: No three consecutive identical numbers (00 requires 1 on each side; 11 requires 0). Each row has equal 0s and 1s.";
+    case "tower-of-hanoi":
+      return "💡 Hanoi Move Principle: A larger disk can never sit on a smaller disk. For 3 disks, target minimum moves is 2^3 - 1 = 7 moves.";
+    case "lights-out":
+      return "💡 Light Cascade: Pressing a button inverts it and its 4 orthogonal neighbors. Pressing the same button twice cancels out.";
+    case "killer-sudoku":
+      return "💡 Sum Partitions: Cages with sum 3 (1+2), 4 (1+3), 16 (7+9), 17 (8+9) have unique pairs with no duplicate digits.";
+    case "futoshiki":
+      return "💡 Inequality Chains: A cell that is > another cannot be 1. A cell that is < another cannot be the maximum number (4).";
+    case "numberle":
+      return "💡 Deductive Elimination: Green = right digit & spot. Yellow = right digit, wrong spot. Gray = digit not in secret code.";
+    case "nonogram":
+      return "💡 Overlap Method: If a clue number is greater than half the grid length, the center cells are guaranteed to be shaded.";
+    case "cryptarithm":
+      return "💡 Leading Digit: The leading letter of any number cannot be 0. If two numbers sum to one with an extra digit, that first digit is ALWAYS 1!";
+    case "number-sequence":
+      return "💡 Sequence Patterns: Check differences between adjacent terms: constant difference (AP), constant ratio (GP), squares (n²), or Fibonacci (a+b=c).";
+    case "odd-one-out":
+      return "💡 Classification Angle: Look at Prime vs Composite, Even vs Odd, Perfect Squares/Cubes, or sum of digits.";
+    case "missing-operator":
+      return "💡 Order of Evaluation: Test operators in order: if result is dramatically smaller, look for division (÷) or subtraction (-).";
+    default:
+      return "💡 Carefully observe the puzzle constraints, eliminate impossible choices, and verify against standard mathematical rules.";
+  }
 }
 
 export const GameArenaClient: React.FC<GameArenaClientProps> = ({
@@ -108,6 +187,19 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
   const [completionMessage, setCompletionMessage] = useState("");
   const [explanation, setExplanation] = useState("");
 
+  // New Interactive Feature States
+  const [isMuted, setIsMuted] = useState(false);
+  const [combo, setCombo] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const [copiedChallenge, setCopiedChallenge] = useState(false);
+
+  const prevBestScore = gameProfile.gameStats?.[game.id]?.bestScore || 0;
+
+  useEffect(() => {
+    setIsMuted(gameAudio.getMuted());
+  }, []);
+
   const studentName = profile?.full_name?.split(" ")[0] || "Aspirant";
   const initials =
     profile?.full_name
@@ -119,32 +211,117 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
     profile?.email?.toLowerCase() === "mrchinmayaswain07@gmail.com" ||
     (profile as any)?.role === "admin";
 
-  // Global Timer
+  // Global Timer (Freezes when game is over or paused)
   useEffect(() => {
-    if (isGameOver) return;
+    if (isGameOver || isPaused) return;
     const interval = setInterval(() => {
       setTimeSeconds((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(interval);
-  }, [isGameOver]);
+  }, [isGameOver, isPaused]);
+
+  // Keyboard Shortcuts Listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA");
+
+      if (e.key === "p" || e.key === "P") {
+        if (!isInput && !isGameOver) {
+          e.preventDefault();
+          setIsPaused((prev) => !prev);
+          gameAudio.playClick();
+        }
+      } else if (e.key === "h" || e.key === "H") {
+        if (!isInput) {
+          e.preventDefault();
+          setShowHint((prev) => !prev);
+          gameAudio.playClick();
+        }
+      } else if (e.key === "m" || e.key === "M") {
+        if (!isInput) {
+          e.preventDefault();
+          handleToggleSound();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isGameOver, isPaused]);
+
+  const handleToggleSound = () => {
+    const muted = gameAudio.toggleMute();
+    setIsMuted(muted);
+  };
+
+  const handleShareChallenge = () => {
+    const url = typeof window !== "undefined" ? window.location.href : `https://odisharank.com/games/${game.id}`;
+    const text = `🏆 OdishaRank Brain Challenge: I scored ${score} pts in ${game.title}! Can you beat my time? Test your aptitude here: ${url}`;
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedChallenge(true);
+      setTimeout(() => setCopiedChallenge(false), 3000);
+    }
+  };
 
   // Handle Game Victory / Finish
   const handleGameEnd = async (won: boolean, finalScore: number, expl?: string) => {
     setIsGameOver(true);
     setIsWon(won);
-    setScore(finalScore);
+    // Apply combo bonus if applicable
+    const finalWithCombo = won && combo >= 2 ? Math.round(finalScore * (1 + combo * 0.1)) : finalScore;
+    setScore(finalWithCombo);
     if (expl) setExplanation(expl);
 
-    // Sync to backend API
+    if (won) {
+      gameAudio.playVictory();
+      triggerConfetti();
+    } else {
+      gameAudio.playError();
+    }
+
+    // 1. Optimistically update local profile and notify listeners
     try {
-      await fetch("/api/games/progress", {
+      const raw = localStorage.getItem("@odisharank_game_profile");
+      const current = raw ? JSON.parse(raw) : { ...gameProfile };
+      current.totalGamesPlayed = (current.totalGamesPlayed || 0) + 1;
+      if (won) current.totalWins = (current.totalWins || 0) + 1;
+      current.totalTimeSeconds = (current.totalTimeSeconds || 0) + timeSeconds;
+
+      const stat = current.gameStats?.[game.id] || {
+        gameId: game.id,
+        playedCount: 0,
+        wonCount: 0,
+        bestScore: 0,
+        bestTimeSeconds: 0,
+        lastPlayedAt: "",
+      };
+      stat.playedCount += 1;
+      if (won) stat.wonCount += 1;
+      stat.lastPlayedAt = new Date().toISOString();
+      if (finalWithCombo > (stat.bestScore || 0)) stat.bestScore = finalWithCombo;
+      if (stat.bestTimeSeconds === 0 || (won && timeSeconds < stat.bestTimeSeconds)) {
+        stat.bestTimeSeconds = timeSeconds;
+      }
+      current.gameStats[game.id] = stat;
+      if (won) {
+        current.brainScore = Math.min(1000, (current.brainScore || 500) + 15);
+      }
+
+      localStorage.setItem("@odisharank_game_profile", JSON.stringify(current));
+      window.dispatchEvent(new CustomEvent("odisharank:game-completed", { detail: current }));
+    } catch {}
+
+    // 2. Sync to backend API
+    try {
+      const res = await fetch("/api/games/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           gameId: game.id,
           category: game.category,
           difficulty,
-          score: finalScore,
+          score: finalWithCombo,
           timeSeconds,
           moves,
           accuracy: won ? 100 : 50,
@@ -152,6 +329,13 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
           explanation: expl,
         }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.profile) {
+          localStorage.setItem("@odisharank_game_profile", JSON.stringify(data.profile));
+          window.dispatchEvent(new CustomEvent("odisharank:game-completed", { detail: data.profile }));
+        }
+      }
     } catch (err) {
       console.warn("Failed to sync game progress:", err);
     }
@@ -404,6 +588,13 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
     const res = slide2048(g2048.board, dir);
     if (!res.moved) return;
 
+    if (res.scoreGained > 0) {
+      gameAudio.playSuccess();
+      setCombo((c) => Math.min(10, c + 1));
+    } else {
+      gameAudio.playClick();
+    }
+
     const newBoard = res.board;
     // Spawn new tile
     const withSpawn = res.moved ? (res.board as any) : newBoard;
@@ -471,70 +662,202 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
         />
 
         <main className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full space-y-6">
-          {/* Game Arena Navigation Bar */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          {/* Cyber-Cockpit Game Arena Navigation & HUD Bar */}
+          <div className="bg-slate-900 border border-slate-800 text-white rounded-2xl p-3.5 sm:p-4 shadow-xl flex flex-wrap items-center justify-between gap-3 relative overflow-hidden">
+            {/* Top ambient highlight line */}
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 via-indigo-400 to-cyan-400" />
+
             <div className="flex items-center gap-3">
               <Link
                 href="/games"
-                className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+                className="p-2 rounded-xl border border-slate-700 bg-slate-800/80 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
                 title="Back to games catalog"
               >
                 <ArrowLeft className="w-4 h-4" />
               </Link>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-lg font-extrabold text-slate-900">{game.title}</h1>
+                  <h1 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
+                    {game.title}
+                  </h1>
                   <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
+                    className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
                       game.access === "free"
-                        ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
-                        : "bg-purple-600 text-white"
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                        : "bg-purple-600 text-white shadow-xs"
                     }`}
                   >
                     {game.access.toUpperCase()}
                   </span>
+                  {prevBestScore > 0 && (
+                    <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-400/30">
+                      🏆 Best: {prevBestScore}
+                    </span>
+                  )}
                 </div>
-                <span className="text-xs text-slate-400 capitalize font-medium">
-                  {game.category} • {difficulty} difficulty
+                <span className="text-[11px] text-slate-400 capitalize font-medium flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                  <span>{game.category}</span>
+                  <span>•</span>
+                  <span>{difficulty} mode</span>
                 </span>
               </div>
             </div>
 
-            {/* Live Score, Timer, and Controls */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-mono text-xs font-bold">
-                <Clock className="w-3.5 h-3.5 text-blue-600" />
+            {/* Live Score, Combo, Timer, and Controls */}
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              {/* Combo Multiplier Badge */}
+              {combo >= 2 && (
+                <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-400/50 text-amber-300 text-xs font-black animate-pulse shadow-sm">
+                  <Flame className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                  <span>{combo}x COMBO</span>
+                </div>
+              )}
+
+              {/* Digital Timer */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-cyan-300 font-mono text-xs font-bold shadow-inner">
+                <span className={`w-1.5 h-1.5 rounded-full ${isPaused ? "bg-amber-400" : "bg-emerald-400 animate-pulse"}`} />
+                <Clock className="w-3.5 h-3.5 text-cyan-400" />
                 <span>
                   {Math.floor(timeSeconds / 60)}:{(timeSeconds % 60).toString().padStart(2, "0")}
                 </span>
               </div>
 
-              <div className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200/60 text-blue-700 font-bold text-xs">
-                Score: <span className="font-mono">{score}</span>
+              {/* Score Pill */}
+              <div className="px-3 py-1.5 rounded-xl bg-blue-500/15 border border-blue-400/30 text-blue-300 font-mono font-black text-xs shadow-inner">
+                PTS: <span className="text-amber-400 font-bold">{score}</span>
               </div>
 
+              {/* Audio Sound Toggle */}
               <button
-                onClick={() => setShowHelpModal(true)}
-                className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-colors"
-                title="Rules & Instructions"
+                onClick={handleToggleSound}
+                className={`p-2 rounded-xl border transition-all ${
+                  isMuted
+                    ? "bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30"
+                    : "bg-slate-800 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-700"
+                }`}
+                title={isMuted ? "Unmute Sound [M]" : "Mute Sound [M]"}
               >
-                <HelpCircle className="w-4 h-4" />
+                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </button>
 
+              {/* Hint Button */}
+              <button
+                onClick={() => {
+                  setShowHint((prev) => !prev);
+                  gameAudio.playClick();
+                }}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  showHint
+                    ? "bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/30"
+                    : "bg-amber-500/15 text-amber-300 border-amber-400/30 hover:bg-amber-500/25"
+                }`}
+                title="Get Solving Strategy / Hint [H]"
+              >
+                <Lightbulb className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Hint</span>
+              </button>
+
+              {/* Pause Button */}
+              <button
+                onClick={() => {
+                  setIsPaused((prev) => !prev);
+                  gameAudio.playClick();
+                }}
+                className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all"
+                title={isPaused ? "Resume Practice [P]" : "Pause Practice [P]"}
+              >
+                {isPaused ? <Play className="w-4 h-4 text-emerald-400" /> : <Pause className="w-4 h-4" />}
+              </button>
+
+              {/* Restart Button */}
               <button
                 onClick={handleRestart}
-                className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-rose-600 transition-colors"
-                title="Restart Game"
+                className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-rose-400 hover:bg-slate-700 transition-all"
+                title="Restart Game [Alt+R]"
               >
                 <RotateCcw className="w-4 h-4" />
+              </button>
+
+              {/* Rules Button */}
+              <button
+                onClick={() => setShowHelpModal(true)}
+                className="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-blue-400 hover:bg-slate-700 transition-all"
+                title="Rules & Exam Benefit"
+              >
+                <HelpCircle className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* ==================================================== */}
-          {/* DYNAMIC INTERACTIVE GAME BOARD FOR EACH OF 32 GAMES  */}
-          {/* ==================================================== */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm flex flex-col items-center justify-center min-h-[420px]">
+          {/* Arena Interactive Board Area with Pause Overlay and Hint Banner */}
+          <div className="relative">
+            {/* Pause Overlay */}
+            {isPaused && (
+              <div className="absolute inset-0 z-40 bg-slate-950/85 backdrop-blur-md rounded-3xl flex flex-col items-center justify-center p-6 text-center space-y-4 animate-in fade-in">
+                <div className="w-16 h-16 rounded-2xl bg-blue-500/20 border border-blue-400/30 text-blue-400 flex items-center justify-center shadow-lg">
+                  <Pause className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-white">Drill Session Paused</h3>
+                  <p className="text-xs text-slate-300 max-w-sm mt-1 leading-relaxed">
+                    Timer and board are frozen. Take a breath, reset your mental agility, and jump right back in when ready.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setIsPaused(false);
+                      gameAudio.playClick();
+                    }}
+                  >
+                    <Play className="w-4 h-4 mr-1.5" />
+                    Resume Practice
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-white/10 text-white border-white/20 hover:bg-white/20"
+                    onClick={handleRestart}
+                  >
+                    <RotateCcw className="w-4 h-4 mr-1.5" />
+                    Restart Drill
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Contextual Hint Dropdown Banner */}
+            {showHint && (
+              <div className="mb-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-400/40 text-xs text-amber-950 flex items-start justify-between gap-3 animate-in slide-in-from-top-2">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 font-extrabold text-amber-900">
+                    <Lightbulb className="w-4 h-4 text-amber-600" />
+                    <span>Aptitude Solver Strategy:</span>
+                  </div>
+                  <p className="text-amber-950/90 leading-relaxed font-medium">
+                    {getGameHint(game.id)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowHint(false)}
+                  className="p-1 text-amber-700 hover:text-amber-950 text-xs font-bold shrink-0"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* ==================================================== */}
+            {/* DYNAMIC INTERACTIVE GAME BOARD FOR EACH OF 32 GAMES  */}
+            {/* ==================================================== */}
+            <div
+              className={`bg-gradient-to-b from-white to-slate-50/90 rounded-3xl border-2 border-slate-200/90 p-6 sm:p-8 shadow-xl flex flex-col items-center justify-center min-h-[440px] relative transition-all ${
+                isPaused ? "blur-md pointer-events-none select-none" : ""
+              }`}
+            >
             {/* 1. 24 GAME */}
             {game.id === "game-24" && (
               <div className="w-full max-w-md space-y-6 text-center">
@@ -546,7 +869,10 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
                   {p24.numbers.map((n, idx) => (
                     <button
                       key={idx}
-                      onClick={() => setExpr24((prev) => `${prev} ${n}`.trim())}
+                      onClick={() => {
+                        gameAudio.playClick();
+                        setExpr24((prev) => `${prev} ${n}`.trim());
+                      }}
                       className="w-14 h-16 rounded-2xl bg-blue-50 border-2 border-blue-400 text-blue-900 font-black text-2xl shadow-xs hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all active:scale-95"
                     >
                       {n}
@@ -570,7 +896,10 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
                   {["+", "-", "*", "/", "(", ")"].map((op) => (
                     <button
                       key={op}
-                      onClick={() => setExpr24((prev) => `${prev} ${op}`.trim())}
+                      onClick={() => {
+                        gameAudio.playClick();
+                        setExpr24((prev) => `${prev} ${op}`.trim());
+                      }}
                       className="py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-mono font-bold text-lg transition-colors active:scale-95"
                     >
                       {op === "*" ? "×" : op === "/" ? "÷" : op}
@@ -579,7 +908,15 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 pt-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setExpr24("")}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => {
+                      gameAudio.playClick();
+                      setExpr24("");
+                    }}
+                  >
                     Clear
                   </Button>
                   <Button
@@ -589,8 +926,12 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
                     onClick={() => {
                       const res = validate24GameExpression(expr24, p24.numbers);
                       if (res.valid) {
+                        gameAudio.playSuccess();
+                        setCombo((c) => c + 1);
                         handleGameEnd(true, 100, `Solved! Expression: ${expr24} = 24`);
                       } else {
+                        gameAudio.playError();
+                        setCombo(0);
                         setEvalError24(res.error || "Does not equal 24");
                       }
                     }}
@@ -890,15 +1231,25 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
                       key={i}
                       onClick={() => {
                         if (opt === qc.answer) {
-                          setScore((s) => s + 20 + qcStreak * 5);
-                          setQcStreak((str) => str + 1);
-                          setQc(generateQuickCalcQuestion(difficulty));
+                          gameAudio.playSuccess();
+                          setCombo((c) => c + 1);
+                          const nextStreak = qcStreak + 1;
+                          const newScore = score + 20 + qcStreak * 5;
+                          setScore(newScore);
+                          setQcStreak(nextStreak);
+                          if (nextStreak >= 10) {
+                            handleGameEnd(true, newScore, "Rapid calculation sprint mastered! 10 questions solved flawlessly.");
+                          } else {
+                            setQc(generateQuickCalcQuestion(difficulty));
+                          }
                         } else {
+                          gameAudio.playError();
+                          setCombo(0);
                           setQcStreak(0);
                           setQc(generateQuickCalcQuestion(difficulty));
                         }
                       }}
-                      className="p-4 rounded-2xl bg-white border-2 border-slate-200 hover:border-blue-600 hover:bg-blue-50 text-slate-900 font-black text-2xl transition-all active:scale-95"
+                      className="p-4 rounded-2xl bg-white border-2 border-slate-200 hover:border-blue-600 hover:bg-blue-50 text-slate-900 font-black text-2xl transition-all active:scale-95 shadow-xs"
                     >
                       {opt}
                     </button>
@@ -911,7 +1262,7 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
             {game.id === "memory-matrix" && (
               <div className="w-full max-w-md space-y-6 text-center">
                 <div className="text-xs font-bold text-slate-500">
-                  Level {mmLevel} • {mmShowing ? "Memorize the pattern!" : "Click the illuminated tiles"}
+                  Level {mmLevel} • {mmShowing ? "Memorize the illuminated pattern!" : "Click the illuminated tiles"}
                 </div>
 
                 <div
@@ -938,27 +1289,38 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
                         disabled={mmShowing}
                         onClick={() => {
                           if (mmSelected.includes(idx)) return;
+                          gameAudio.playClick();
                           const nextSelected = [...mmSelected, idx];
                           setMmSelected(nextSelected);
 
                           if (!isHighlighted) {
-                            handleGameEnd(false, score, "Missed tile! Try again to beat your record.");
+                            gameAudio.playError();
+                            setCombo(0);
+                            handleGameEnd(false, score, "Missed tile! Try again to build your photographic memory.");
                           } else if (
                             nextSelected.filter((i) => mm.highlightedIndices.includes(i)).length ===
                             mm.highlightedIndices.length
                           ) {
                             // Level cleared!
-                            setScore((s) => s + 50);
+                            gameAudio.playSuccess();
+                            setCombo((c) => c + 1);
                             const nextLvl = mmLevel + 1;
-                            setMmLevel(nextLvl);
-                            const newGen = generateMemoryMatrixLevel(nextLvl);
-                            setMm(newGen);
-                            setMmShowing(true);
-                            setMmSelected([]);
-                            setTimeout(() => setMmShowing(false), newGen.displayDurationMs);
+                            const newScore = score + 50;
+                            setScore(newScore);
+
+                            if (nextLvl > 5) {
+                              handleGameEnd(true, newScore, "Photographic memory achieved! Cleared all 5 matrix levels.");
+                            } else {
+                              setMmLevel(nextLvl);
+                              const newGen = generateMemoryMatrixLevel(nextLvl);
+                              setMm(newGen);
+                              setMmShowing(true);
+                              setMmSelected([]);
+                              setTimeout(() => setMmShowing(false), newGen.displayDurationMs);
+                            }
                           }
                         }}
-                        className={`w-16 h-16 rounded-2xl border-2 transition-all ${bg}`}
+                        className={`w-16 h-16 rounded-2xl border-2 transition-all active:scale-95 ${bg}`}
                       />
                     );
                   })}
@@ -1741,63 +2103,110 @@ export const GameArenaClient: React.FC<GameArenaClientProps> = ({
                 </div>
               </div>
             )}
+            </div>
+
+            {/* Keyboard shortcuts bar */}
+            <div className="mt-3 flex flex-wrap items-center justify-between text-[11px] text-slate-400 font-semibold px-2 gap-2">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <span className="text-slate-500">⌨️ Shortcuts:</span>
+                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">[1-9] Inputs</span>
+                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">[H] Hint</span>
+                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">[P] Pause</span>
+                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">[M] Mute</span>
+                <span className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">[Alt+R] Restart</span>
+              </div>
+              <span className="hidden sm:inline text-slate-400 font-medium">OdishaRank Cognitive Aptitude</span>
+            </div>
           </div>
         </main>
       </div>
 
-      {/* Game Victory / Completion Modal */}
+      {/* Epic Game Victory / Completion Modal */}
       {isGameOver && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-5 animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-gradient-to-b from-slate-900 to-indigo-950 text-white border border-indigo-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-5 animate-in zoom-in-95 relative overflow-hidden">
+            {/* Radiant decorative background glow */}
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-48 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
+
             <div
-              className={`w-16 h-16 rounded-2xl mx-auto flex items-center justify-center ${
-                isWon ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+              className={`w-20 h-20 rounded-3xl mx-auto flex items-center justify-center shadow-lg relative z-10 ${
+                isWon
+                  ? "bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950 ring-4 ring-amber-400/30"
+                  : "bg-slate-800 text-slate-300 ring-4 ring-slate-700"
               }`}
             >
-              {isWon ? <Trophy className="w-8 h-8" /> : <Sparkles className="w-8 h-8" />}
+              {isWon ? <Trophy className="w-10 h-10" /> : <Sparkles className="w-10 h-10" />}
             </div>
 
-            <div>
-              <h3 className="text-xl font-extrabold text-slate-900">
-                {isWon ? "Challenge Completed!" : "Session Concluded"}
+            <div className="relative z-10 space-y-1">
+              <span className="inline-block px-3 py-1 rounded-full bg-white/10 text-[10px] font-black uppercase tracking-widest text-amber-300 border border-amber-300/30 mb-1">
+                {isWon ? "MISSION ACCOMPLISHED" : "DRILL COMPLETED"}
+              </span>
+              <h3 className="text-2xl font-black text-white">
+                {isWon ? "Cognitive Victory!" : "Practice Concluded"}
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                {isWon ? "Brain Rating updated in real-time" : "Practice makes mastery"}
+              <p className="text-xs text-slate-300">
+                {isWon
+                  ? "Outstanding speed and precision. +15 Brain Score Rating awarded!"
+                  : "Every attempt trains neural synapses and builds exam speed."}
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">Score Earned</span>
-                <span className="text-2xl font-black text-blue-600">+{score}</span>
+            <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-2xl bg-white/5 border border-white/10 relative z-10 font-mono">
+              <div className="text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Score</span>
+                <span className="text-xl font-black text-amber-400">+{score}</span>
               </div>
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">Time Taken</span>
-                <span className="text-2xl font-black text-slate-800">
+              <div className="text-center border-x border-white/10">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Time</span>
+                <span className="text-xl font-black text-cyan-300">
                   {Math.floor(timeSeconds / 60)}:{(timeSeconds % 60).toString().padStart(2, "0")}
+                </span>
+              </div>
+              <div className="text-center">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Streak</span>
+                <span className="text-xl font-black text-emerald-400">
+                  {combo >= 2 ? `${combo}x` : "1x"}
                 </span>
               </div>
             </div>
 
             {explanation && (
-              <div className="text-left p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-slate-800 space-y-1">
-                <span className="font-bold text-blue-900 block">Explanation & Method:</span>
-                <p className="text-slate-700 leading-relaxed whitespace-pre-line">{explanation}</p>
+              <div className="text-left p-3.5 rounded-xl bg-white/5 border border-white/10 text-xs space-y-1 relative z-10">
+                <span className="font-extrabold text-cyan-300 block">Solution & Method:</span>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-line text-[11px]">{explanation}</p>
               </div>
             )}
 
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={handleRestart}>
-                Play Again
-              </Button>
+            <div className="space-y-2 pt-2 relative z-10">
               <Button
                 variant="primary"
-                size="sm"
-                className="flex-1"
-                onClick={() => router.push("/games")}
+                size="md"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold shadow-lg shadow-indigo-600/30"
+                onClick={handleRestart}
               >
-                All 32 Games
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Play Another Round
               </Button>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleShareChallenge}
+                  className="flex-1 py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-cyan-300" />
+                  <span>{copiedChallenge ? "Link Copied!" : "Share Challenge"}</span>
+                </button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 bg-white/5 border-white/15 text-white hover:bg-white/10"
+                  onClick={() => router.push("/games")}
+                >
+                  All 32 Games
+                </Button>
+              </div>
             </div>
           </div>
         </div>

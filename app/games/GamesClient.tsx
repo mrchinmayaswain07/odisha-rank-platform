@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Gamepad2,
@@ -140,13 +140,125 @@ export const GamesClient: React.FC<GamesClientProps> = ({
   profile,
   allExams,
   targetExam,
-  gameProfile,
+  gameProfile: initialGameProfile,
   dailyChallenge,
   recommendations,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showCourseModal, setShowCourseModal] = useState(false);
+
+  // Dynamic Live Game Profile state with instant hydration & event sync
+  const [currentProfile, setCurrentProfile] = useState<StudentGameProfile>(initialGameProfile);
+
+  useEffect(() => {
+    // 1. Read optimistic local cache if newer or has more games played
+    try {
+      const raw = localStorage.getItem("@odisharank_game_profile");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (
+          parsed?.brainScore &&
+          (parsed.totalGamesPlayed >= (currentProfile.totalGamesPlayed || 0))
+        ) {
+          setCurrentProfile(parsed);
+        }
+      }
+    } catch {}
+
+    // 2. Background revalidation from API
+    const revalidate = async () => {
+      try {
+        const res = await fetch("/api/games/progress");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile) {
+            setCurrentProfile(data.profile);
+            localStorage.setItem("@odisharank_game_profile", JSON.stringify(data.profile));
+          }
+        }
+      } catch {}
+    };
+
+    revalidate();
+
+    // 3. Listen to custom game-completed events & window focus
+    const onGameCompleted = (e: any) => {
+      if (e.detail?.brainScore) {
+        setCurrentProfile(e.detail);
+      } else {
+        revalidate();
+      }
+    };
+
+    window.addEventListener("odisharank:game-completed", onGameCompleted);
+    window.addEventListener("focus", revalidate);
+    return () => {
+      window.removeEventListener("odisharank:game-completed", onGameCompleted);
+      window.removeEventListener("focus", revalidate);
+    };
+  }, []);
+
+  // Compute Rank Tier dynamically
+  const rankTier = useMemo(() => {
+    const score = currentProfile.brainScore || 500;
+    if (score >= 850) {
+      return {
+        title: "Grandmaster Aspirant",
+        tier: "Tier IV",
+        color: "bg-amber-500/20 text-amber-300 border-amber-400/40",
+        badge: "bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black",
+      };
+    }
+    if (score >= 700) {
+      return {
+        title: "Cognitive Elite",
+        tier: "Tier III",
+        color: "bg-purple-500/20 text-purple-300 border-purple-400/40",
+        badge: "bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-black",
+      };
+    }
+    if (score >= 550) {
+      return {
+        title: "Tactical Strategist",
+        tier: "Tier II",
+        color: "bg-cyan-500/20 text-cyan-300 border-cyan-400/40",
+        badge: "bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 font-black",
+      };
+    }
+    return {
+      title: "Aptitude Cadet",
+      tier: "Tier I",
+      color: "bg-emerald-500/20 text-emerald-300 border-emerald-400/40",
+      badge: "bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-black",
+    };
+  }, [currentProfile.brainScore]);
+
+  const winRate = useMemo(() => {
+    if (!currentProfile.totalGamesPlayed) return 0;
+    return Math.round(((currentProfile.totalWins || 0) / currentProfile.totalGamesPlayed) * 100);
+  }, [currentProfile.totalGamesPlayed, currentProfile.totalWins]);
+
+  const totalMins = useMemo(() => {
+    return Math.round((currentProfile.totalTimeSeconds || 0) / 60);
+  }, [currentProfile.totalTimeSeconds]);
+
+  // Check how many daily challenge games have been completed today
+  const dailyStats = useMemo(() => {
+    const today = dailyChallenge.date || new Date().toISOString().split("T")[0];
+    const completedIds: string[] = [];
+    dailyChallenge.games.forEach((dg) => {
+      const stat = currentProfile.gameStats?.[dg.gameId];
+      if (stat && stat.lastPlayedAt && stat.lastPlayedAt.startsWith(today) && stat.wonCount > 0) {
+        completedIds.push(dg.gameId);
+      }
+    });
+    return {
+      completedIds,
+      allDone: completedIds.length >= dailyChallenge.games.length,
+      progress: `${completedIds.length}/${dailyChallenge.games.length}`,
+    };
+  }, [dailyChallenge, currentProfile.gameStats]);
 
   // Filter States: activeTab can be "all", "free", "premium", "math", "memory", "logic", "pattern"
   const [activeTab, setActiveTab] = useState<string>("all");
@@ -220,73 +332,217 @@ export const GamesClient: React.FC<GamesClientProps> = ({
         />
 
         <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-8">
-          {/* Hero Banner */}
-          <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-indigo-950 via-blue-950 to-slate-900 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="max-w-2xl relative z-10">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 font-bold text-xs mb-3">
-                <Brain className="w-3.5 h-3.5 text-blue-300" />
-                <span>Cognitive Exam Aptitude Training</span>
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Games & Brain Training
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed">
-                32 authentic mathematical, memory, deductive logic, and pattern games designed to develop rapid mental agility, elimination accuracy, and focus under exam pressure.
-              </p>
+          {/* Cyber-Academy Cognitive Command Center Hero Banner */}
+          <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white shadow-2xl border border-indigo-500/20 relative overflow-hidden flex flex-col gap-6">
+            {/* Ambient Decorative Lighting */}
+            <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
+              <div className="max-w-2xl space-y-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 text-cyan-300 border border-cyan-400/30 font-bold text-xs">
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                    <Brain className="w-3.5 h-3.5 text-cyan-300" />
+                    <span>Cognitive Exam Aptitude Center</span>
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] border font-extrabold tracking-wider ${rankTier.color}`}>
+                    {rankTier.tier} • {rankTier.title}
+                  </span>
+                </div>
+
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+                  Games & Brain Training
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
+                  32 authentic mathematical, memory, deductive logic, and pattern games designed to develop lightning mental agility, elimination precision, and focus under exam pressure.
+                </p>
+              </div>
+
+              {/* Dynamic Live Stats Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white/5 backdrop-blur-md border border-white/10 p-3.5 sm:p-4 rounded-2xl w-full lg:w-auto shrink-0 shadow-inner">
+                {/* 1. Brain Score */}
+                <div className="text-center px-2 py-1 border-r border-white/10">
+                  <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
+                    Brain Score
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-tight">
+                    {currentProfile.brainScore || 500}
+                  </span>
+                  <span className="text-[10px] text-amber-300/80 font-bold block mt-0.5">
+                    / 1000 Max
+                  </span>
+                </div>
+
+                {/* 2. Games Played */}
+                <div className="text-center px-2 py-1 sm:border-r border-white/10">
+                  <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
+                    Games Played
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                    {currentProfile.totalGamesPlayed || 0}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
+                    {currentProfile.totalWins || 0} Won
+                  </span>
+                </div>
+
+                {/* 3. Win Rate */}
+                <div className="text-center px-2 py-1 border-r border-white/10">
+                  <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
+                    Win Rate
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-black text-cyan-400 font-mono tracking-tight">
+                    {winRate}%
+                  </span>
+                  <span className="text-[10px] text-cyan-300/80 font-bold block mt-0.5">
+                    Accuracy
+                  </span>
+                </div>
+
+                {/* 4. Active Streak */}
+                <div className="text-center px-2 py-1">
+                  <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">
+                    Streak
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono tracking-tight flex items-center justify-center gap-1">
+                    <Flame className="w-5 h-5 fill-emerald-400 text-emerald-400 animate-bounce" />
+                    {currentProfile.currentStreakDays || 1}d
+                  </span>
+                  <span className="text-[10px] text-emerald-300/80 font-bold block mt-0.5">
+                    {totalMins}m Spent
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {/* Quick Stats Pill */}
-            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/10 p-3 sm:p-4 rounded-2xl shrink-0">
-              <div className="text-center px-3 border-r border-white/15">
-                <span className="text-[10px] font-bold text-slate-300 uppercase block">Brain Score</span>
-                <span className="text-xl sm:text-2xl font-black text-amber-400">
-                  {gameProfile.brainScore}
-                </span>
-              </div>
-              <div className="text-center px-3 border-r border-white/15">
-                <span className="text-[10px] font-bold text-slate-300 uppercase block">Games Played</span>
-                <span className="text-xl sm:text-2xl font-black text-white">
-                  {gameProfile.totalGamesPlayed}
-                </span>
-              </div>
-              <div className="text-center px-3">
-                <span className="text-[10px] font-bold text-slate-300 uppercase block">Streak</span>
-                <span className="text-xl sm:text-2xl font-black text-emerald-400 flex items-center justify-center gap-1">
-                  <Flame className="w-4 h-4 fill-emerald-400 text-emerald-400" />
-                  {gameProfile.currentStreakDays}d
-                </span>
-              </div>
+            {/* Cognitive Domain Proficiency Micro-Meters */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-4 border-t border-white/10 relative z-10">
+              {[
+                {
+                  label: "Math Agility",
+                  val: currentProfile.categoryProficiency?.math || 50,
+                  color: "bg-blue-400",
+                  text: "text-blue-300",
+                  icon: Calculator,
+                },
+                {
+                  label: "Working Memory",
+                  val: currentProfile.categoryProficiency?.memory || 50,
+                  color: "bg-pink-400",
+                  text: "text-pink-300",
+                  icon: Zap,
+                },
+                {
+                  label: "Deductive Logic",
+                  val: currentProfile.categoryProficiency?.logic || 50,
+                  color: "bg-purple-400",
+                  text: "text-purple-300",
+                  icon: ShieldAlert,
+                },
+                {
+                  label: "Pattern Recog",
+                  val: currentProfile.categoryProficiency?.pattern || 50,
+                  color: "bg-emerald-400",
+                  text: "text-emerald-300",
+                  icon: TrendingUp,
+                },
+              ].map((domain) => {
+                const DIcon = domain.icon;
+                return (
+                  <div
+                    key={domain.label}
+                    className="p-2.5 rounded-xl bg-white/5 border border-white/10 space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="flex items-center gap-1 text-slate-300 font-bold text-[11px]">
+                        <DIcon className={`w-3.5 h-3.5 ${domain.text}`} />
+                        <span>{domain.label}</span>
+                      </span>
+                      <span className={`font-mono font-bold text-[11px] ${domain.text}`}>
+                        {domain.val}%
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${domain.color}`}
+                        style={{ width: `${domain.val}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           {/* Daily Brain Challenge Card */}
-          <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-500/10 border-2 border-amber-300/50 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div
+            className={`border-2 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all ${
+              dailyStats.allDone
+                ? "bg-gradient-to-r from-emerald-500/10 via-emerald-50 to-teal-500/10 border-emerald-300/70"
+                : "bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-500/10 border-amber-300/50"
+            }`}
+          >
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="p-1.5 bg-amber-500 text-white rounded-lg shadow-xs">
+                <span
+                  className={`p-1.5 text-white rounded-lg shadow-xs ${
+                    dailyStats.allDone ? "bg-emerald-600" : "bg-amber-500"
+                  }`}
+                >
                   <Trophy className="w-4 h-4" />
                 </span>
-                <h3 className="text-base font-extrabold text-amber-950">Daily Brain Challenge</h3>
-                <span className="px-2 py-0.5 rounded-full bg-amber-200/60 text-amber-900 text-[10px] font-extrabold">
-                  +50 XP
+                <h3
+                  className={`text-base font-extrabold ${
+                    dailyStats.allDone ? "text-emerald-950" : "text-amber-950"
+                  }`}
+                >
+                  Daily Brain Challenge
+                </h3>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    dailyStats.allDone
+                      ? "bg-emerald-200 text-emerald-900"
+                      : "bg-amber-200/60 text-amber-900"
+                  }`}
+                >
+                  {dailyStats.allDone ? "COMPLETED • +50 XP" : `Progress ${dailyStats.progress}`}
                 </span>
               </div>
-              <p className="text-xs text-amber-900/80">
-                Sharpen 3 curated mental skills every day. Complete today&apos;s trio to keep your streak glowing!
+              <p
+                className={`text-xs ${
+                  dailyStats.allDone ? "text-emerald-900/80" : "text-amber-900/80"
+                }`}
+              >
+                {dailyStats.allDone
+                  ? "Outstanding! You conquered all 3 challenges today. Your brain streak is protected and glowing!"
+                  : "Sharpen 3 curated mental skills every day. Complete today's trio to keep your streak glowing!"}
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
               {dailyChallenge.games.map((dg, idx) => {
                 const gMeta = GAMES_CATALOG.find((g) => g.id === dg.gameId);
+                const isCompleted = dailyStats.completedIds.includes(dg.gameId);
+
                 return (
                   <Link
                     key={dg.gameId}
                     href={`/games/${dg.gameId}`}
-                    className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-amber-200 shadow-xs hover:border-amber-400 hover:shadow-sm transition-all text-xs font-bold text-slate-800"
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border shadow-xs transition-all text-xs font-bold ${
+                      isCompleted
+                        ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+                        : "bg-white border-amber-200 text-slate-800 hover:border-amber-400 hover:shadow-sm"
+                    }`}
                   >
-                    <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">
-                      {idx + 1}
+                    <span
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                        isCompleted
+                          ? "bg-emerald-600 text-white"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {isCompleted ? "✓" : idx + 1}
                     </span>
                     <span>{gMeta?.title}</span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">
@@ -398,7 +654,7 @@ export const GamesClient: React.FC<GamesClientProps> = ({
           {/* 32 Game Cards Grid (Matches Reference Screenshot 2-Column Clean Cards) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             {filteredGames.map((game) => {
-              const stat = gameProfile.gameStats[game.id];
+              const stat = currentProfile.gameStats[game.id];
               const isFree = game.access === "free";
 
               return (
@@ -508,7 +764,7 @@ export const GamesClient: React.FC<GamesClientProps> = ({
                 </p>
               </div>
               <Badge variant="blue" size="sm">
-                Aggregated Brain Rating: {gameProfile.brainScore} / 1000
+                Aggregated Brain Rating: {currentProfile.brainScore} / 1000
               </Badge>
             </div>
 
@@ -516,25 +772,25 @@ export const GamesClient: React.FC<GamesClientProps> = ({
               {[
                 {
                   name: "Math & Arithmetic",
-                  val: gameProfile.categoryProficiency.math,
+                  val: currentProfile.categoryProficiency.math,
                   color: "bg-blue-600",
                   text: "text-blue-600",
                 },
                 {
                   name: "Working Memory",
-                  val: gameProfile.categoryProficiency.memory,
+                  val: currentProfile.categoryProficiency.memory,
                   color: "bg-purple-600",
                   text: "text-purple-600",
                 },
                 {
                   name: "Deductive Logic",
-                  val: gameProfile.categoryProficiency.logic,
+                  val: currentProfile.categoryProficiency.logic,
                   color: "bg-emerald-600",
                   text: "text-emerald-600",
                 },
                 {
                   name: "Pattern & Sequences",
-                  val: gameProfile.categoryProficiency.pattern,
+                  val: currentProfile.categoryProficiency.pattern,
                   color: "bg-amber-500",
                   text: "text-amber-500",
                 },

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import {
   ArrowLeft,
   Search,
@@ -61,19 +61,51 @@ export default function GamesCatalogueScreen() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [brainScore, setBrainScore] = useState<number>(550);
   const [gamesPlayed, setGamesPlayed] = useState<number>(0);
+  const [gamesWon, setGamesWon] = useState<number>(0);
+  const [streakDays, setStreakDays] = useState<number>(1);
+  const [categoryProficiency, setCategoryProficiency] = useState({
+    math: 50,
+    memory: 50,
+    logic: 50,
+    pattern: 50,
+  });
 
-  useEffect(() => {
-    // Load local mobile game stats
+  // Reload stats whenever this screen is focused
+  const loadStats = useCallback(() => {
     AsyncStorage.getItem("@odisha_rank_game_stats").then((res) => {
       if (res) {
         try {
           const parsed = JSON.parse(res);
-          if (parsed.brainScore) setBrainScore(parsed.brainScore);
-          if (parsed.totalPlayed) setGamesPlayed(parsed.totalPlayed);
+          if (parsed.brainScore !== undefined) setBrainScore(parsed.brainScore);
+          if (parsed.totalPlayed !== undefined) setGamesPlayed(parsed.totalPlayed);
+          if (parsed.totalWins !== undefined) setGamesWon(parsed.totalWins);
+          if (parsed.streakDays !== undefined) setStreakDays(parsed.streakDays);
+          if (parsed.categoryProficiency) setCategoryProficiency(parsed.categoryProficiency);
         } catch {}
       }
     });
   }, []);
+
+  useFocusEffect(loadStats);
+
+  // Dynamic Rank Tier Calculation
+  const rankTier = useMemo(() => {
+    if (brainScore >= 850) {
+      return { title: "Grandmaster Aspirant", tier: "Tier IV", color: "#fbbf24", bg: "#78350f" };
+    }
+    if (brainScore >= 700) {
+      return { title: "Cognitive Elite", tier: "Tier III", color: "#c084fc", bg: "#581c87" };
+    }
+    if (brainScore >= 550) {
+      return { title: "Tactical Strategist", tier: "Tier II", color: "#38bdf8", bg: "#0c4a6e" };
+    }
+    return { title: "Aptitude Cadet", tier: "Tier I", color: "#34d399", bg: "#064e3b" };
+  }, [brainScore]);
+
+  const winRate = useMemo(() => {
+    if (!gamesPlayed) return 0;
+    return Math.round((gamesWon / gamesPlayed) * 100);
+  }, [gamesPlayed, gamesWon]);
 
   const filteredGames = useMemo(() => {
     return GAMES_CATALOG.filter((game) => {
@@ -124,6 +156,68 @@ export default function GamesCatalogueScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
+        {/* Cyber Academy Command Hero Card */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <View style={[styles.rankPill, { backgroundColor: rankTier.bg, borderColor: rankTier.color }]}>
+              <Brain size={12} color={rankTier.color} />
+              <Text style={[styles.rankPillText, { color: rankTier.color }]}>
+                {rankTier.tier} • {rankTier.title}
+              </Text>
+            </View>
+            <View style={styles.liveIndicator}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>Live Stats</Text>
+            </View>
+          </View>
+
+          <View style={styles.heroStatsGrid}>
+            <View style={styles.heroStatItem}>
+              <Text style={styles.heroStatLabel}>BRAIN SCORE</Text>
+              <Text style={styles.heroStatValAmber}>{brainScore}</Text>
+              <Text style={styles.heroStatSub}>/ 1000 Max</Text>
+            </View>
+            <View style={styles.heroStatItem}>
+              <Text style={styles.heroStatLabel}>PLAYED</Text>
+              <Text style={styles.heroStatValWhite}>{gamesPlayed}</Text>
+              <Text style={styles.heroStatSub}>{gamesWon} Won</Text>
+            </View>
+            <View style={styles.heroStatItem}>
+              <Text style={styles.heroStatLabel}>ACCURACY</Text>
+              <Text style={styles.heroStatValCyan}>{winRate}%</Text>
+              <Text style={styles.heroStatSub}>Win Rate</Text>
+            </View>
+            <View style={styles.heroStatItem}>
+              <Text style={styles.heroStatLabel}>STREAK</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                <Flame size={14} color="#10b981" />
+                <Text style={styles.heroStatValEmerald}>{streakDays}d</Text>
+              </View>
+              <Text style={styles.heroStatSub}>Active</Text>
+            </View>
+          </View>
+
+          {/* Cognitive Mini Domain Bars */}
+          <View style={styles.domainRow}>
+            {[
+              { label: "Math", val: categoryProficiency.math, color: "#60a5fa" },
+              { label: "Memory", val: categoryProficiency.memory, color: "#f472b6" },
+              { label: "Logic", val: categoryProficiency.logic, color: "#c084fc" },
+              { label: "Pattern", val: categoryProficiency.pattern, color: "#34d399" },
+            ].map((d) => (
+              <View key={d.label} style={styles.domainItem}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                  <Text style={styles.domainLabel}>{d.label}</Text>
+                  <Text style={[styles.domainVal, { color: d.color }]}>{d.val}%</Text>
+                </View>
+                <View style={styles.domainBarBg}>
+                  <View style={[styles.domainBarFill, { width: `${d.val}%`, backgroundColor: d.color }]} />
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
         {/* Daily Brain Challenge Card */}
         <View style={styles.dailyCard}>
           <View style={styles.dailyHeader}>
@@ -316,6 +410,133 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     color: "#2563eb",
+  },
+  heroCard: {
+    margin: 16,
+    marginBottom: 10,
+    padding: 16,
+    borderRadius: 22,
+    backgroundColor: "#091224",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  rankPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  rankPillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  liveIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#34d399",
+  },
+  liveText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#94a3b8",
+  },
+  heroStatsGrid: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    marginBottom: 14,
+  },
+  heroStatItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  heroStatLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#94a3b8",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  heroStatValAmber: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: "#fbbf24",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  heroStatValWhite: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: "#ffffff",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  heroStatValCyan: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: "#38bdf8",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  heroStatValEmerald: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: "#34d399",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  heroStatSub: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: "#64748b",
+    marginTop: 1,
+  },
+  domainRow: {
+    flexDirection: "row",
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.1)",
+    paddingTop: 12,
+  },
+  domainItem: {
+    flex: 1,
+  },
+  domainLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#94a3b8",
+  },
+  domainVal: {
+    fontSize: 9,
+    fontWeight: "800",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  domainBarBg: {
+    height: 4,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  domainBarFill: {
+    height: "100%",
+    borderRadius: 2,
   },
   dailyCard: {
     margin: 16,

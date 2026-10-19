@@ -23,6 +23,10 @@ import {
   Sparkles,
   Flame,
   ArrowRight,
+  Lightbulb,
+  Pause,
+  Play,
+  Share2,
 } from "lucide-react-native";
 import {
   GAMES_CATALOG,
@@ -71,6 +75,33 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
 
+function getGameHint(gameId?: string): string {
+  switch (gameId) {
+    case "game-24":
+      return "💡 Strategy: Combine pairs to reach 6, 8, 3, or 4 first (since 6×4=24 and 8×3=24).";
+    case "game-2048":
+      return "💡 Corner Strategy: Keep your highest-value tile locked in one corner and avoid moving it away.";
+    case "magic-square":
+      return "💡 Magic Constant: Every row, column, and diagonal must sum to the same magic number. Center is 5.";
+    case "quick-calc":
+      return "💡 Mental Math: Multiplying by 5 is dividing by 2 and multiplying by 10 (46 × 5 = 23 × 10 = 230).";
+    case "number-bonds":
+      return "💡 Mental Complement: Look for numbers whose units digits add up to 10.";
+    case "nerdle":
+      return "💡 BODMAS Rule: Multiplication & Division evaluate before Addition & Subtraction.";
+    case "memory-matrix":
+      return "💡 Visual Chunking: Group illuminated tiles into recognizable shapes.";
+    case "sudoku":
+      return "💡 Elimination: Check rows and columns for missing single candidate numbers.";
+    case "minesweeper":
+      return "💡 Safe Move: A '1' touching only one hidden tile means it is guaranteed a mine.";
+    case "tower-of-hanoi":
+      return "💡 Hanoi Principle: A larger disk can never sit on a smaller disk.";
+    default:
+      return "💡 Analyze the constraints, eliminate impossible choices, and verify against standard math rules.";
+  }
+}
+
 export default function MobileGameArenaScreen() {
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
   const game = getGameById(gameId as GameId);
@@ -81,27 +112,48 @@ export default function MobileGameArenaScreen() {
   const [isWon, setIsWon] = useState(false);
   const [explanation, setExplanation] = useState("");
 
-  // Global Timer
+  const [combo, setCombo] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+
+  // Global Timer (Freezes on pause or game over)
   useEffect(() => {
-    if (isGameOver) return;
+    if (isGameOver || isPaused) return;
     const interval = setInterval(() => {
       setTimeSeconds((t) => t + 1);
     }, 1000);
     return () => clearInterval(interval);
-  }, [isGameOver]);
+  }, [isGameOver, isPaused]);
 
   const handleFinish = async (won: boolean, pts: number, exp?: string) => {
     setIsGameOver(true);
     setIsWon(won);
-    setScore(pts);
+    const ptsWithCombo = won && combo >= 2 ? Math.round(pts * (1 + combo * 0.1)) : pts;
+    setScore(ptsWithCombo);
     if (exp) setExplanation(exp);
 
-    // Save to local mobile stats
+    // Save full stats to local mobile storage
     try {
       const prev = await AsyncStorage.getItem("@odisha_rank_game_stats");
-      const current = prev ? JSON.parse(prev) : { brainScore: 550, totalPlayed: 0 };
-      current.totalPlayed += 1;
-      if (won) current.brainScore = Math.min(1000, current.brainScore + 10);
+      const current = prev
+        ? JSON.parse(prev)
+        : {
+            brainScore: 550,
+            totalPlayed: 0,
+            totalWins: 0,
+            streakDays: 1,
+            categoryProficiency: { math: 50, memory: 50, logic: 50, pattern: 50 },
+          };
+
+      current.totalPlayed = (current.totalPlayed || 0) + 1;
+      if (won) current.totalWins = (current.totalWins || 0) + 1;
+      if (won) current.brainScore = Math.min(1000, (current.brainScore || 550) + 15);
+      if (game?.category && current.categoryProficiency) {
+        current.categoryProficiency[game.category] = Math.min(
+          100,
+          (current.categoryProficiency[game.category] || 50) + (won ? 8 : 2)
+        );
+      }
       await AsyncStorage.setItem("@odisha_rank_game_stats", JSON.stringify(current));
     } catch {}
   };
@@ -243,9 +295,16 @@ export default function MobileGameArenaScreen() {
           <ArrowLeft size={18} color="#0f172a" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>{game.title}</Text>
-          <Text style={styles.headerSub}>{game.category} challenge</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{game.title}</Text>
+          <Text style={styles.headerSub}>{game.category} • cognitive drill</Text>
         </View>
+
+        {combo >= 2 && (
+          <View style={styles.comboPill}>
+            <Flame size={12} color="#f59e0b" />
+            <Text style={styles.comboPillText}>{combo}x</Text>
+          </View>
+        )}
 
         <View style={styles.timerChip}>
           <Clock size={12} color="#2563eb" />
@@ -254,10 +313,48 @@ export default function MobileGameArenaScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity onPress={handleReset} style={styles.restartBtn}>
+        <TouchableOpacity onPress={() => setShowHint((h) => !h)} style={styles.iconBtn}>
+          <Lightbulb size={16} color={showHint ? "#d97706" : "#64748b"} />
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => setIsPaused((p) => !p)} style={styles.iconBtn}>
+          {isPaused ? <Play size={16} color="#059669" /> : <Pause size={16} color="#64748b" />}
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleReset} style={styles.iconBtn}>
           <RotateCcw size={16} color="#64748b" />
         </TouchableOpacity>
       </View>
+
+      {/* Hint Strategy Banner */}
+      {showHint && (
+        <View style={styles.hintBanner}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <Lightbulb size={13} color="#b45309" />
+              <Text style={styles.hintTitle}>Strategy Tip</Text>
+            </View>
+            <TouchableOpacity onPress={() => setShowHint(false)}>
+              <X size={14} color="#78350f" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.hintBody}>{getGameHint(game.id)}</Text>
+        </View>
+      )}
+
+      {/* Pause Overlay */}
+      {isPaused && (
+        <View style={styles.pauseOverlay}>
+          <View style={styles.pauseCard}>
+            <Pause size={32} color="#2563eb" style={{ marginBottom: 8 }} />
+            <Text style={styles.pauseTitle}>Drill Paused</Text>
+            <Text style={styles.pauseSub}>Timer is frozen. Take a breath and resume whenever ready.</Text>
+            <TouchableOpacity onPress={() => setIsPaused(false)} style={styles.resumeBtn}>
+              <Text style={styles.resumeBtnText}>Resume Practice</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <ScrollView contentContainerStyle={styles.arenaContent}>
         {/* 1. 24 GAME */}
@@ -800,21 +897,40 @@ export default function MobileGameArenaScreen() {
         )}
       </ScrollView>
 
-      {/* Completion Modal */}
+      {/* Epic Completion Modal */}
       {isGameOver && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <View style={styles.modalTrophy}>
-              <Trophy size={32} color="#059669" />
+            <View style={[styles.modalTrophy, isWon ? styles.modalTrophyWon : styles.modalTrophyLost]}>
+              {isWon ? <Trophy size={32} color="#d97706" /> : <Sparkles size={32} color="#64748b" />}
             </View>
             <Text style={styles.modalTitle}>
-              {isWon ? "Challenge Completed!" : "Session Concluded"}
+              {isWon ? "Challenge Mastered!" : "Practice Concluded"}
             </Text>
-            <Text style={styles.modalScore}>+{score} Points Earned</Text>
+            <Text style={styles.modalScore}>
+              {isWon ? "+15 Brain Rating Awarded" : "Keep practicing to build agility"}
+            </Text>
+
+            <View style={styles.modalStatsRow}>
+              <View style={styles.modalStatItem}>
+                <Text style={styles.modalStatLabel}>SCORE</Text>
+                <Text style={styles.modalStatVal}>+{score}</Text>
+              </View>
+              <View style={styles.modalStatItem}>
+                <Text style={styles.modalStatLabel}>TIME</Text>
+                <Text style={styles.modalStatVal}>
+                  {Math.floor(timeSeconds / 60)}:{(timeSeconds % 60).toString().padStart(2, "0")}
+                </Text>
+              </View>
+              <View style={styles.modalStatItem}>
+                <Text style={styles.modalStatLabel}>STREAK</Text>
+                <Text style={styles.modalStatVal}>{combo >= 2 ? `${combo}x` : "1x"}</Text>
+              </View>
+            </View>
 
             {explanation ? (
               <View style={styles.expBox}>
-                <Text style={styles.expTitle}>Explanation:</Text>
+                <Text style={styles.expTitle}>Solution Method:</Text>
                 <Text style={styles.expBody}>{explanation}</Text>
               </View>
             ) : null}
@@ -833,6 +949,19 @@ export default function MobileGameArenaScreen() {
                 <Text style={[styles.modalBtnText, { color: "#ffffff" }]}>All Games</Text>
               </TouchableOpacity>
             </View>
+
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={() => {
+                Alert.alert(
+                  "OdishaRank Challenge",
+                  `Challenge copied! "I scored ${score} pts in ${game.title}! Can you beat my time?"`
+                );
+              }}
+            >
+              <Share2 size={14} color="#2563eb" />
+              <Text style={styles.shareBtnText}>Share Challenge</Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -1305,5 +1434,134 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     color: "#0f172a",
+  },
+  comboPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    backgroundColor: "#fef3c7",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#fde68a",
+  },
+  comboPillText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#d97706",
+  },
+  iconBtn: {
+    padding: 7,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+  },
+  hintBanner: {
+    backgroundColor: "#fef3c7",
+    padding: 10,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#fde68a",
+  },
+  hintTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#92400e",
+  },
+  hintBody: {
+    fontSize: 11,
+    color: "#78350f",
+    lineHeight: 16,
+  },
+  pauseOverlay: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 99,
+    padding: 24,
+  },
+  pauseCard: {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+  },
+  pauseTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  pauseSub: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  resumeBtn: {
+    backgroundColor: "#2563eb",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    width: "100%",
+    alignItems: "center",
+  },
+  resumeBtnText: {
+    color: "#ffffff",
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  modalStatsRow: {
+    flexDirection: "row",
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 10,
+    marginBottom: 14,
+    width: "100%",
+  },
+  modalStatItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  modalStatLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#64748b",
+  },
+  modalStatVal: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#0f172a",
+    marginTop: 2,
+  },
+  modalTrophyWon: {
+    backgroundColor: "#fef3c7",
+  },
+  modalTrophyLost: {
+    backgroundColor: "#f1f5f9",
+  },
+  shareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+    width: "100%",
+  },
+  shareBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#2563eb",
   },
 });
