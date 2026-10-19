@@ -18,6 +18,10 @@ import {
   FileText,
   Save,
 } from "lucide-react";
+import { StudentSidebar } from "@/components/StudentSidebar";
+import { StudentHeader } from "@/components/StudentHeader";
+import { StudyTimerModal } from "@/components/StudyTimerModal";
+import { CourseSelectModal } from "@/components/CourseSelectModal";
 
 interface ProfileClientProps {
   initialProfile: Profile;
@@ -28,6 +32,21 @@ export const ProfileClient: React.FC<ProfileClientProps> = ({
   initialProfile,
   exams,
 }) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showTimerModal, setShowTimerModal] = useState(false);
+  const [showCourseModal, setShowCourseModal] = useState(false);
+
+  const studentName = initialProfile?.full_name?.split(" ")[0] || "Aspirant";
+  const initials =
+    initialProfile?.full_name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2) || "OD";
+  const isUserAdmin =
+    initialProfile?.email?.toLowerCase() === "mrchinmayaswain07@gmail.com" ||
+    (initialProfile as any)?.role === "admin";
+
   const [profile, setProfile] = useState<Profile>(initialProfile);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -79,9 +98,36 @@ export const ProfileClient: React.FC<ProfileClientProps> = ({
   };
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
-      {/* Top Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-subtle flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+    <div className="min-h-screen bg-slate-50/50 flex">
+      {/* Desktop & Mobile Sidebar */}
+      <StudentSidebar />
+
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <StudentSidebar isMobile onCloseMobile={() => setMobileMenuOpen(false)} />
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <StudentHeader
+          onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          onOpenTimer={() => setShowTimerModal(true)}
+          onOpenCourseModal={() => setShowCourseModal(true)}
+          studentName={studentName}
+          initials={initials}
+          isUserAdmin={isUserAdmin}
+          email={profile?.email}
+          allExams={exams}
+        />
+
+        <main className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full space-y-8">
+          {/* Top Banner */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-subtle flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-2xl shadow-sm">
             {profile.full_name ? profile.full_name.charAt(0).toUpperCase() : "S"}
@@ -281,6 +327,24 @@ export const ProfileClient: React.FC<ProfileClientProps> = ({
           </Card>
         </div>
       )}
+        </main>
+      </div>
+
+      <StudyTimerModal
+        isOpen={showTimerModal}
+        onClose={() => setShowTimerModal(false)}
+        activeCourseName={selectedExam?.title}
+      />
+
+      {showCourseModal && (
+        <CourseSelectModal
+          isOpen={showCourseModal}
+          onClose={() => setShowCourseModal(false)}
+          currentExamId={profile.target_exam_id || null}
+          exams={exams}
+        />
+      )}
     </div>
   );
 };
+

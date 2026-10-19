@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Question, Subject, Exam } from "@/lib/types";
+import { Question, Subject, Exam, Profile } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -16,12 +16,17 @@ import {
   Filter,
   GraduationCap,
 } from "lucide-react";
+import { StudentSidebar } from "@/components/StudentSidebar";
+import { StudentHeader } from "@/components/StudentHeader";
+import { StudyTimerModal } from "@/components/StudyTimerModal";
+import { CourseSelectModal } from "@/components/CourseSelectModal";
 
 interface QuestionBankClientProps {
   initialQuestions: Question[];
   subjects: Subject[];
   allExams?: Exam[];
   activeExam?: Exam | null;
+  profile?: Profile | null;
 }
 
 export const QuestionBankClient: React.FC<QuestionBankClientProps> = ({
@@ -29,8 +34,24 @@ export const QuestionBankClient: React.FC<QuestionBankClientProps> = ({
   subjects,
   allExams = [],
   activeExam,
+  profile,
 }) => {
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showTimerModal, setShowTimerModal] = useState(false);
+  const [showCourseModal, setShowCourseModal] = useState(false);
+
+  const studentName = profile?.full_name?.split(" ")[0] || "Aspirant";
+  const initials =
+    profile?.full_name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2) || "OD";
+  const isUserAdmin =
+    profile?.email?.toLowerCase() === "mrchinmayaswain07@gmail.com" ||
+    (profile as any)?.role === "admin";
+
   const [questions] = useState<Question[]>(initialQuestions);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("all");
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("all");
@@ -84,8 +105,51 @@ export const QuestionBankClient: React.FC<QuestionBankClientProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Target Course Selector Bar */}
+    <div className="min-h-screen bg-slate-50/50 flex">
+      {/* Desktop & Mobile Sidebar */}
+      <StudentSidebar />
+
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <StudentSidebar isMobile onCloseMobile={() => setMobileMenuOpen(false)} />
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <StudentHeader
+          onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          onOpenTimer={() => setShowTimerModal(true)}
+          onOpenCourseModal={() => setShowCourseModal(true)}
+          studentName={studentName}
+          initials={initials}
+          isUserAdmin={isUserAdmin}
+          email={profile?.email}
+          allExams={allExams}
+        />
+
+        <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
+          {/* Header Banner */}
+          <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-blue-900 via-indigo-950 to-slate-900 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 font-bold text-xs mb-3">
+                <Sparkles className="w-3.5 h-3.5 text-blue-300" />
+                <span>Interactive MCQ Question Bank</span>
+              </span>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                Practice Questions with Instant Explanations
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed">
+                Test your knowledge across official Odisha competitive exam patterns with timed practice, automated negative marking (-0.25), and detailed step-by-step verified explanations.
+              </p>
+            </div>
+          </div>
+
+          {/* Target Course Selector Bar */}
       {allExams && allExams.length > 0 && (
         <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -336,6 +400,24 @@ export const QuestionBankClient: React.FC<QuestionBankClientProps> = ({
           </div>
         )}
       </div>
+        </main>
+      </div>
+
+      <StudyTimerModal
+        isOpen={showTimerModal}
+        onClose={() => setShowTimerModal(false)}
+        activeCourseName={activeExam?.title}
+      />
+
+      {showCourseModal && (
+        <CourseSelectModal
+          isOpen={showCourseModal}
+          onClose={() => setShowCourseModal(false)}
+          currentExamId={activeExam?.id || null}
+          exams={allExams}
+        />
+      )}
     </div>
   );
 };
+

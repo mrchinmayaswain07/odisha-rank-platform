@@ -34,9 +34,6 @@ export default async function ProfilePage() {
 
   const exams = await getExams();
 
-  return (
-    <div className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <ProfileClient initialProfile={profile} exams={exams} />
-    </div>
-  );
+  return <ProfileClient initialProfile={profile} exams={exams} />;
 }
+

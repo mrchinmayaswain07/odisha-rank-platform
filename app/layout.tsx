@@ -72,9 +72,19 @@ export default async function RootLayout({
     const pathname = headerList.get("x-pathname") || "";
     const isPortalRoute =
       pathname.startsWith("/admin") ||
-      ["/dashboard", "/planner", "/courses", "/materials", "/performance", "/bookmarks", "/doubts", "/speed-math"].includes(
-        pathname
-      );
+      [
+        "/dashboard",
+        "/planner",
+        "/courses",
+        "/materials",
+        "/performance",
+        "/bookmarks",
+        "/doubts",
+        "/speed-math",
+        "/mock-tests",
+        "/questions",
+        "/profile",
+      ].some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
     // Zero-latency optimization: Navbar and Footer return null on portal/admin routes.
     // Completely bypass DB queries on portal routes!

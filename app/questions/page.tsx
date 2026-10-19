@@ -1,17 +1,14 @@
 import React from "react";
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { getQuestions, getSubjects, getExams, getStudentProfile } from "@/lib/data-service";
 import { QuestionBankClient } from "./QuestionBankClient";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/lib/auth-server";
 
 export const metadata: Metadata = {
-  title: "Question Bank & Interactive Practice",
+  title: "Question Bank & Interactive Practice | OdishaRank",
   description: "Practice verified MCQs for Odisha Government competitive exams with instant evaluation and detailed explanations.",
 };
-
-import { redirect } from "next/navigation";
-
-import { getAuthenticatedUser } from "@/lib/auth-server";
 
 export default async function QuestionsPage({
   searchParams,
@@ -27,7 +24,7 @@ export default async function QuestionsPage({
   // Parallel fetch: all exams & student profile
   const [allExams, profile] = await Promise.all([
     getExams(),
-    user ? getStudentProfile(user.id) : null,
+    getStudentProfile(user.id),
   ]);
 
   // Determine active course
@@ -46,23 +43,12 @@ export default async function QuestionsPage({
   ]);
 
   return (
-    <div className="py-12 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-          Odisha Competitive Question Bank
-        </h1>
-        <p className="text-sm text-slate-600 mt-2">
-          Practice multiple-choice questions curated for OSSC, OSSSC, and OPSC examinations.
-          Select an option to immediately evaluate your answer and study the detailed explanation.
-        </p>
-      </div>
-
-      <QuestionBankClient
-        initialQuestions={questions}
-        subjects={subjects}
-        allExams={allExams}
-        activeExam={activeExam}
-      />
-    </div>
+    <QuestionBankClient
+      profile={profile}
+      initialQuestions={questions}
+      subjects={subjects}
+      allExams={allExams}
+      activeExam={activeExam}
+    />
   );
 }

@@ -40,6 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<NavbarUser | null>(user || null);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -56,13 +57,64 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Sync and hydrate user state seamlessly on client-side navigation
+  useEffect(() => {
+    if (user) {
+      setCurrentUser(user);
+    } else {
+      const supabase = createClient();
+      supabase.auth.getUser().then(({ data }) => {
+        if (data?.user) {
+          const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
+          const isRoot = data.user.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
+          setCurrentUser({
+            id: data.user.id,
+            email: data.user.email || null,
+            fullName: data.user.user_metadata?.full_name || data.user.email?.split("@")[0] || "Student",
+            isAdmin: isRoot,
+          });
+        }
+      });
+    }
+
+    const supabase = createClient();
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const ROOT_ADMIN_EMAIL = "mrchinmayaswain07@gmail.com";
+        const isRoot = session.user.email?.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase();
+        setCurrentUser({
+          id: session.user.id,
+          email: session.user.email || null,
+          fullName: session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Student",
+          isAdmin: isRoot,
+        });
+      } else if (!session) {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
+  }, [user]);
+
   // Suppress public student navigation on administrative routes and dedicated student portal pages
   // NOTE: Must be evaluated AFTER all React hooks are executed unconditionally to satisfy React Rules of Hooks
   const isPortalRoute =
     pathname?.startsWith("/admin") ||
-    ["/dashboard", "/planner", "/courses", "/materials", "/performance", "/bookmarks", "/doubts", "/speed-math"].includes(
-      pathname || ""
-    );
+    [
+      "/dashboard",
+      "/planner",
+      "/courses",
+      "/materials",
+      "/performance",
+      "/bookmarks",
+      "/doubts",
+      "/speed-math",
+      "/mock-tests",
+      "/questions",
+      "/profile",
+    ].some((p) => pathname === p || pathname?.startsWith(`${p}/`));
 
   if (isPortalRoute) {
     return null;
@@ -121,7 +173,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
     }
   };
 
-  const userDisplayName = user?.fullName || user?.email?.split("@")[0] || "Student";
+  const userDisplayName = currentUser?.fullName || currentUser?.email?.split("@")[0] || "Student";
   const userInitials = userDisplayName.charAt(0).toUpperCase();
 
   return (
@@ -177,7 +229,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
 
           {/* Right Action Area */}
           <div className="hidden sm:flex items-center gap-3">
-            {user ? (
+            {currentUser ? (
               <div className="flex items-center gap-2" ref={dropdownRef}>
                 <Link href="/dashboard">
                   <Button variant="primary" size="sm" className="gap-1.5">
@@ -212,9 +264,9 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
                           {userDisplayName}
                         </p>
                         <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                          {user.email || "Student Account"}
+                          {currentUser.email || "Student Account"}
                         </p>
-                        {user.isAdmin && (
+                        {currentUser.isAdmin && (
                           <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-fit">
                             <ShieldCheck className="w-3 h-3 text-emerald-600" />
                             <span>System Administrator</span>
@@ -241,7 +293,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
                           <span>Profile & Target Course</span>
                         </Link>
 
-                        {user.isAdmin && (
+                        {currentUser.isAdmin && (
                           <Link
                             href="/admin"
                             onClick={() => setUserDropdownOpen(false)}
@@ -312,7 +364,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
       {mobileMenuOpen && (
         <div className="md:hidden border-b border-slate-200 bg-white px-4 pt-3 pb-6 space-y-4 shadow-lg animate-in fade-in slide-in-from-top-2">
           {/* Mobile User Banner */}
-          {user && (
+          {currentUser && (
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm">
@@ -320,10 +372,10 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
                 </div>
                 <div>
                   <div className="text-sm font-bold text-slate-900">{userDisplayName}</div>
-                  <div className="text-xs text-slate-500 truncate max-w-[180px]">{user.email}</div>
+                  <div className="text-xs text-slate-500 truncate max-w-[180px]">{currentUser.email}</div>
                 </div>
               </div>
-              {user.isAdmin && (
+              {currentUser.isAdmin && (
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
                   Admin
                 </span>
