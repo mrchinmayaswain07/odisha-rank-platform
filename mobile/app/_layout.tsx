@@ -53,6 +53,8 @@ export default function RootLayout() {
           <Stack.Screen name="material/[materialId]" options={{ headerShown: false }} />
           <Stack.Screen name="mock-test/[testId]" options={{ headerShown: false }} />
           <Stack.Screen name="mock-test/[testId]/result" options={{ headerShown: false }} />
+          <Stack.Screen name="games/index" options={{ headerShown: false }} />
+          <Stack.Screen name="games/[gameId]" options={{ headerShown: false }} />
         </Stack>
       </AuthProvider>
     </SafeAreaProvider>

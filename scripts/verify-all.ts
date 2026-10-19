@@ -1065,6 +1065,117 @@ async function runTests() {
     assert(evaluated.speedRating === "👍 Solid Pace", "75% accuracy and 2.2s pace rated as Solid Pace");
   }
 
+  // TEST 25: GAMES & BRAIN TRAINING (32 COGNITIVE ENGINES & REASONING DRILLS)
+  console.log("\n25. GAMES & BRAIN TRAINING (32 COGNITIVE ENGINES & REASONING DRILLS)");
+  {
+    const {
+      GAMES_CATALOG,
+      filterGames,
+      generate24GamePuzzle,
+      validate24GameExpression,
+      init2048Game,
+      slide2048,
+      generateMagicSquarePuzzle,
+      validateMagicSquare,
+      generateNumberBonds,
+      generateNerdlePuzzle,
+      evaluateNerdleGuess,
+      generateSudokuPuzzle,
+      validateSudokuCell,
+      initMinesweeper,
+      placeMinesSafeFirstClick,
+      initTowerOfHanoi,
+      generateBinaryPuzzle,
+      validateBinaryPuzzle,
+      generateNumberSequenceQuestion,
+      generateOddOneOutQuestion,
+      generateMissingOperatorQuestion,
+    } = await import("../packages/shared/src/index");
+
+    const { getStudentGameProfile, saveGameSessionResult, getDailyBrainChallenge } = await import("../lib/games-service");
+
+    // 1. Catalogue Completeness
+    assert(GAMES_CATALOG.length === 32, "Catalog contains exactly all 32 games");
+    const free = GAMES_CATALOG.filter((g: any) => g.access === "free");
+    const premium = GAMES_CATALOG.filter((g: any) => g.access === "premium");
+    assert(free.length === 20, "Contains exactly 20 Free games matching reference");
+    assert(premium.length === 12, "Contains exactly 12 Premium games matching reference");
+
+    const math = GAMES_CATALOG.filter((g: any) => g.category === "math");
+    const memory = GAMES_CATALOG.filter((g: any) => g.category === "memory");
+    const logic = GAMES_CATALOG.filter((g: any) => g.category === "logic");
+    const pattern = GAMES_CATALOG.filter((g: any) => g.category === "pattern");
+
+    assert(math.length === 15, "15 Math games registered");
+    assert(memory.length === 3, "3 Memory games registered");
+    assert(logic.length === 8, "8 Logic games registered");
+    assert(pattern.length === 6, "6 Pattern games registered");
+
+    // 2. Engine Correctness
+    const p24 = generate24GamePuzzle("easy");
+    const val24 = validate24GameExpression(p24.solution.replace("= 24", "").trim(), p24.numbers);
+    assert(val24.valid, "24 Game validates legitimate solutions");
+
+    const g2048 = init2048Game();
+    assert(g2048.board.length === 4, "2048 initializes 4x4 matrix");
+
+    const ms = generateMagicSquarePuzzle("easy");
+    assert(validateMagicSquare(ms.solution, 15).valid, "Magic Square validates magic sum 15");
+
+    const nb = generateNumberBonds(100, 6);
+    assert(nb.cards.length === 12, "Number bonds generates 12 cards for 6 pairs");
+
+    const nerdle = generateNerdlePuzzle();
+    const evNerdle = evaluateNerdleGuess(nerdle.solutionEquation, nerdle.solutionEquation);
+    assert(Boolean(evNerdle.valid && evNerdle.statuses?.every((s: any) => s === "correct")), "Nerdle evaluates valid equations");
+
+    const sud = generateSudokuPuzzle("easy");
+    assert(validateSudokuCell(sud.solution, 0, 0, sud.solution[0][0]), "Sudoku validates board constraints");
+
+    let msweeper = initMinesweeper(8, 8, 10);
+    msweeper = placeMinesSafeFirstClick(msweeper, 2, 2);
+    assert(!msweeper.grid[2][2].isMine, "Minesweeper guarantees first-click safety");
+
+    const hanoi = initTowerOfHanoi(3);
+    assert(hanoi.optimalMoves === 7, "Tower of Hanoi evaluates 2^n - 1 = 7 optimal moves");
+
+    const bin = generateBinaryPuzzle();
+    assert(validateBinaryPuzzle(bin.solution).valid, "Binary Puzzle Takuzu rules validated");
+
+    const nseq = generateNumberSequenceQuestion();
+    assert(nseq.options.includes(nseq.correctAnswer), "Number Sequence includes intended answer");
+
+    const odd = generateOddOneOutQuestion();
+    assert(odd.numbers.includes(odd.outlier), "Odd One Out contains authentic mathematical outlier");
+
+    const mop = generateMissingOperatorQuestion();
+    assert(mop.options.includes(`${mop.correctOp1} , ${mop.correctOp2}`), "Missing operator contains correct operators");
+
+    // 3. Daily Brain Challenge & Student Profile
+    const daily = getDailyBrainChallenge();
+    assert(daily.games.length === 3, "Daily Challenge provides exactly 3 curated games");
+    assert(daily.bonusXp === 50, "Daily Challenge awards 50 bonus XP");
+
+    const dummyUser = `test-gamer-${Date.now()}`;
+    const prof = await getStudentGameProfile(dummyUser);
+    assert(prof.brainScore >= 400 && prof.brainScore <= 1000, "Student initial Brain Score is within valid 400-1000 range");
+
+    const sessionRes = await saveGameSessionResult(dummyUser, {
+      gameId: "game-24",
+      category: "math",
+      difficulty: "easy",
+      score: 100,
+      timeSeconds: 45,
+      moves: 4,
+      accuracy: 100,
+      won: true,
+      explanation: "3 * 8 = 24",
+    });
+    assert(sessionRes.profile.totalGamesPlayed === 1, "Student total games played increments to 1");
+    assert(sessionRes.profile.totalWins === 1, "Student total wins increments to 1");
+    assert(sessionRes.newAchievements.some((a: any) => a.id === "first_game"), "First game achievement unlocks on first play");
+  }
+
   console.log("\n=================================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
   console.log("=================================================");

@@ -31,6 +31,7 @@ import {
   Play,
   Check,
   Zap,
+  Gamepad2,
 } from "lucide-react-native";
 import { BRAND_COLORS, DashboardMetrics } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
@@ -573,6 +574,16 @@ export default function DashboardScreen() {
                 <Award size={18} color="#ffffff" />
                 <Text style={styles.actionCardTitle}>Take Mock Test</Text>
                 <Text style={styles.actionCardSub}>Timed simulation</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: "#ea580c" }]}
+                onPress={() => router.push("/games" as any)}
+                activeOpacity={0.8}
+              >
+                <Gamepad2 size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Brain Games</Text>
+                <Text style={styles.actionCardSub}>32 Mental Puzzles</Text>
               </TouchableOpacity>
             </View>
 

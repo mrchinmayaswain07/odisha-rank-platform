@@ -17,6 +17,7 @@ import {
   User,
   ShieldCheck,
   Zap,
+  Gamepad2,
   X,
 } from "lucide-react";
 
@@ -46,7 +47,12 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
       name: "Speed Math & BODMAS",
       href: "/speed-math",
       icon: Zap,
-      badge: "NEW",
+    },
+    {
+      name: "Games & Brain Training",
+      href: "/games",
+      icon: Gamepad2,
+      badge: "32 GAMES",
     },
     {
       name: "Practice Questions",

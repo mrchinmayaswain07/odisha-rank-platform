@@ -22,6 +22,7 @@ export const Footer: React.FC = () => {
       "/bookmarks",
       "/doubts",
       "/speed-math",
+      "/games",
       "/mock-tests",
       "/questions",
       "/profile",

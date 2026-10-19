@@ -1,0 +1,706 @@
+{
+  "profiles": {
+    "test-gamer-1792412076524": {
+      "userId": "test-gamer-1792412076524",
+      "totalGamesPlayed": 1,
+      "totalWins": 1,
+      "totalTimeSeconds": 45,
+      "currentStreakDays": 1,
+      "bestStreakDays": 1,
+      "lastActiveDate": "2026-10-19",
+      "brainScore": 706,
+      "categoryProficiency": {
+        "math": 55,
+        "memory": 50,
+        "logic": 50,
+        "pattern": 50
+      },
+      "gameStats": {
+        "game-24": {
+          "gameId": "game-24",
+          "playedCount": 1,
+          "wonCount": 1,
+          "bestScore": 100,
+          "bestTimeSeconds": 45,
+          "lastPlayedAt": "2026-10-19T12:14:36.527Z"
+        },
+        "game-2048": {
+          "gameId": "game-2048",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "magic-square": {
+          "gameId": "magic-square",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "kakuro": {
+          "gameId": "kakuro",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "number-bonds": {
+          "gameId": "number-bonds",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "nerdle": {
+          "gameId": "nerdle",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "countdown-numbers": {
+          "gameId": "countdown-numbers",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "memory-matrix": {
+          "gameId": "memory-matrix",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "symbol-match": {
+          "gameId": "symbol-match",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "sequence-master": {
+          "gameId": "sequence-master",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "sudoku": {
+          "gameId": "sudoku",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "minesweeper": {
+          "gameId": "minesweeper",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "kenken": {
+          "gameId": "kenken",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "binary-puzzle": {
+          "gameId": "binary-puzzle",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "tower-of-hanoi": {
+          "gameId": "tower-of-hanoi",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "lights-out": {
+          "gameId": "lights-out",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "killer-sudoku": {
+          "gameId": "killer-sudoku",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "futoshiki": {
+          "gameId": "futoshiki",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "numberle": {
+          "gameId": "numberle",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "nonogram": {
+          "gameId": "nonogram",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "cryptarithm": {
+          "gameId": "cryptarithm",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "number-sequence": {
+          "gameId": "number-sequence",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "odd-one-out": {
+          "gameId": "odd-one-out",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "missing-operator": {
+          "gameId": "missing-operator",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "quick-calc": {
+          "gameId": "quick-calc",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "math-crossword": {
+          "gameId": "math-crossword",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "approximation": {
+          "gameId": "approximation",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "average-race": {
+          "gameId": "average-race",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "percentage-blitz": {
+          "gameId": "percentage-blitz",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "speed-comparison": {
+          "gameId": "speed-comparison",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "simplification-sprint": {
+          "gameId": "simplification-sprint",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "factor-finder": {
+          "gameId": "factor-finder",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        }
+      },
+      "recentGames": [
+        {
+          "gameId": "game-24",
+          "category": "math",
+          "difficulty": "easy",
+          "score": 100,
+          "timeSeconds": 45,
+          "moves": 4,
+          "accuracy": 100,
+          "won": true,
+          "explanation": "3 * 8 = 24",
+          "completedAt": "2026-10-19T12:14:36.527Z",
+          "personalRecord": true
+        }
+      ],
+      "achievements": [
+        {
+          "id": "first_game",
+          "title": "First Step",
+          "description": "Play your very first brain training game.",
+          "iconName": "Sparkles",
+          "category": "general",
+          "unlockedAt": "2026-10-19T12:14:36.527Z",
+          "progress": 100
+        },
+        {
+          "id": "math_wizard",
+          "title": "Math Wizard",
+          "description": "Win 5 different Math games with >80% accuracy.",
+          "iconName": "Calculator",
+          "category": "math",
+          "unlockedAt": null,
+          "progress": 20
+        },
+        {
+          "id": "logic_master",
+          "title": "Grand Inquisitor",
+          "description": "Solve Sudoku, Minesweeper, or KenKen on Medium or Hard.",
+          "iconName": "Brain",
+          "category": "logic",
+          "unlockedAt": null,
+          "progress": 0
+        },
+        {
+          "id": "memory_titan",
+          "title": "Photographic Mind",
+          "description": "Reach Level 5 in Memory Matrix or 6 in Sequence Master.",
+          "iconName": "Zap",
+          "category": "memory",
+          "unlockedAt": null,
+          "progress": 0
+        },
+        {
+          "id": "streak_champion",
+          "title": "Daily Challenger",
+          "description": "Complete all 3 games in the Daily Brain Challenge.",
+          "iconName": "Trophy",
+          "category": "general",
+          "unlockedAt": null,
+          "progress": 0
+        }
+      ]
+    },
+    "test-gamer-1792412161516": {
+      "userId": "test-gamer-1792412161516",
+      "totalGamesPlayed": 1,
+      "totalWins": 1,
+      "totalTimeSeconds": 45,
+      "currentStreakDays": 1,
+      "bestStreakDays": 1,
+      "lastActiveDate": "2026-10-19",
+      "brainScore": 706,
+      "categoryProficiency": {
+        "math": 55,
+        "memory": 50,
+        "logic": 50,
+        "pattern": 50
+      },
+      "gameStats": {
+        "game-24": {
+          "gameId": "game-24",
+          "playedCount": 1,
+          "wonCount": 1,
+          "bestScore": 100,
+          "bestTimeSeconds": 45,
+          "lastPlayedAt": "2026-10-19T12:16:01.519Z"
+        },
+        "game-2048": {
+          "gameId": "game-2048",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "magic-square": {
+          "gameId": "magic-square",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "kakuro": {
+          "gameId": "kakuro",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "number-bonds": {
+          "gameId": "number-bonds",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "nerdle": {
+          "gameId": "nerdle",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "countdown-numbers": {
+          "gameId": "countdown-numbers",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "memory-matrix": {
+          "gameId": "memory-matrix",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "symbol-match": {
+          "gameId": "symbol-match",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "sequence-master": {
+          "gameId": "sequence-master",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "sudoku": {
+          "gameId": "sudoku",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "minesweeper": {
+          "gameId": "minesweeper",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "kenken": {
+          "gameId": "kenken",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "binary-puzzle": {
+          "gameId": "binary-puzzle",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "tower-of-hanoi": {
+          "gameId": "tower-of-hanoi",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "lights-out": {
+          "gameId": "lights-out",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "killer-sudoku": {
+          "gameId": "killer-sudoku",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "futoshiki": {
+          "gameId": "futoshiki",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "numberle": {
+          "gameId": "numberle",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "nonogram": {
+          "gameId": "nonogram",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "cryptarithm": {
+          "gameId": "cryptarithm",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "number-sequence": {
+          "gameId": "number-sequence",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "odd-one-out": {
+          "gameId": "odd-one-out",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "missing-operator": {
+          "gameId": "missing-operator",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "quick-calc": {
+          "gameId": "quick-calc",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "math-crossword": {
+          "gameId": "math-crossword",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "approximation": {
+          "gameId": "approximation",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "average-race": {
+          "gameId": "average-race",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "percentage-blitz": {
+          "gameId": "percentage-blitz",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "speed-comparison": {
+          "gameId": "speed-comparison",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "simplification-sprint": {
+          "gameId": "simplification-sprint",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        },
+        "factor-finder": {
+          "gameId": "factor-finder",
+          "playedCount": 0,
+          "wonCount": 0,
+          "bestScore": 0,
+          "bestTimeSeconds": 0,
+          "lastPlayedAt": ""
+        }
+      },
+      "recentGames": [
+        {
+          "gameId": "game-24",
+          "category": "math",
+          "difficulty": "easy",
+          "score": 100,
+          "timeSeconds": 45,
+          "moves": 4,
+          "accuracy": 100,
+          "won": true,
+          "explanation": "3 * 8 = 24",
+          "completedAt": "2026-10-19T12:16:01.519Z",
+          "personalRecord": true
+        }
+      ],
+      "achievements": [
+        {
+          "id": "first_game",
+          "title": "First Step",
+          "description": "Play your very first brain training game.",
+          "iconName": "Sparkles",
+          "category": "general",
+          "unlockedAt": "2026-10-19T12:16:01.519Z",
+          "progress": 100
+        },
+        {
+          "id": "math_wizard",
+          "title": "Math Wizard",
+          "description": "Win 5 different Math games with >80% accuracy.",
+          "iconName": "Calculator",
+          "category": "math",
+          "unlockedAt": null,
+          "progress": 20
+        },
+        {
+          "id": "logic_master",
+          "title": "Grand Inquisitor",
+          "description": "Solve Sudoku, Minesweeper, or KenKen on Medium or Hard.",
+          "iconName": "Brain",
+          "category": "logic",
+          "unlockedAt": null,
+          "progress": 0
+        },
+        {
+          "id": "memory_titan",
+          "title": "Photographic Mind",
+          "description": "Reach Level 5 in Memory Matrix or 6 in Sequence Master.",
+          "iconName": "Zap",
+          "category": "memory",
+          "unlockedAt": null,
+          "progress": 0
+        },
+        {
+          "id": "streak_champion",
+          "title": "Daily Challenger",
+          "description": "Complete all 3 games in the Daily Brain Challenge.",
+          "iconName": "Trophy",
+          "category": "general",
+          "unlockedAt": null,
+          "progress": 0
+        }
+      ]
+    }
+  },
+  "sessions": [
+    {
+      "gameId": "game-24",
+      "category": "math",
+      "difficulty": "easy",
+      "score": 100,
+      "timeSeconds": 45,
+      "moves": 4,
+      "accuracy": 100,
+      "won": true,
+      "explanation": "3 * 8 = 24",
+      "completedAt": "2026-10-19T12:14:36.527Z",
+      "personalRecord": true,
+      "userId": "test-gamer-1792412076524"
+    },
+    {
+      "gameId": "game-24",
+      "category": "math",
+      "difficulty": "easy",
+      "score": 100,
+      "timeSeconds": 45,
+      "moves": 4,
+      "accuracy": 100,
+      "won": true,
+      "explanation": "3 * 8 = 24",
+      "completedAt": "2026-10-19T12:16:01.519Z",
+      "personalRecord": true,
+      "userId": "test-gamer-1792412161516"
+    }
+  ]
+}

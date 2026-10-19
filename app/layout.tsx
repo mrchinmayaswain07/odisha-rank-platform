@@ -81,6 +81,7 @@ export default async function RootLayout({
         "/bookmarks",
         "/doubts",
         "/speed-math",
+        "/games",
         "/mock-tests",
         "/questions",
         "/profile",

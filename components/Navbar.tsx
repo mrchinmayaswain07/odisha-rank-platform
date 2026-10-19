@@ -111,6 +111,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
       "/bookmarks",
       "/doubts",
       "/speed-math",
+      "/games",
       "/mock-tests",
       "/questions",
       "/profile",
