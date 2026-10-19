@@ -381,47 +381,6 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* 3. Target Course Progress Banner */}
-            <View style={styles.courseBanner}>
-              <View style={styles.courseHeader}>
-                <View style={styles.badgeRow}>
-                  <Badge
-                    label={activeExam?.conducting_body || "Odisha State Cadre"}
-                    variant="blue"
-                    size="sm"
-                  />
-                  <Text style={styles.subtext}>Official Syllabus</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => router.push("/course-select")}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.changeCourseLink}>Switch</Text>
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.courseTitle}>
-                {activeExam?.title || "Choose Your Target Exam"}
-              </Text>
-
-              <View style={styles.progressSection}>
-                <View style={styles.progressRow}>
-                  <Text style={styles.progressLabel}>Official Syllabus Coverage</Text>
-                  <Text style={styles.progressPercent}>
-                    {metrics?.official_progress_percentage || 0}%
-                  </Text>
-                </View>
-                <ProgressBar
-                  progress={metrics?.official_progress_percentage || 0}
-                  color="blue"
-                  height={8}
-                />
-                <Text style={styles.progressNote}>
-                  {metrics?.completed_official_topics || 0} of{" "}
-                  {metrics?.total_official_topics || 0} topics completed
-                </Text>
-              </View>
-            </View>
 
             {/* 4. Today's Study Plan (Dynamic & Toggleable) */}
             <View style={styles.planCard}>

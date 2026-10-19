@@ -649,12 +649,12 @@ const styles = StyleSheet.create({
   gridContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
-    gap: 12,
     marginTop: 10,
   },
   gameCard: {
-    width: CARD_WIDTH,
+    width: "48.5%",
     backgroundColor: "#ffffff",
     borderRadius: 16,
     padding: 12,
@@ -662,6 +662,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
     justifyContent: "space-between",
     minHeight: 160,
+    marginBottom: 12,
   },
   cardTopRow: {
     flexDirection: "row",
