@@ -56,7 +56,9 @@ export default function MaterialDetailScreen() {
     }
   };
 
-  const hasExternalPdf = Boolean(material?.file_url || (material?.url && material.url.endsWith(".pdf")));
+  const targetUrl = material?.file_url || material?.url;
+  const isGoogleDrive = Boolean(targetUrl?.includes("drive.google.com") || targetUrl?.includes("docs.google.com"));
+  const hasExternalDoc = Boolean(targetUrl && (targetUrl.startsWith("http://") || targetUrl.startsWith("https://") || targetUrl.endsWith(".pdf")));
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -76,16 +78,18 @@ export default function MaterialDetailScreen() {
                 variant="blue"
                 size="sm"
               />
-              {material.category ? (
+              {isGoogleDrive ? (
+                <Badge label="Google Drive" variant="amber" size="sm" />
+              ) : material.category ? (
                 <Badge label={material.category} variant="slate" size="sm" />
               ) : null}
             </View>
 
             <Text style={styles.title}>{material.title}</Text>
 
-            {hasExternalPdf && (
+            {hasExternalDoc && (
               <Button
-                title="Open Official PDF Document"
+                title={isGoogleDrive ? "Open in Google Drive" : "Open Document / PDF"}
                 onPress={handleOpenPdf}
                 size="md"
                 variant="outline"

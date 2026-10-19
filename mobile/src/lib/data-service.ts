@@ -191,13 +191,13 @@ export async function getStudyMaterials(
     try {
       let query = supabase
         .from("study_materials")
-        .select("id, topic_id, title, material_type, url, is_official, status, description, category, file_url, file_size, exam_id, subject_id, chapter_id, published_at, created_at, created_by")
+        .select("*")
         .neq("status", "archived")
         .order("created_at", { ascending: false });
 
       if (filters?.topicId) query = query.eq("topic_id", filters.topicId);
       if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
-      if (filters?.examId) query = query.eq("exam_id", filters.examId);
+      if (filters?.examId && filters.examId !== "all") query = query.eq("exam_id", filters.examId);
       if (filters?.search) {
         query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
       }
@@ -875,6 +875,26 @@ export async function createAdminMaterial(payload: {
 
   if (error) throw error;
   return data;
+}
+
+/**
+ * Delete a Study Material / Notes / PDF
+ */
+export async function deleteAdminMaterial(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from("study_materials")
+      .delete()
+      .eq("id", id);
+    if (error) {
+      console.warn("deleteAdminMaterial error:", error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn("deleteAdminMaterial exception:", e);
+    return false;
+  }
 }
 
 /**

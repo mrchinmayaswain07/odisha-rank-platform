@@ -277,37 +277,87 @@ export async function getTopics(chapterId?: string, userId?: string, includeAllS
   }
 }
 
-// In-memory runtime materials cache for instant dynamic reflection and offline resilience
-let RUNTIME_MATERIALS: StudyMaterial[] = [...SEED_MATERIALS];
+import * as fs from "fs";
+import * as path from "path";
+
+const MATERIALS_FILE_PATH = path.join(process.cwd(), "data", "study-materials.json");
+
+function loadFileMaterials(): StudyMaterial[] {
+  if (typeof window !== "undefined") return [];
+  try {
+    if (fs.existsSync(MATERIALS_FILE_PATH)) {
+      const content = fs.readFileSync(MATERIALS_FILE_PATH, "utf-8");
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
+function saveFileMaterials(materials: StudyMaterial[]): void {
+  if (typeof window !== "undefined") return;
+  try {
+    const dir = path.dirname(MATERIALS_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(MATERIALS_FILE_PATH, JSON.stringify(materials, null, 2), "utf-8");
+  } catch {}
+}
+
+// In-memory runtime materials cache synchronized with persistent disk storage
+const initialFileMaterials = loadFileMaterials();
+let RUNTIME_MATERIALS: StudyMaterial[] = initialFileMaterials.length > 0 ? initialFileMaterials : [...SEED_MATERIALS];
+if (initialFileMaterials.length === 0) {
+  saveFileMaterials(RUNTIME_MATERIALS);
+}
 
 export function getRuntimeMaterials(): StudyMaterial[] {
+  const fileMats = loadFileMaterials();
+  if (fileMats.length > 0) {
+    RUNTIME_MATERIALS = fileMats;
+  }
   return RUNTIME_MATERIALS;
 }
 
 export function saveRuntimeMaterial(mat: StudyMaterial): StudyMaterial {
   invalidateCatalogCache("materials_");
-  const existingIdx = RUNTIME_MATERIALS.findIndex((m) => m.id === mat.id);
+  const currentList = getRuntimeMaterials();
+  const existingIdx = currentList.findIndex((m) => m.id === mat.id);
   if (existingIdx >= 0) {
-    RUNTIME_MATERIALS[existingIdx] = { ...RUNTIME_MATERIALS[existingIdx], ...mat };
-    return RUNTIME_MATERIALS[existingIdx];
+    currentList[existingIdx] = { ...currentList[existingIdx], ...mat };
+    saveFileMaterials(currentList);
+    return currentList[existingIdx];
   } else {
-    RUNTIME_MATERIALS.unshift(mat);
+    currentList.unshift(mat);
+    saveFileMaterials(currentList);
     return mat;
   }
 }
 
-export function updateRuntimeMaterialStatus(id: string, status: "draft" | "published" | "archived"): boolean {
+export function deleteRuntimeMaterial(id: string): boolean {
   invalidateCatalogCache("materials_");
-  const existingIdx = RUNTIME_MATERIALS.findIndex((m) => m.id === id);
+  const currentList = getRuntimeMaterials();
+  const existingIdx = currentList.findIndex((m) => m.id === id);
   if (existingIdx >= 0) {
-    RUNTIME_MATERIALS[existingIdx].status = status;
+    currentList.splice(existingIdx, 1);
+    saveFileMaterials(currentList);
     return true;
   }
   return false;
 }
 
-import * as fs from "fs";
-import * as path from "path";
+export function updateRuntimeMaterialStatus(id: string, status: "draft" | "published" | "archived"): boolean {
+  invalidateCatalogCache("materials_");
+  const currentList = getRuntimeMaterials();
+  const existingIdx = currentList.findIndex((m) => m.id === id);
+  if (existingIdx >= 0) {
+    currentList[existingIdx].status = status;
+    saveFileMaterials(currentList);
+    return true;
+  }
+  return false;
+}
 
 const DOUBTS_FILE_PATH = path.join(process.cwd(), "data", "student-doubts.json");
 
@@ -887,19 +937,27 @@ function applyMaterialFilters(
       if ((m.status || "published") !== "published") return false;
     }
 
-    // 2. Exam Filter
+    // 2. Exam Filter:
+    // If examId is specified (and not "all"):
+    // Show materials matching examId OR universal materials with no exam specified or "all"
     if (filters?.examId && filters.examId !== "all") {
-      if (m.exam_id && m.exam_id !== filters.examId) return false;
+      if (m.exam_id && m.exam_id !== "all" && m.exam_id !== filters.examId) {
+        return false;
+      }
     }
 
     // 3. Subject Filter
     if (filters?.subjectId && filters.subjectId !== "all") {
-      if (m.subject_id && m.subject_id !== filters.subjectId) return false;
+      if (m.subject_id && m.subject_id !== "all" && m.subject_id !== filters.subjectId) {
+        return false;
+      }
     }
 
     // 4. Topic Filter
     if (filters?.topicId && filters.topicId !== "all") {
-      if (m.topic_id !== filters.topicId) return false;
+      if (m.topic_id && m.topic_id !== filters.topicId) {
+        return false;
+      }
     }
 
     // 5. Category Filter
@@ -910,9 +968,9 @@ function applyMaterialFilters(
     // 6. Search Filter
     if (filters?.search && filters.search.trim()) {
       const q = filters.search.toLowerCase().trim();
-      const inTitle = m.title?.toLowerCase().includes(q);
-      const inDesc = m.description?.toLowerCase().includes(q);
-      const inContent = m.content?.toLowerCase().includes(q);
+      const inTitle = (m.title || "").toLowerCase().includes(q);
+      const inDesc = (m.description || "").toLowerCase().includes(q);
+      const inContent = (m.content || "").toLowerCase().includes(q);
       if (!inTitle && !inDesc && !inContent) return false;
     }
 
@@ -937,8 +995,10 @@ export async function getStudyMaterials(filters?: {
     return cached.data;
   }
 
+  const localMaterials = getRuntimeMaterials();
+
   if (!isSupabaseConfigured()) {
-    const res = applyMaterialFilters(RUNTIME_MATERIALS, filters);
+    const res = applyMaterialFilters(localMaterials, filters);
     catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
     return res;
   }
@@ -947,43 +1007,60 @@ export async function getStudyMaterials(filters?: {
     const supabase = await createClient();
     let query = supabase
       .from("study_materials")
-      .select("id, topic_id, title, material_type, url, is_official, status, description, category, file_url, file_size, exam_id, subject_id, chapter_id, published_at, created_at, created_by")
+      .select("*")
       .order("created_at", { ascending: false });
-
-    if (filters?.topicId && filters.topicId !== "all") query = query.eq("topic_id", filters.topicId);
-    if (filters?.subjectId && filters.subjectId !== "all") query = query.eq("subject_id", filters.subjectId);
-    if (filters?.examId && filters.examId !== "all") query = query.eq("exam_id", filters.examId);
-    if (filters?.category && filters.category !== "all") query = query.eq("category", filters.category);
 
     if (filters?.status === "all") {
       // Don't filter status
     } else if (filters?.status) {
       query = query.eq("status", filters.status);
     } else {
-      query = query.eq("status", "published");
+      query = query.neq("status", "archived");
     }
 
-    if (filters?.search) {
-      query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+    if (filters?.category && filters.category !== "all") {
+      query = query.eq("category", filters.category);
     }
 
-    // Default limit if topic not specified to prevent full table downloads
-    if (!filters?.topicId || filters.topicId === "all") {
-      query = query.limit(100);
-    }
+    const { data, error } = await query;
+    const remoteList: StudyMaterial[] = (!error && data && Array.isArray(data)) ? (data as StudyMaterial[]) : [];
 
-    let { data, error } = await query;
-    if (error || !data || data.length === 0) {
-      const res = applyMaterialFilters(RUNTIME_MATERIALS, filters);
-      catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
-      return res;
-    }
+    // Combine remote materials and local persistent materials
+    const combinedMap = new Map<string, StudyMaterial>();
 
-    const result = data as StudyMaterial[];
-    catalogCache.set(cacheKey, { data: result, timestamp: Date.now() });
-    return result;
+    // 1. Add remote materials
+    remoteList.forEach((m) => {
+      combinedMap.set(m.id, {
+        ...m,
+        material_type: m.material_type || (m.category === "pdf" ? "pdf" : "note"),
+        file_url: m.file_url || m.url || null,
+        url: m.url || m.file_url || null,
+        content: m.content || m.description || "",
+      });
+    });
+
+    // 2. Add local persistent materials (includes newly uploaded Google Drive files, PDFs, notes)
+    localMaterials.forEach((m) => {
+      const existing = combinedMap.get(m.id);
+      if (!existing) {
+        combinedMap.set(m.id, m);
+      } else {
+        combinedMap.set(m.id, {
+          ...existing,
+          ...m,
+          file_url: m.file_url || existing.file_url || m.url || existing.url || null,
+          url: m.url || existing.url || m.file_url || existing.file_url || null,
+          content: m.content || existing.content || m.description || existing.description || "",
+        });
+      }
+    });
+
+    const combinedList = Array.from(combinedMap.values());
+    const res = applyMaterialFilters(combinedList, filters);
+    catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
+    return res;
   } catch {
-    const res = applyMaterialFilters(RUNTIME_MATERIALS, filters);
+    const res = applyMaterialFilters(localMaterials, filters);
     catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });
     return res;
   }

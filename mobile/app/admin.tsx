@@ -51,6 +51,7 @@ import {
   createAdminMockTest,
   getAdminMaterialsList,
   createAdminMaterial,
+  deleteAdminMaterial,
   getAdminStudentsList,
   updateAdminStudentRole,
   getAdminDoubtsList,
@@ -641,6 +642,35 @@ What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odish
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Delete Study Material
+  const handleDeleteMaterial = (mat: any) => {
+    Alert.alert(
+      "Delete Study Material",
+      `Are you sure you want to permanently delete "${mat.title}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const ok = await deleteAdminMaterial(mat.id);
+              if (ok) {
+                setMaterials((prev) => prev.filter((m) => m.id !== mat.id));
+                loadStats();
+                Alert.alert("Success", "Study material deleted.");
+              } else {
+                Alert.alert("Error", "Could not delete study material.");
+              }
+            } catch (err: any) {
+              Alert.alert("Error", err.message || "Failed to delete study material.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Toggle Student Role
@@ -1239,10 +1269,19 @@ What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odish
               materials.map((mat, idx) => (
                 <View key={mat.id || idx} style={styles.itemCard}>
                   <View style={styles.itemHeader}>
-                    <Badge label={mat.material_type?.toUpperCase() || "NOTE"} variant="blue" size="sm" />
-                    {mat.topics?.title && (
-                      <Badge label={mat.topics.title.substring(0, 18) + "..."} variant="slate" size="sm" />
-                    )}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Badge label={mat.material_type?.toUpperCase() || "NOTE"} variant="blue" size="sm" />
+                      {mat.topics?.title && (
+                        <Badge label={mat.topics.title.substring(0, 18) + "..."} variant="slate" size="sm" />
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteMaterial(mat)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Trash2 size={16} color="#ef4444" />
+                    </TouchableOpacity>
                   </View>
                   <Text style={styles.courseItemTitle}>{mat.title}</Text>
                   <Text style={styles.courseItemDesc}>{mat.content}</Text>

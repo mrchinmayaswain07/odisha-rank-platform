@@ -58,10 +58,9 @@ export default async function MaterialsPage({
     ? allExams.find((e) => e.id === profile.target_exam_id) || null
     : allExams[0] || null;
 
-  // Fetch only published study materials (draft and archived excluded) for eligible students
+  // Fetch all published study materials so students have complete access to universal & exam notes
   const publishedMaterials = await getStudyMaterials({
     status: "published",
-    examId: searchParams?.exam || targetExam?.id,
   });
 
   return (
@@ -72,6 +71,7 @@ export default async function MaterialsPage({
       allExams={allExams}
       subjects={subjects}
       initialMaterials={publishedMaterials}
+      initialExamId={searchParams?.exam}
     />
   );
 }

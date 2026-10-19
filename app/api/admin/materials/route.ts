@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data });
 }
 
-import { saveRuntimeMaterial, updateRuntimeMaterialStatus } from "@/lib/data-service";
+import { saveRuntimeMaterial, updateRuntimeMaterialStatus, deleteRuntimeMaterial } from "@/lib/data-service";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -175,21 +175,37 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
+    const permanent = searchParams.get("permanent") === "true";
     if (!id) return NextResponse.json({ error: "Material ID is required" }, { status: 400 });
 
     const client = getClient(supabase);
 
-    try {
-      await client
-        .from("study_materials")
-        .update({ status: "archived" })
-        .eq("id", id);
-    } catch {}
+    if (permanent) {
+      // Hard delete from database
+      try {
+        await client.from("study_materials").delete().eq("id", id);
+      } catch (err) {
+        console.warn("Supabase hard delete failed:", err);
+      }
 
-    updateRuntimeMaterialStatus(id, "archived");
+      // Hard delete from persistent JSON file and runtime
+      deleteRuntimeMaterial(id);
 
-    return NextResponse.json({ success: true, message: "Material archived successfully" });
+      return NextResponse.json({ success: true, message: "Material permanently deleted successfully" });
+    } else {
+      // Soft archive
+      try {
+        await client
+          .from("study_materials")
+          .update({ status: "archived" })
+          .eq("id", id);
+      } catch {}
+
+      updateRuntimeMaterialStatus(id, "archived");
+
+      return NextResponse.json({ success: true, message: "Material archived successfully" });
+    }
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Failed to archive material" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Failed to process delete request" }, { status: 500 });
   }
 }

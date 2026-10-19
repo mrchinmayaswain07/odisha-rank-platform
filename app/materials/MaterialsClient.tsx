@@ -34,6 +34,29 @@ interface MaterialsClientProps {
   allExams: Exam[];
   subjects: Subject[];
   initialMaterials: StudyMaterial[];
+  initialExamId?: string;
+}
+
+function getGoogleDriveEmbedUrl(url?: string | null): string | null {
+  if (!url) return null;
+  const driveFileMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (driveFileMatch && driveFileMatch[1]) {
+    return `https://drive.google.com/file/d/${driveFileMatch[1]}/preview`;
+  }
+  const driveOpenMatch = url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+  if (driveOpenMatch && driveOpenMatch[1]) {
+    return `https://drive.google.com/file/d/${driveOpenMatch[1]}/preview`;
+  }
+  const docsMatch = url.match(/docs\.google\.com\/(?:document|presentation|spreadsheets)\/d\/([a-zA-Z0-9_-]+)/);
+  if (docsMatch && docsMatch[1]) {
+    return url.replace(/\/edit.*$/, "/preview");
+  }
+  return null;
+}
+
+function isGoogleDriveUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return url.includes("drive.google.com") || url.includes("docs.google.com");
 }
 
 export const MaterialsClient: React.FC<MaterialsClientProps> = ({
@@ -43,13 +66,14 @@ export const MaterialsClient: React.FC<MaterialsClientProps> = ({
   allExams,
   subjects,
   initialMaterials,
+  initialExamId,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showCourseModal, setShowCourseModal] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedExamId, setSelectedExamId] = useState<string>(targetExam?.id || "all");
+  const [selectedExamId, setSelectedExamId] = useState<string>(initialExamId || "all");
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -86,22 +110,22 @@ export const MaterialsClient: React.FC<MaterialsClientProps> = ({
         if (selectedCategory === "current_affairs" && mat.category !== "current_affairs") return false;
       }
 
-      // Exam filter
-      if (selectedExamId !== "all" && mat.exam_id && mat.exam_id !== selectedExamId) {
+      // Exam filter: show if "all" or matches exam OR universal materials (no exam assigned or "all")
+      if (selectedExamId !== "all" && mat.exam_id && mat.exam_id !== "all" && mat.exam_id !== selectedExamId) {
         return false;
       }
 
       // Subject filter
-      if (selectedSubjectId !== "all" && mat.subject_id && mat.subject_id !== selectedSubjectId) {
+      if (selectedSubjectId !== "all" && mat.subject_id && mat.subject_id !== "all" && mat.subject_id !== selectedSubjectId) {
         return false;
       }
 
-      // Search query filter
+      // Search query filter (defensive null-safe checks)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const inTitle = mat.title.toLowerCase().includes(q);
-        const inDesc = mat.description?.toLowerCase().includes(q) || false;
-        const inContent = mat.content.toLowerCase().includes(q);
+        const inTitle = (mat.title || "").toLowerCase().includes(q);
+        const inDesc = (mat.description || "").toLowerCase().includes(q);
+        const inContent = (mat.content || "").toLowerCase().includes(q);
         if (!inTitle && !inDesc && !inContent) return false;
       }
 
@@ -111,30 +135,34 @@ export const MaterialsClient: React.FC<MaterialsClientProps> = ({
 
   // Handle Download Action
   const handleDownload = (mat: StudyMaterial) => {
-    if (mat.file_url && mat.file_url.startsWith("http")) {
-      window.open(mat.file_url, "_blank");
-    } else {
-      // Generate clean downloadable file from content
-      const contentToDownload = `# ${mat.title}\n\n` +
-        `Category: ${mat.category || "Study Material"}\n` +
-        `Published by: OdishaRank Academic Preparation Cell\n` +
-        `Date: ${new Date(mat.created_at).toLocaleDateString()}\n\n` +
-        `---\n\n` +
-        `${mat.content}\n`;
-
-      const blob = new Blob([contentToDownload], { type: "text/markdown;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const safeFilename = mat.title.replace(/[^a-zA-Z0-9_-]/g, "_") + ".md";
-      link.href = url;
-      link.download = safeFilename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+    const targetLink = mat.file_url || mat.url;
+    if (targetLink && targetLink.startsWith("http")) {
+      window.open(targetLink, "_blank");
+      setDownloadToast(`Opened file reference for "${mat.title || "Document"}"`);
+      setTimeout(() => setDownloadToast(null), 3000);
+      return;
     }
 
-    setDownloadToast(`Downloaded "${mat.title}" successfully!`);
+    // Generate clean downloadable file from content
+    const contentToDownload = `# ${mat.title || "Study Material"}\n\n` +
+      `Category: ${mat.category || "Study Material"}\n` +
+      `Published by: OdishaRank Academic Preparation Cell\n` +
+      `Date: ${mat.created_at ? new Date(mat.created_at).toLocaleDateString() : new Date().toLocaleDateString()}\n\n` +
+      `---\n\n` +
+      `${mat.content || mat.description || "No text content available."}\n`;
+
+    const blob = new Blob([contentToDownload], { type: "text/markdown;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeFilename = (mat.title || "study_material").replace(/[^a-zA-Z0-9_-]/g, "_") + ".md";
+    link.href = url;
+    link.download = safeFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setDownloadToast(`Downloaded "${mat.title || "Study Material"}" successfully!`);
     setTimeout(() => setDownloadToast(null), 3000);
   };
 
@@ -282,6 +310,8 @@ export const MaterialsClient: React.FC<MaterialsClientProps> = ({
             ) : (
               filteredMaterials.map((mat) => {
                 const categoryLabel = getCategoryBadgeLabel(mat.category);
+                const fileLink = mat.file_url || mat.url;
+                const isDrive = isGoogleDriveUrl(fileLink);
 
                 return (
                   <div
@@ -294,20 +324,29 @@ export const MaterialsClient: React.FC<MaterialsClientProps> = ({
                         <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-blue-50 text-blue-700 border border-blue-100">
                           {categoryLabel}
                         </span>
-                        <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
-                          <FileText className="w-3.5 h-3.5" />
-                          <span>{mat.material_type === "pdf" ? "PDF" : "Notes"}</span>
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {isDrive ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                              <ExternalLink className="w-3 h-3 text-amber-600" />
+                              <span>Google Drive</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>{mat.material_type === "pdf" ? "PDF" : "Notes"}</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Title */}
                       <h3 className="text-sm sm:text-base font-bold text-slate-900 line-clamp-2 leading-snug">
-                        {mat.title}
+                        {mat.title || "Untitled Document"}
                       </h3>
 
                       {/* Description */}
                       <p className="text-xs text-slate-500 mt-2 line-clamp-3 leading-relaxed">
-                        {mat.description || mat.content.slice(0, 160)}
+                        {mat.description || (mat.content ? mat.content.slice(0, 160) : "") || "Verified study notes & reference materials."}
                       </p>
                     </div>
 
@@ -322,14 +361,27 @@ export const MaterialsClient: React.FC<MaterialsClientProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {/* Read Online Button */}
+                        {/* Read / View Online Button */}
                         <button
                           onClick={() => setReadingMaterial(mat)}
                           className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs text-center transition-colors flex items-center justify-center gap-1.5 shadow-xs"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          <span>Read Online</span>
+                          <span>{isDrive ? "View Document" : "Read Online"}</span>
                         </button>
+
+                        {/* Open external link directly */}
+                        {fileLink && (
+                          <a
+                            href={fileLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors flex items-center justify-center"
+                            title={isDrive ? "Open in Google Drive" : "Open Document"}
+                          >
+                            <ExternalLink className="w-4 h-4 text-blue-600" />
+                          </a>
+                        )}
 
                         {/* Download Button */}
                         <button
@@ -352,96 +404,149 @@ export const MaterialsClient: React.FC<MaterialsClientProps> = ({
       {/* ========================================================= */}
       {/* READ ONLINE MODAL (Rich Reader Experience)                 */}
       {/* ========================================================= */}
-      {readingMaterial && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Reader Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/60">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-wider">
-                      {getCategoryBadgeLabel(readingMaterial.category)}
-                    </span>
-                    <span className="text-[10px] font-semibold text-slate-400">
-                      Official Preparation Material
-                    </span>
+      {readingMaterial && (() => {
+        const modalFileLink = readingMaterial.file_url || readingMaterial.url;
+        const driveEmbedUrl = getGoogleDriveEmbedUrl(modalFileLink);
+        const isDrive = isGoogleDriveUrl(modalFileLink);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+              {/* Reader Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                    <BookOpen className="w-5 h-5" />
                   </div>
-                  <h2 className="text-sm sm:text-base font-bold text-slate-900 line-clamp-1 mt-0.5">
-                    {readingMaterial.title}
-                  </h2>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleDownload(readingMaterial)}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Download</span>
-                </button>
-                <button
-                  onClick={() => setReadingMaterial(null)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Reader Content Body */}
-            <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1 text-slate-800 text-xs sm:text-sm leading-relaxed">
-              {readingMaterial.description && (
-                <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 text-blue-950 font-medium">
-                  {readingMaterial.description}
-                </div>
-              )}
-
-              {/* Formatted Markdown Content */}
-              <div className="prose prose-slate max-w-none space-y-4">
-                <div className="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed">
-                  {readingMaterial.content}
-                </div>
-              </div>
-
-              {readingMaterial.file_url && (
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                    <span className="text-xs font-bold text-slate-800">
-                      Downloadable File Reference
-                    </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-wider">
+                        {getCategoryBadgeLabel(readingMaterial.category)}
+                      </span>
+                      {isDrive && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                          Google Drive
+                        </span>
+                      )}
+                      <span className="text-[10px] font-semibold text-slate-400">
+                        Official Preparation Material
+                      </span>
+                    </div>
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900 line-clamp-1 mt-0.5">
+                      {readingMaterial.title || "Untitled Document"}
+                    </h2>
                   </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {modalFileLink && (
+                    <a
+                      href={modalFileLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors flex items-center gap-1.5 border border-blue-200"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>{isDrive ? "Google Drive" : "Open Link"}</span>
+                    </a>
+                  )}
                   <button
                     onClick={() => handleDownload(readingMaterial)}
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs"
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>Download File ({formatFileSize(readingMaterial.file_size)})</span>
+                    <span className="hidden sm:inline">Download</span>
+                  </button>
+                  <button
+                    onClick={() => setReadingMaterial(null)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                  >
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
 
-            {/* Reader Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400">
-                OdishaRank Academic Syllabus & Document Repository
-              </span>
-              <button
-                onClick={() => setReadingMaterial(null)}
-                className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors"
-              >
-                Close Reader
-              </button>
+              {/* Reader Content Body */}
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1 text-slate-800 text-xs sm:text-sm leading-relaxed">
+                {readingMaterial.description && (
+                  <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 text-blue-950 font-medium">
+                    {readingMaterial.description}
+                  </div>
+                )}
+
+                {/* Google Drive Interactive Embed */}
+                {driveEmbedUrl && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 font-medium">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-amber-600" />
+                        <span>Interactive Google Drive Document Preview</span>
+                      </div>
+                      <a
+                        href={modalFileLink || "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-bold text-amber-800 hover:text-amber-950 underline"
+                      >
+                        <span>Open in full tab</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                    <div className="w-full h-[520px] rounded-2xl overflow-hidden border border-slate-300 bg-slate-900 shadow-inner">
+                      <iframe
+                        src={driveEmbedUrl}
+                        className="w-full h-full border-0"
+                        allow="autoplay"
+                        title={readingMaterial.title}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Formatted Markdown Content */}
+                {readingMaterial.content && readingMaterial.content.trim() !== "" && (
+                  <div className="prose prose-slate max-w-none space-y-4 pt-2">
+                    <div className="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                      {readingMaterial.content}
+                    </div>
+                  </div>
+                )}
+
+                {modalFileLink && !driveEmbedUrl && (
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      <span className="text-xs font-bold text-slate-800">
+                        External File Reference: <span className="font-mono text-blue-600 text-[11px] truncate max-w-xs">{modalFileLink}</span>
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleDownload(readingMaterial)}
+                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download File ({formatFileSize(readingMaterial.file_size)})</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Reader Footer */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[11px] text-slate-400">
+                  OdishaRank Academic Syllabus & Document Repository
+                </span>
+                <button
+                  onClick={() => setReadingMaterial(null)}
+                  className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors"
+                >
+                  Close Reader
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modals */}
       <StudyTimerModal

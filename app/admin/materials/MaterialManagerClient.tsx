@@ -225,6 +225,28 @@ export const MaterialManagerClient: React.FC<MaterialManagerClientProps> = ({
     }
   };
 
+  const handleDelete = async (mat: StudyMaterial) => {
+    if (
+      !confirm(
+        `Are you sure you want to permanently delete "${mat.title}"?\n\nThis will remove the file, document, or notes completely. This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/materials?id=${mat.id}&permanent=true`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete material");
+
+      setMaterials((prev) => prev.filter((item) => item.id !== mat.id));
+      router.refresh();
+    } catch (err: any) {
+      alert(err.message || "Failed to delete material");
+    }
+  };
+
   // Helpers to resolve names
   const getExamName = (examId?: string | null) => {
     if (!examId) return "All Exams";
@@ -433,12 +455,20 @@ export const MaterialManagerClient: React.FC<MaterialManagerClientProps> = ({
                           {status !== "archived" && (
                             <button
                               onClick={() => handleArchive(mat.id)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-                              title="Archive Document"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors"
+                              title="Archive Document (Hide from students)"
                             >
                               <Archive className="w-4 h-4" />
                             </button>
                           )}
+
+                          <button
+                            onClick={() => handleDelete(mat)}
+                            className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/20 transition-colors"
+                            title="Delete Material (Permanent)"
+                          >
+                            <Trash2 className="w-4 h-4 text-rose-400" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -486,6 +516,7 @@ export const MaterialManagerClient: React.FC<MaterialManagerClientProps> = ({
                     onChange={(e) => handleExamChange(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white"
                   >
+                    <option value="all">All Odisha Examinations (Universal Guide)</option>
                     {exams.map((ex) => (
                       <option key={ex.id} value={ex.id}>
                         {ex.conducting_body} - {ex.title}
@@ -594,16 +625,22 @@ export const MaterialManagerClient: React.FC<MaterialManagerClientProps> = ({
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-slate-300 font-semibold mb-1">
-                    Download File URL (Optional for online notes)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-300 font-semibold">
+                      File URL or Google Drive Link (Optional)
+                    </label>
+                    <span className="text-[10px] text-cyan-400 font-medium">Google Drive links fully supported</span>
+                  </div>
                   <input
                     type="text"
-                    placeholder="/docs/paper.pdf or https://..."
+                    placeholder="https://drive.google.com/file/d/.../view or /docs/paper.pdf"
                     value={formFileUrl}
                     onChange={(e) => setFormFileUrl(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-xs"
                   />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Enter Google Drive share link, PDF URL, or document link. Students can view directly online or open in browser.
+                  </p>
                 </div>
               </div>
 
