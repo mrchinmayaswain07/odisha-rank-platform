@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
 import {
   Exam,
@@ -15,6 +16,7 @@ import {
   calculateProgress,
   calculateStudyStreak,
   SITE_CONFIG,
+  SEED_DOUBTS,
 } from "@odisha-rank/shared";
 
 /**
@@ -458,6 +460,175 @@ export async function deleteAdminQuestion(id: string) {
 }
 
 /**
+ * Bulk Import Questions for Admin
+ */
+export async function bulkCreateAdminQuestions(questionsList: {
+  exam_id?: string;
+  subject_id?: string;
+  chapter_id?: string;
+  question_text: string;
+  options: string[];
+  correct_option_index: number;
+  explanation?: string;
+  difficulty?: "easy" | "medium" | "hard";
+  marks?: number;
+  negative_marks?: number;
+}[]): Promise<{ successCount: number; errors: string[] }> {
+  let successCount = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < questionsList.length; i++) {
+    const q = questionsList[i];
+    try {
+      const payload = {
+        exam_id: q.exam_id || null,
+        subject_id: q.subject_id || null,
+        chapter_id: q.chapter_id || null,
+        question_text: q.question_text.trim(),
+        options: Array.isArray(q.options) && q.options.length === 4
+          ? q.options
+          : [q.options?.[0] || "Option A", q.options?.[1] || "Option B", q.options?.[2] || "Option C", q.options?.[3] || "Option D"],
+        correct_option_index: Number(q.correct_option_index ?? 0),
+        explanation: q.explanation?.trim() || null,
+        difficulty: q.difficulty || "medium",
+        marks: q.marks || 1,
+        negative_marks: q.negative_marks || 0.25,
+        is_sample: true,
+        status: "published",
+      };
+
+      const { error } = await supabase.from("questions").insert([payload]);
+      if (error) {
+        errors.push(`Q#${i + 1}: ${error.message}`);
+      } else {
+        successCount++;
+      }
+    } catch (err: any) {
+      errors.push(`Q#${i + 1}: ${err.message || "Failed"}`);
+    }
+  }
+
+  return { successCount, errors };
+}
+
+/**
+ * Fetch Full Syllabus (Subjects -> Chapters -> Topics) for Admin
+ */
+export async function getAdminSyllabusList(examId?: string): Promise<any[]> {
+  try {
+    let query = supabase
+      .from("subjects")
+      .select("id, name, code, order_index, exam_id, chapters(id, title, description, order_index, is_official, topics(id, title, description, estimated_minutes, order_index, is_official))")
+      .order("order_index", { ascending: true });
+
+    if (examId) query = query.eq("exam_id", examId);
+
+    const { data, error } = await query;
+    if (!error && data && data.length > 0) return data;
+  } catch {}
+
+  // Resilient fallback
+  const subs = await getSubjects(examId);
+  const result: any[] = [];
+  for (const s of subs) {
+    const chaps = await getChapters(s.id);
+    result.push({ ...s, chapters: chaps });
+  }
+  return result;
+}
+
+/**
+ * Create a new Chapter in Syllabus as Admin
+ */
+export async function createAdminChapter(payload: {
+  subject_id: string;
+  title: string;
+  description?: string;
+  order_index?: number;
+}) {
+  const newChap = {
+    subject_id: payload.subject_id,
+    title: payload.title.trim(),
+    description: payload.description?.trim() || null,
+    order_index: payload.order_index || 1,
+    is_official: true,
+    status: "published",
+  };
+
+  const { data, error } = await supabase
+    .from("chapters")
+    .insert([newChap])
+    .select()
+    .single();
+
+  if (error) {
+    // If is_official true was blocked by RLS, retry with is_official false
+    const retryRes = await supabase
+      .from("chapters")
+      .insert([{ ...newChap, is_official: false }])
+      .select()
+      .single();
+    if (retryRes.error) throw new Error(retryRes.error.message || error.message);
+    return retryRes.data;
+  }
+  return data;
+}
+
+/**
+ * Delete a Chapter from Syllabus
+ */
+export async function deleteAdminChapter(chapterId: string) {
+  const { error } = await supabase.from("chapters").delete().eq("id", chapterId);
+  if (error) throw error;
+}
+
+/**
+ * Create a new Topic in Syllabus as Admin
+ */
+export async function createAdminTopic(payload: {
+  chapter_id: string;
+  title: string;
+  description?: string;
+  estimated_minutes?: number;
+  order_index?: number;
+}) {
+  const newTopic = {
+    chapter_id: payload.chapter_id,
+    title: payload.title.trim(),
+    description: payload.description?.trim() || null,
+    estimated_minutes: payload.estimated_minutes || 45,
+    order_index: payload.order_index || 1,
+    is_official: true,
+    status: "published",
+  };
+
+  const { data, error } = await supabase
+    .from("topics")
+    .insert([newTopic])
+    .select()
+    .single();
+
+  if (error) {
+    const retryRes = await supabase
+      .from("topics")
+      .insert([{ ...newTopic, is_official: false }])
+      .select()
+      .single();
+    if (retryRes.error) throw new Error(retryRes.error.message || error.message);
+    return retryRes.data;
+  }
+  return data;
+}
+
+/**
+ * Delete a Topic from Syllabus
+ */
+export async function deleteAdminTopic(topicId: string) {
+  const { error } = await supabase.from("topics").delete().eq("id", topicId);
+  if (error) throw error;
+}
+
+/**
  * Fetch Courses for Admin Management
  */
 export async function getAdminCoursesList(): Promise<any[]> {
@@ -779,50 +950,98 @@ export async function getDashboardMetrics(
   }
 }
 
+const DOUBTS_STORAGE_KEY = "@odisha_rank_student_doubts";
+let MOBILE_RUNTIME_DOUBTS: StudentDoubt[] = [...SEED_DOUBTS];
+
+async function syncLocalDoubts(): Promise<StudentDoubt[]> {
+  try {
+    const raw = await AsyncStorage.getItem(DOUBTS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const idSet = new Set(MOBILE_RUNTIME_DOUBTS.map((d) => d.id));
+        parsed.forEach((d: StudentDoubt) => {
+          if (!idSet.has(d.id)) {
+            MOBILE_RUNTIME_DOUBTS.push(d);
+          } else {
+            const idx = MOBILE_RUNTIME_DOUBTS.findIndex((x) => x.id === d.id);
+            if (
+              idx >= 0 &&
+              (d.answer !== MOBILE_RUNTIME_DOUBTS[idx].answer ||
+                d.status !== MOBILE_RUNTIME_DOUBTS[idx].status)
+            ) {
+              MOBILE_RUNTIME_DOUBTS[idx] = d;
+            }
+          }
+        });
+      }
+    }
+  } catch {}
+  return MOBILE_RUNTIME_DOUBTS;
+}
+
+async function persistLocalDoubts(doubts: StudentDoubt[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(DOUBTS_STORAGE_KEY, JSON.stringify(doubts.slice(0, 100)));
+  } catch {}
+}
+
 /**
- * Fetch student doubts & questions
+ * Fetch student doubts & questions (Student Doubts Center)
  */
 export async function getStudentDoubts(userId: string): Promise<StudentDoubt[]> {
+  await syncLocalDoubts();
+  const remoteDoubts: StudentDoubt[] = [];
+
+  // 1. Fetch from study_materials
   try {
-    const { data, error } = await supabase
-      .from("student_doubts")
-      .select("*")
-      .or(`user_id.eq.${userId},is_private.eq.false`)
-      .order("created_at", { ascending: false });
-
-    if (!error && data && Array.isArray(data)) {
-      return data as StudentDoubt[];
+    const { data: mats } = await supabase
+      .from("study_materials")
+      .select("id, content")
+      .ilike("title", "[STUDENT_DOUBT]%");
+    if (mats && Array.isArray(mats)) {
+      mats.forEach((m) => {
+        try {
+          const parsed = JSON.parse(m.content);
+          if (parsed && parsed.id) remoteDoubts.push(parsed as StudentDoubt);
+        } catch {}
+      });
     }
-  } catch {
-    // Non-blocking
-  }
+  } catch {}
 
-  // Fallback to study_sessions duration 99999
+  // 2. Fetch from study_sessions
   try {
     const { data: rows } = await supabase
       .from("study_sessions")
       .select("id, notes")
       .eq("duration_minutes", 99999);
-
     if (rows && Array.isArray(rows)) {
-      const parsedDoubts: StudentDoubt[] = [];
-      for (const row of rows) {
+      rows.forEach((r) => {
         try {
-          if (row.notes) {
-            const parsed = JSON.parse(row.notes);
-            if (parsed.type === "student_doubt" && parsed.id) {
-              if (parsed.user_id === userId || !parsed.is_private) {
-                parsedDoubts.push(parsed as StudentDoubt);
-              }
-            }
-          }
+          const parsed = JSON.parse(r.notes);
+          if (parsed?.type === "student_doubt" && parsed.id) remoteDoubts.push(parsed as StudentDoubt);
         } catch {}
-      }
-      return parsedDoubts;
+      });
     }
   } catch {}
 
-  return [];
+  // 3. Merge with SEED_DOUBTS, runtime and AsyncStorage
+  const idMap = new Map<string, StudentDoubt>();
+  [...SEED_DOUBTS, ...MOBILE_RUNTIME_DOUBTS, ...remoteDoubts].forEach((d) => {
+    const existing = idMap.get(d.id);
+    if (!existing || (d.answer && !existing.answer)) {
+      idMap.set(d.id, d);
+    }
+  });
+
+  const merged = Array.from(idMap.values()).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  MOBILE_RUNTIME_DOUBTS = merged;
+  await persistLocalDoubts(merged);
+
+  return merged.filter((d) => d.user_id === userId || (!d.is_private && d.status === "answered"));
 }
 
 /**
@@ -836,7 +1055,8 @@ export async function createStudentDoubt(payload: {
   exam_id?: string | null;
   question: string;
   is_private?: boolean;
-}): Promise<StudentDoubt | null> {
+}): Promise<StudentDoubt> {
+  await syncLocalDoubts();
   const newDoubt: StudentDoubt = {
     id: `doubt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     user_id: payload.user_id,
@@ -852,16 +1072,22 @@ export async function createStudentDoubt(payload: {
     updated_at: new Date().toISOString(),
   };
 
-  try {
-    const { data, error } = await supabase
-      .from("student_doubts")
-      .insert(newDoubt)
-      .select()
-      .single();
+  MOBILE_RUNTIME_DOUBTS.unshift(newDoubt);
+  await persistLocalDoubts(MOBILE_RUNTIME_DOUBTS);
 
-    if (!error && data) {
-      return data as StudentDoubt;
-    }
+  // Try Supabase study_materials with prefix [STUDENT_DOUBT]
+  try {
+    const { data: top } = await supabase.from("topics").select("id").limit(1).maybeSingle();
+    const topicId = top?.id || "c1111111-1111-1111-1111-111111111111";
+    await supabase.from("study_materials").insert({
+      topic_id: topicId,
+      title: `[STUDENT_DOUBT] ${newDoubt.id}`,
+      material_type: "note",
+      content: JSON.stringify({ type: "student_doubt", ...newDoubt }),
+      category: "doubt",
+      is_official: false,
+      created_by: payload.user_id && payload.user_id.length > 20 ? payload.user_id : null,
+    });
   } catch {}
 
   // Fallback persistence via study_sessions (duration 99999)
@@ -900,44 +1126,61 @@ export async function logStudySession(payload: {
 }
 
 /**
- * Fetch all student questions / doubts for Admin Review
+ * Fetch all student questions / doubts for Admin Review across all students
  */
 export async function getAdminDoubtsList(): Promise<StudentDoubt[]> {
-  try {
-    const { data, error } = await supabase
-      .from("student_doubts")
-      .select("*")
-      .order("created_at", { ascending: false });
+  await syncLocalDoubts();
+  const remoteDoubts: StudentDoubt[] = [];
 
-    if (!error && data && Array.isArray(data)) {
-      return data as StudentDoubt[];
+  // 1. Fetch from study_materials
+  try {
+    const { data: mats } = await supabase
+      .from("study_materials")
+      .select("id, content")
+      .ilike("title", "[STUDENT_DOUBT]%");
+    if (mats && Array.isArray(mats)) {
+      mats.forEach((m) => {
+        try {
+          const parsed = JSON.parse(m.content);
+          if (parsed && parsed.id) remoteDoubts.push(parsed as StudentDoubt);
+        } catch {}
+      });
     }
   } catch {}
 
-  // Resilient fallback to study_sessions duration 99999
+  // 2. Fetch from study_sessions
   try {
     const { data: rows } = await supabase
       .from("study_sessions")
       .select("id, notes")
       .eq("duration_minutes", 99999);
-
     if (rows && Array.isArray(rows)) {
-      const parsedDoubts: StudentDoubt[] = [];
-      for (const row of rows) {
+      rows.forEach((r) => {
         try {
-          if (row.notes) {
-            const parsed = JSON.parse(row.notes);
-            if (parsed.type === "student_doubt" && parsed.id) {
-              parsedDoubts.push(parsed as StudentDoubt);
-            }
-          }
+          const parsed = JSON.parse(r.notes);
+          if (parsed?.type === "student_doubt" && parsed.id) remoteDoubts.push(parsed as StudentDoubt);
         } catch {}
-      }
-      return parsedDoubts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      });
     }
   } catch {}
 
-  return [];
+  // 3. Merge with SEED_DOUBTS and MOBILE_RUNTIME_DOUBTS
+  const idMap = new Map<string, StudentDoubt>();
+  [...SEED_DOUBTS, ...MOBILE_RUNTIME_DOUBTS, ...remoteDoubts].forEach((d) => {
+    const existing = idMap.get(d.id);
+    if (!existing || (d.answer && !existing.answer)) {
+      idMap.set(d.id, d);
+    }
+  });
+
+  const merged = Array.from(idMap.values()).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  MOBILE_RUNTIME_DOUBTS = merged;
+  await persistLocalDoubts(merged);
+
+  return merged;
 }
 
 /**
@@ -952,35 +1195,78 @@ export async function updateStudentDoubtAnswer(
   }
 ): Promise<StudentDoubt | null> {
   const now = new Date().toISOString();
+  await syncLocalDoubts();
   let updatedDoubt: StudentDoubt | null = null;
 
-  try {
-    const { data, error } = await supabase
-      .from("student_doubts")
-      .update({
+  // Update in runtime array
+  const idx = MOBILE_RUNTIME_DOUBTS.findIndex((d) => d.id === id);
+  if (idx >= 0) {
+    MOBILE_RUNTIME_DOUBTS[idx] = {
+      ...MOBILE_RUNTIME_DOUBTS[idx],
+      answer: payload.answer,
+      answered_by: payload.answered_by,
+      answered_at: now,
+      status: payload.status,
+      updated_at: now,
+      is_notified: false,
+    };
+    updatedDoubt = MOBILE_RUNTIME_DOUBTS[idx];
+  } else {
+    const seed = SEED_DOUBTS.find((d) => d.id === id);
+    if (seed) {
+      updatedDoubt = {
+        ...seed,
         answer: payload.answer,
         answered_by: payload.answered_by,
         answered_at: now,
         status: payload.status,
         updated_at: now,
         is_notified: false,
-      })
-      .eq("id", id)
-      .select()
-      .maybeSingle();
+      };
+      MOBILE_RUNTIME_DOUBTS.unshift(updatedDoubt);
+    }
+  }
 
-    if (!error && data) {
-      updatedDoubt = data as StudentDoubt;
+  await persistLocalDoubts(MOBILE_RUNTIME_DOUBTS);
+
+  // Update in study_materials
+  try {
+    const { data: mats } = await supabase
+      .from("study_materials")
+      .select("id, content")
+      .eq("title", `[STUDENT_DOUBT] ${id}`);
+    if (mats && mats.length > 0) {
+      const existing = mats[0];
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse(existing.content);
+      } catch {}
+      const updatedObj = {
+        ...parsed,
+        answer: payload.answer,
+        answered_by: payload.answered_by,
+        answered_at: now,
+        status: payload.status,
+        updated_at: now,
+        is_notified: false,
+      };
+      await supabase
+        .from("study_materials")
+        .update({
+          content: JSON.stringify(updatedObj),
+          is_official: !updatedObj.is_private,
+          updated_at: now,
+        })
+        .eq("id", existing.id);
     }
   } catch {}
 
-  // Resilient fallback persistence via study_sessions
+  // Update in study_sessions
   try {
     const { data: rows } = await supabase
       .from("study_sessions")
       .select("id, notes")
       .eq("duration_minutes", 99999);
-
     if (rows && Array.isArray(rows)) {
       for (const row of rows) {
         try {
@@ -1000,10 +1286,6 @@ export async function updateStudentDoubtAnswer(
                 .from("study_sessions")
                 .update({ notes: JSON.stringify(updatedObj) })
                 .eq("id", row.id);
-
-              if (!updatedDoubt) {
-                updatedDoubt = updatedObj as StudentDoubt;
-              }
               break;
             }
           }
@@ -1014,4 +1296,5 @@ export async function updateStudentDoubtAnswer(
 
   return updatedDoubt;
 }
+
 

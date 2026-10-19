@@ -36,6 +36,7 @@ import {
   GraduationCap,
   MessageSquare,
   Send,
+  Sparkles,
 } from "lucide-react-native";
 import { BRAND_COLORS, SITE_CONFIG, StudentDoubt } from "@odisha-rank/shared";
 import { useAuth } from "../src/lib/auth-context";
@@ -54,11 +55,17 @@ import {
   updateAdminStudentRole,
   getAdminDoubtsList,
   updateStudentDoubtAnswer,
+  bulkCreateAdminQuestions,
+  getAdminSyllabusList,
+  createAdminChapter,
+  deleteAdminChapter,
+  createAdminTopic,
+  deleteAdminTopic,
 } from "../src/lib/data-service";
 import { Button } from "../src/components/Button";
 import { Badge } from "../src/components/Badge";
 
-type AdminTab = "overview" | "questions" | "courses" | "mock-tests" | "materials" | "students" | "doubts";
+type AdminTab = "overview" | "questions" | "courses" | "mock-tests" | "materials" | "students" | "doubts" | "syllabus";
 
 export default function AdminScreen() {
   const { user, profile, isAdmin } = useAuth();
@@ -117,6 +124,26 @@ export default function AdminScreen() {
   const [matContent, setMatContent] = useState("");
   const [matUrl, setMatUrl] = useState("");
 
+  // Bulk Import Questions States
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [bulkFormat, setBulkFormat] = useState<"json" | "csv">("json");
+  const [bulkRawText, setBulkRawText] = useState("");
+  const [bulkExamId, setBulkExamId] = useState("");
+  const [isBulkImporting, setIsBulkImporting] = useState(false);
+
+  // Syllabus (Chapters & Topics) States
+  const [syllabusSubjects, setSyllabusSubjects] = useState<any[]>([]);
+  const [syllabusExamId, setSyllabusExamId] = useState("");
+  const [showAddChapterModal, setShowAddChapterModal] = useState(false);
+  const [showAddTopicModal, setShowAddTopicModal] = useState(false);
+  const [newChapSubjectId, setNewChapSubjectId] = useState("");
+  const [newChapTitle, setNewChapTitle] = useState("");
+  const [newChapDesc, setNewChapDesc] = useState("");
+  const [newTopicChapId, setNewTopicChapId] = useState("");
+  const [newTopicTitle, setNewTopicTitle] = useState("");
+  const [newTopicDesc, setNewTopicDesc] = useState("");
+  const [newTopicMinutes, setNewTopicMinutes] = useState("45");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Load Overview Stats
@@ -165,6 +192,14 @@ export default function AdminScreen() {
       } else if (tab === "doubts") {
         const data = await getAdminDoubtsList();
         setDoubts(data);
+      } else if (tab === "syllabus") {
+        const cList = courses.length === 0 ? await getAdminCoursesList() : courses;
+        if (courses.length === 0) setCourses(cList);
+        const activeEId = syllabusExamId || cList[0]?.id;
+        if (cList[0] && !syllabusExamId) setSyllabusExamId(cList[0].id);
+        const sList = await getAdminSyllabusList(activeEId);
+        setSyllabusSubjects(sList);
+        if (sList[0] && !newChapSubjectId) setNewChapSubjectId(sList[0].id);
       }
     } catch (err) {
       console.warn("Error loading tab data:", err);
@@ -251,6 +286,266 @@ export default function AdminScreen() {
       ]
     );
   };
+
+  // Helper to parse bulk questions
+  const parseBulkQuestions = (text: string, format: "json" | "csv", examId?: string) => {
+    if (!text.trim()) return [];
+    if (format === "json") {
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((item: any) => ({
+              exam_id: item.exam_id || examId,
+              subject_id: item.subject_id,
+              chapter_id: item.chapter_id,
+              question_text: item.question_text || item.question || "",
+              options:
+                Array.isArray(item.options) && item.options.length === 4
+                  ? item.options
+                  : [
+                      item.optionA || "A",
+                      item.optionB || "B",
+                      item.optionC || "C",
+                      item.optionD || "D",
+                    ],
+              correct_option_index: Number(item.correct_option_index ?? item.correctIndex ?? 0),
+              explanation: item.explanation || "",
+              difficulty: (item.difficulty || "medium").toLowerCase(),
+              marks: item.marks || 1,
+              negative_marks: item.negative_marks || 0.25,
+            }))
+            .filter((q) => q.question_text && q.options.length >= 2);
+        }
+      } catch {}
+      return [];
+    } else {
+      const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+      const results: any[] = [];
+      const startIndex = lines[0]?.toLowerCase().includes("question") ? 1 : 0;
+      for (let i = startIndex; i < lines.length; i++) {
+        const parts = lines[i].split(",").map((p) => p.trim().replace(/^["']|["']$/g, ""));
+        if (parts.length >= 6) {
+          results.push({
+            exam_id: examId,
+            question_text: parts[0],
+            options: [parts[1], parts[2], parts[3], parts[4]],
+            correct_option_index: parseInt(parts[5], 10) || 0,
+            difficulty: (parts[6] || "medium").toLowerCase(),
+            explanation: parts[7] || "",
+            marks: 1,
+            negative_marks: 0.25,
+          });
+        }
+      }
+      return results;
+    }
+  };
+
+  const handleLoadSampleBatch = () => {
+    if (bulkFormat === "json") {
+      const sample = [
+        {
+          question_text:
+            "Which rock edict of Emperor Ashoka describes the horrors of the historic Kalinga War?",
+          options: [
+            "Major Rock Edict X",
+            "Major Rock Edict XIII",
+            "Major Rock Edict VII",
+            "Minor Rock Edict I",
+          ],
+          correct_option_index: 1,
+          explanation:
+            "Major Rock Edict XIII explicitly mentions King Ashoka's deep remorse and sorrow following the conquest of Kalinga in 261 BCE.",
+          difficulty: "medium",
+          marks: 1,
+          negative_marks: 0.25,
+        },
+        {
+          question_text: "Who was the legendary leader of the Paika Rebellion of 1817 in Khurda?",
+          options: ["Bakshi Jagabandhu", "Surendra Sai", "Dharani Dhara", "Chakra Bisoi"],
+          correct_option_index: 0,
+          explanation:
+            "Bakshi Jagabandhu Bidyadhara Mohapatra led the famous 1817 Paika Bidroha against British colonial rule.",
+          difficulty: "easy",
+          marks: 1,
+          negative_marks: 0.25,
+        },
+        {
+          question_text:
+            "What is the total length of the coastline of Odisha along the Bay of Bengal?",
+          options: ["About 380 km", "About 485 km", "About 550 km", "About 620 km"],
+          correct_option_index: 1,
+          explanation:
+            "Odisha has a picturesque coastal stretch of approximately 485 km extending from Balasore to Ganjam.",
+          difficulty: "easy",
+          marks: 1,
+          negative_marks: 0.25,
+        },
+      ];
+      setBulkRawText(JSON.stringify(sample, null, 2));
+    } else {
+      const csv = `Question,OptionA,OptionB,OptionC,OptionD,CorrectIndex,Difficulty,Explanation
+Which rock edict of Ashoka describes the Kalinga War?,Major Rock Edict X,Major Rock Edict XIII,Major Rock Edict VII,Minor Rock Edict I,1,medium,Major Rock Edict XIII records the 261 BCE war.
+Who led the Paika Rebellion of 1817?,Bakshi Jagabandhu,Surendra Sai,Dharani Dhara,Chakra Bisoi,0,easy,Bakshi Jagabandhu led the Paikas against the British.
+What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odisha coastline is approx 485 km.`;
+      setBulkRawText(csv);
+    }
+  };
+
+  const handleBulkImportSubmit = async () => {
+    const parsed = parseBulkQuestions(bulkRawText, bulkFormat, bulkExamId || courses[0]?.id);
+    if (parsed.length === 0) {
+      Alert.alert(
+        "Parsing Error",
+        "No valid questions could be extracted. Please check the JSON/CSV syntax."
+      );
+      return;
+    }
+
+    setIsBulkImporting(true);
+    try {
+      const { successCount, errors } = await bulkCreateAdminQuestions(parsed);
+      if (successCount > 0) {
+        Alert.alert(
+          "Import Complete",
+          `Successfully imported ${successCount} verified MCQs into the Question Bank.${
+            errors.length > 0 ? ` (${errors.length} failed)` : ""
+          }`
+        );
+        setShowBulkImportModal(false);
+        setBulkRawText("");
+        loadTabData("questions");
+        loadStats();
+      } else {
+        Alert.alert(
+          "Import Failed",
+          errors.join("\n") || "Could not insert questions into database."
+        );
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to process bulk import.");
+    } finally {
+      setIsBulkImporting(false);
+    }
+  };
+
+  // Create Chapter Submit
+  const handleCreateChapterSubmit = async () => {
+    if (!newChapTitle.trim()) {
+      Alert.alert("Required", "Please enter a chapter title.");
+      return;
+    }
+    const targetSubId = newChapSubjectId || syllabusSubjects[0]?.id;
+    if (!targetSubId) {
+      Alert.alert("Required", "Please select a subject for this chapter.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createAdminChapter({
+        subject_id: targetSubId,
+        title: newChapTitle.trim(),
+        description: newChapDesc.trim() || undefined,
+        order_index:
+          (syllabusSubjects.find((s) => s.id === targetSubId)?.chapters?.length || 0) + 1,
+      });
+
+      Alert.alert("Success", "Chapter created successfully in syllabus.");
+      setShowAddChapterModal(false);
+      setNewChapTitle("");
+      setNewChapDesc("");
+      loadTabData("syllabus");
+      loadStats();
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to create chapter.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Delete Chapter
+  const handleDeleteChapterSubmit = (chapId: string, chapTitle: string) => {
+    Alert.alert(
+      "Confirm Deletion",
+      `Are you sure you want to delete chapter "${chapTitle}" and all its topics?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Chapter",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteAdminChapter(chapId);
+              loadTabData("syllabus");
+              loadStats();
+            } catch (err: any) {
+              Alert.alert("Error", err.message || "Failed to delete chapter.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Create Topic Submit
+  const handleCreateTopicSubmit = async () => {
+    if (!newTopicTitle.trim()) {
+      Alert.alert("Required", "Please enter a topic title.");
+      return;
+    }
+    if (!newTopicChapId) {
+      Alert.alert("Required", "Please select a parent chapter for this topic.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createAdminTopic({
+        chapter_id: newTopicChapId,
+        title: newTopicTitle.trim(),
+        description: newTopicDesc.trim() || undefined,
+        estimated_minutes: parseInt(newTopicMinutes, 10) || 45,
+      });
+
+      Alert.alert("Success", "Topic created successfully in chapter.");
+      setShowAddTopicModal(false);
+      setNewTopicTitle("");
+      setNewTopicDesc("");
+      loadTabData("syllabus");
+      loadStats();
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to create topic.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Delete Topic
+  const handleDeleteTopicSubmit = (topicId: string, topicTitle: string) => {
+    Alert.alert(
+      "Confirm Deletion",
+      `Are you sure you want to delete topic "${topicTitle}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Topic",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteAdminTopic(topicId);
+              loadTabData("syllabus");
+              loadStats();
+            } catch (err: any) {
+              Alert.alert("Error", err.message || "Failed to delete topic.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
 
   // Create Course Submit
   const handleCreateCourse = async () => {
@@ -538,6 +833,15 @@ export default function AdminScreen() {
               Doubts ({doubts.filter((d) => d.status === "pending").length})
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabItem, activeTab === "syllabus" && styles.tabItemActive]}
+            onPress={() => handleTabChange("syllabus")}
+          >
+            <Text style={[styles.tabText, activeTab === "syllabus" && styles.tabTextActive]}>
+              Syllabus (Chapters)
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </View>
 
@@ -716,17 +1020,32 @@ export default function AdminScreen() {
         {activeTab === "questions" && (
           <View style={styles.tabSection}>
             <View style={styles.tabSectionHeader}>
-              <View>
+              <View style={{ flex: 1, marginRight: 8 }}>
                 <Text style={styles.tabSectionTitle}>Question Bank</Text>
                 <Text style={styles.tabSectionSub}>Review, add, and curate verified MCQs</Text>
               </View>
-              <TouchableOpacity
-                style={styles.addBtn}
-                onPress={() => setShowAddQuestionModal(true)}
-              >
-                <Plus size={16} color="#ffffff" style={{ marginRight: 4 }} />
-                <Text style={styles.addBtnText}>Add MCQ</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                <TouchableOpacity
+                  style={[styles.addBtn, { backgroundColor: "#7c3aed" }]}
+                  onPress={() => {
+                    setShowBulkImportModal(true);
+                    if (courses[0] && !bulkExamId) setBulkExamId(courses[0].id);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <FileText size={15} color="#ffffff" style={{ marginRight: 4 }} />
+                  <Text style={styles.addBtnText}>Bulk Import</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.addBtn}
+                  onPress={() => setShowAddQuestionModal(true)}
+                  activeOpacity={0.8}
+                >
+                  <Plus size={15} color="#ffffff" style={{ marginRight: 4 }} />
+                  <Text style={styles.addBtnText}>Add MCQ</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Search Input */}
@@ -1106,6 +1425,201 @@ export default function AdminScreen() {
                   </View>
                 );
               })
+            )}
+          </View>
+        )}
+
+        {/* TAB 8: SYLLABUS (CHAPTERS & TOPICS) */}
+        {activeTab === "syllabus" && (
+          <View style={styles.tabSection}>
+            <View style={styles.tabSectionHeader}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.tabSectionTitle}>Syllabus, Chapters & Topics</Text>
+                <Text style={styles.tabSectionSub}>
+                  Manage curriculum structure, add official chapters and topics
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                <TouchableOpacity
+                  style={[styles.addBtn, { backgroundColor: "#059669" }]}
+                  onPress={() => {
+                    if (syllabusSubjects.length > 0 && !newChapSubjectId) {
+                      setNewChapSubjectId(syllabusSubjects[0].id);
+                    }
+                    setShowAddChapterModal(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Plus size={15} color="#ffffff" style={{ marginRight: 4 }} />
+                  <Text style={styles.addBtnText}>+ Chapter</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.addBtn, { backgroundColor: "#2563eb" }]}
+                  onPress={() => {
+                    const firstChap = syllabusSubjects[0]?.chapters?.[0];
+                    if (firstChap && !newTopicChapId) {
+                      setNewTopicChapId(firstChap.id);
+                    }
+                    setShowAddTopicModal(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Plus size={15} color="#ffffff" style={{ marginRight: 4 }} />
+                  <Text style={styles.addBtnText}>+ Topic</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Course Filter Chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginBottom: 16 }}
+            >
+              {courses.map((c) => {
+                const isSelected = (syllabusExamId || courses[0]?.id) === c.id;
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.filterChip, isSelected && styles.filterChipActive]}
+                    onPress={async () => {
+                      setSyllabusExamId(c.id);
+                      setTabLoading(true);
+                      const sList = await getAdminSyllabusList(c.id);
+                      setSyllabusSubjects(sList);
+                      setTabLoading(false);
+                    }}
+                  >
+                    <Text
+                      style={[styles.filterChipText, isSelected && styles.filterChipTextActive]}
+                    >
+                      {c.conducting_body} - {c.title.split("(")[0].trim()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {tabLoading ? (
+              <ActivityIndicator
+                size="large"
+                color={BRAND_COLORS.primary}
+                style={{ marginVertical: 32 }}
+              />
+            ) : syllabusSubjects.length === 0 ? (
+              <View style={[styles.itemCard, { alignItems: "center", paddingVertical: 32 }]}>
+                <BookOpen size={36} color="#64748b" style={{ marginBottom: 10 }} />
+                <Text style={{ color: "#ffffff", fontSize: 15, fontWeight: "700" }}>
+                  No Subjects Available
+                </Text>
+                <Text
+                  style={{ color: "#94a3b8", fontSize: 12, textAlign: "center", marginTop: 4 }}
+                >
+                  Add a course and subjects to start organizing syllabus chapters.
+                </Text>
+              </View>
+            ) : (
+              syllabusSubjects.map((sub: any) => (
+                <View key={sub.id} style={styles.syllabusSubjectCard}>
+                  <View style={styles.syllabusSubjectHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.syllabusSubjectName}>{sub.name}</Text>
+                      <Text style={styles.syllabusSubjectCode}>
+                        {sub.code || "Core Subject"} • {sub.chapters?.length || 0} Chapters
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.addChapterSmallBtn}
+                      onPress={() => {
+                        setNewChapSubjectId(sub.id);
+                        setShowAddChapterModal(true);
+                      }}
+                    >
+                      <Plus size={12} color="#ffffff" style={{ marginRight: 4 }} />
+                      <Text style={styles.addChapterSmallBtnText}>Add Chapter</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Chapters List */}
+                  {!sub.chapters || sub.chapters.length === 0 ? (
+                    <Text style={styles.noChaptersText}>
+                      No chapters added yet. Tap "+ Chapter" above to create one.
+                    </Text>
+                  ) : (
+                    sub.chapters.map((chap: any, chapIdx: number) => (
+                      <View key={chap.id || chapIdx} style={styles.syllabusChapterCard}>
+                        <View style={styles.syllabusChapterHeader}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.syllabusChapterTitle}>
+                              {chapIdx + 1}. {chap.title}
+                            </Text>
+                            {chap.description ? (
+                              <Text style={styles.syllabusChapterDesc} numberOfLines={2}>
+                                {chap.description}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <TouchableOpacity
+                              style={styles.addTopicSmallBtn}
+                              onPress={() => {
+                                setNewTopicChapId(chap.id);
+                                setShowAddTopicModal(true);
+                              }}
+                            >
+                              <Plus size={11} color="#2563eb" style={{ marginRight: 2 }} />
+                              <Text style={styles.addTopicSmallBtnText}>+ Topic</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.deleteIconBtn}
+                              onPress={() => handleDeleteChapterSubmit(chap.id, chap.title)}
+                            >
+                              <Trash2 size={14} color={BRAND_COLORS.danger} />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        {/* Topics List */}
+                        {chap.topics && chap.topics.length > 0 ? (
+                          <View style={styles.syllabusTopicsList}>
+                            {chap.topics.map((top: any, topIdx: number) => (
+                              <View key={top.id || topIdx} style={styles.syllabusTopicRow}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.syllabusTopicTitle}>• {top.title}</Text>
+                                  {top.description ? (
+                                    <Text style={styles.syllabusTopicDesc} numberOfLines={1}>
+                                      {top.description}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                                <View
+                                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                                >
+                                  <Badge
+                                    label={`${top.estimated_minutes || 45}m`}
+                                    variant="slate"
+                                    size="sm"
+                                  />
+                                  <TouchableOpacity
+                                    onPress={() => handleDeleteTopicSubmit(top.id, top.title)}
+                                  >
+                                    <Trash2 size={13} color="#ef4444" />
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+                        ) : (
+                          <Text style={styles.noTopicsText}>
+                            No topics in this chapter. Tap "+ Topic" to add.
+                          </Text>
+                        )}
+                      </View>
+                    ))
+                  )}
+                </View>
+              ))
             )}
           </View>
         )}
@@ -1539,6 +2053,359 @@ export default function AdminScreen() {
                 variant="outline"
                 size="md"
                 onPress={() => setShowAnswerDoubtModal(false)}
+                disabled={isSubmitting}
+                style={{ marginTop: 10, marginBottom: 20 }}
+              />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* MODAL 6: BULK IMPORT QUESTIONS */}
+      <Modal visible={showBulkImportModal} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalBackdrop}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                style={styles.modalBackBtn}
+                onPress={() => setShowBulkImportModal(false)}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={16} color="#ffffff" />
+                <Text style={styles.modalBackText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Bulk Import MCQs</Text>
+              <TouchableOpacity
+                onPress={() => setShowBulkImportModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalScroll}>
+              <Text style={styles.formLabel}>Target Recruitment Exam</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {courses.map((c) => (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[
+                        styles.choicePill,
+                        { paddingHorizontal: 12 },
+                        (bulkExamId || courses[0]?.id) === c.id && styles.choicePillActive,
+                      ]}
+                      onPress={() => setBulkExamId(c.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.choiceText,
+                          (bulkExamId || courses[0]?.id) === c.id && styles.choiceTextActive,
+                        ]}
+                      >
+                        {c.title}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              <Text style={styles.formLabel}>Payload Format</Text>
+              <View style={styles.choiceRow}>
+                <TouchableOpacity
+                  style={[styles.choicePill, bulkFormat === "json" && styles.choicePillActive]}
+                  onPress={() => setBulkFormat("json")}
+                >
+                  <Text style={[styles.choiceText, bulkFormat === "json" && styles.choiceTextActive]}>
+                    JSON Array
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.choicePill, bulkFormat === "csv" && styles.choicePillActive]}
+                  onPress={() => setBulkFormat("csv")}
+                >
+                  <Text style={[styles.choiceText, bulkFormat === "csv" && styles.choiceTextActive]}>
+                    CSV Table
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginTop: 10,
+                  marginBottom: 6,
+                }}
+              >
+                <Text style={[styles.formLabel, { marginTop: 0, marginBottom: 0 }]}>
+                  Raw Data Payload
+                </Text>
+                <TouchableOpacity
+                  style={styles.sampleDataBtn}
+                  onPress={handleLoadSampleBatch}
+                  activeOpacity={0.7}
+                >
+                  <Sparkles size={12} color="#38bdf8" style={{ marginRight: 4 }} />
+                  <Text style={styles.sampleDataBtnText}>Load Sample Batch</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={[
+                  styles.formInput,
+                  {
+                    height: 180,
+                    textAlignVertical: "top",
+                    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+                    fontSize: 12,
+                  },
+                ]}
+                multiline
+                placeholder={
+                  bulkFormat === "json"
+                    ? '[{\n  "question_text": "...",\n  "options": ["A","B","C","D"],\n  "correct_option_index": 0,\n  "difficulty": "medium",\n  "explanation": "..."\n}]'
+                    : "Question,OptionA,OptionB,OptionC,OptionD,CorrectIndex,Difficulty,Explanation"
+                }
+                value={bulkRawText}
+                onChangeText={setBulkRawText}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              {bulkRawText.trim().length > 0 && (
+                <View style={styles.parsedCountBox}>
+                  <Text style={styles.parsedCountText}>
+                    Detected:{" "}
+                    <Text style={{ fontWeight: "800", color: "#38bdf8" }}>
+                      {parseBulkQuestions(bulkRawText, bulkFormat, bulkExamId || courses[0]?.id).length}
+                    </Text>{" "}
+                    valid MCQs ready for batch import
+                  </Text>
+                </View>
+              )}
+
+              <Button
+                title={
+                  isBulkImporting
+                    ? "Importing Questions..."
+                    : `Import ${
+                        parseBulkQuestions(bulkRawText, bulkFormat, bulkExamId || courses[0]?.id).length
+                      } Questions`
+                }
+                variant="primary"
+                size="md"
+                onPress={handleBulkImportSubmit}
+                disabled={
+                  isBulkImporting ||
+                  parseBulkQuestions(bulkRawText, bulkFormat, bulkExamId || courses[0]?.id).length === 0
+                }
+                style={{ marginTop: 16 }}
+              />
+
+              <Button
+                title="Cancel & Go Back"
+                variant="outline"
+                size="md"
+                onPress={() => setShowBulkImportModal(false)}
+                disabled={isBulkImporting}
+                style={{ marginTop: 10, marginBottom: 20 }}
+              />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* MODAL 7: ADD CHAPTER */}
+      <Modal visible={showAddChapterModal} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalBackdrop}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                style={styles.modalBackBtn}
+                onPress={() => setShowAddChapterModal(false)}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={16} color="#ffffff" />
+                <Text style={styles.modalBackText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Add Syllabus Chapter</Text>
+              <TouchableOpacity
+                onPress={() => setShowAddChapterModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalScroll}>
+              <Text style={styles.formLabel}>Target Subject *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {syllabusSubjects.map((s) => (
+                    <TouchableOpacity
+                      key={s.id}
+                      style={[
+                        styles.choicePill,
+                        { paddingHorizontal: 12 },
+                        (newChapSubjectId || syllabusSubjects[0]?.id) === s.id && styles.choicePillActive,
+                      ]}
+                      onPress={() => setNewChapSubjectId(s.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.choiceText,
+                          (newChapSubjectId || syllabusSubjects[0]?.id) === s.id && styles.choiceTextActive,
+                        ]}
+                      >
+                        {s.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              <Text style={styles.formLabel}>Chapter Title *</Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="e.g. Modern History of Odisha & Prajamandal"
+                value={newChapTitle}
+                onChangeText={setNewChapTitle}
+              />
+
+              <Text style={styles.formLabel}>Chapter Description (Optional)</Text>
+              <TextInput
+                style={[styles.formInput, { height: 70, textAlignVertical: "top" }]}
+                multiline
+                placeholder="Key themes, events, and focus areas..."
+                value={newChapDesc}
+                onChangeText={setNewChapDesc}
+              />
+
+              <Button
+                title={isSubmitting ? "Creating Chapter..." : "Save Chapter"}
+                variant="primary"
+                size="md"
+                onPress={handleCreateChapterSubmit}
+                disabled={isSubmitting}
+                style={{ marginTop: 16 }}
+              />
+
+              <Button
+                title="Cancel & Go Back"
+                variant="outline"
+                size="md"
+                onPress={() => setShowAddChapterModal(false)}
+                disabled={isSubmitting}
+                style={{ marginTop: 10, marginBottom: 20 }}
+              />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* MODAL 8: ADD TOPIC */}
+      <Modal visible={showAddTopicModal} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalBackdrop}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                style={styles.modalBackBtn}
+                onPress={() => setShowAddTopicModal(false)}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={16} color="#ffffff" />
+                <Text style={styles.modalBackText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Add Syllabus Topic</Text>
+              <TouchableOpacity
+                onPress={() => setShowAddTopicModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.modalScroll}>
+              <Text style={styles.formLabel}>Select Parent Chapter *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {syllabusSubjects
+                    .flatMap((s) => s.chapters || [])
+                    .map((chap: any) => (
+                      <TouchableOpacity
+                        key={chap.id}
+                        style={[
+                          styles.choicePill,
+                          { paddingHorizontal: 12 },
+                          newTopicChapId === chap.id && styles.choicePillActive,
+                        ]}
+                        onPress={() => setNewTopicChapId(chap.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.choiceText,
+                            newTopicChapId === chap.id && styles.choiceTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {chap.title}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                </View>
+              </ScrollView>
+
+              <Text style={styles.formLabel}>Topic Title *</Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="e.g. 1857 Revolt in Sambalpur & Veer Surendra Sai"
+                value={newTopicTitle}
+                onChangeText={setNewTopicTitle}
+              />
+
+              <Text style={styles.formLabel}>Topic Description (Optional)</Text>
+              <TextInput
+                style={[styles.formInput, { height: 70, textAlignVertical: "top" }]}
+                multiline
+                placeholder="Important sub-concepts, key dates, and references..."
+                value={newTopicDesc}
+                onChangeText={setNewTopicDesc}
+              />
+
+              <Text style={styles.formLabel}>Estimated Study Time (Minutes)</Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="45"
+                keyboardType="numeric"
+                value={newTopicMinutes}
+                onChangeText={setNewTopicMinutes}
+              />
+
+              <Button
+                title={isSubmitting ? "Creating Topic..." : "Save Topic"}
+                variant="primary"
+                size="md"
+                onPress={handleCreateTopicSubmit}
+                disabled={isSubmitting}
+                style={{ marginTop: 16 }}
+              />
+
+              <Button
+                title="Cancel & Go Back"
+                variant="outline"
+                size="md"
+                onPress={() => setShowAddTopicModal(false)}
                 disabled={isSubmitting}
                 style={{ marginTop: 10, marginBottom: 20 }}
               />
@@ -2223,5 +3090,200 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#ffffff",
     lineHeight: 18,
+  },
+
+  // Filter Chips
+  filterChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
+    marginRight: 8,
+  },
+  filterChipActive: {
+    backgroundColor: BRAND_COLORS.primary,
+    borderColor: BRAND_COLORS.primary,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#94a3b8",
+  },
+  filterChipTextActive: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+
+  // Syllabus Tab Styles
+  syllabusSubjectCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    marginBottom: 16,
+  },
+  syllabusSubjectHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+  },
+  syllabusSubjectTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  syllabusSubjectName: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  syllabusSubjectMeta: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  syllabusSubjectCode: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+  },
+  addChapterSmallBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  addChapterSmallBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#38bdf8",
+  },
+  syllabusNoChapters: {
+    fontSize: 12,
+    color: "#64748b",
+    fontStyle: "italic",
+    paddingVertical: 8,
+    textAlign: "center",
+  },
+  noChaptersText: {
+    fontSize: 12,
+    color: "#64748b",
+    fontStyle: "italic",
+    paddingVertical: 8,
+    textAlign: "center",
+  },
+  syllabusChapterCard: {
+    backgroundColor: "#131c2e",
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    marginBottom: 10,
+  },
+  syllabusChapterHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  syllabusChapterTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#f1f5f9",
+  },
+  syllabusChapterDesc: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  addTopicSmallBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "#2563eb",
+  },
+  addTopicSmallBtnText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#3b82f6",
+  },
+  syllabusTopicsList: {
+    backgroundColor: "#0b1120",
+    borderRadius: 8,
+    padding: 8,
+    gap: 6,
+    marginTop: 4,
+  },
+  syllabusTopicRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b22",
+  },
+  syllabusTopicTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#e2e8f0",
+  },
+  syllabusTopicDesc: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 1,
+  },
+  noTopicsText: {
+    fontSize: 11,
+    color: "#64748b",
+    fontStyle: "italic",
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+
+  // Bulk Import Styles
+  sampleDataBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#38bdf8",
+  },
+  sampleDataBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#38bdf8",
+  },
+  parsedCountBox: {
+    backgroundColor: "#022c22",
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#059669",
+  },
+  parsedCountText: {
+    fontSize: 11,
+    color: "#6ee7b7",
   },
 });

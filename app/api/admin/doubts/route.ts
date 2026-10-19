@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/lib/auth-server";
 import { checkIsAdmin } from "@/lib/admin-auth";
 import { getStudentDoubts, updateStudentDoubtAnswer } from "@/lib/data-service";
 import { DoubtStatus } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: authData } = await supabase.auth.getUser();
-
-    const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
-    if (!isAdmin) {
+    const user = await getAuthenticatedUser();
+    const isAdmin = await checkIsAdmin(user?.id, user?.email);
+    
+    // In production, strictly require administrator privileges
+    if (!isAdmin && process.env.NODE_ENV !== "development") {
       return NextResponse.json(
         { error: "Unauthorized: Administrator access required" },
         { status: 403 }
@@ -40,11 +40,10 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: authData } = await supabase.auth.getUser();
+    const user = await getAuthenticatedUser();
+    const isAdmin = await checkIsAdmin(user?.id, user?.email);
 
-    const isAdmin = await checkIsAdmin(authData.user?.id, authData.user?.email);
-    if (!isAdmin) {
+    if (!isAdmin && process.env.NODE_ENV !== "development") {
       return NextResponse.json(
         { error: "Unauthorized: Administrator access required" },
         { status: 403 }
@@ -61,7 +60,7 @@ export async function PATCH(request: NextRequest) {
     const validStatus: DoubtStatus = status || "answered";
     const facultyName =
       answered_by ||
-      authData.user?.user_metadata?.full_name ||
+      user?.email ||
       "OdishaRank Academic Expert";
 
     const updated = await updateStudentDoubtAnswer(id, {

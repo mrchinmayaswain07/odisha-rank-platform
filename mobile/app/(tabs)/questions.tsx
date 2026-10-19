@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import {
   CheckCircle2,
   XCircle,
@@ -15,6 +16,7 @@ import {
   ArrowRight,
   ArrowLeft,
   RotateCcw,
+  Zap,
 } from "lucide-react-native";
 import { BRAND_COLORS, Question, Subject } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
@@ -133,6 +135,36 @@ export default function QuestionsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Quick BODMAS & Calculation Drill Link */}
+        <TouchableOpacity
+          style={styles.bodmasPromoCard}
+          onPress={() =>
+            router.push({
+              pathname: "/speed-math",
+              params: { category: "bodmas" },
+            } as any)
+          }
+          activeOpacity={0.85}
+        >
+          <View style={styles.bodmasPromoLeft}>
+            <View style={styles.bodmasPromoIcon}>
+              <Zap size={16} color="#f59e0b" fill="#f59e0b" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={styles.bodmasPromoTitle}>BODMAS & Speed Math Zone</Text>
+                <View style={styles.bodmasPromoTag}>
+                  <Text style={styles.bodmasPromoTagText}>PRACTICE</Text>
+                </View>
+              </View>
+              <Text style={styles.bodmasPromoSub}>
+                Master order of operations & fast mental calculations
+              </Text>
+            </View>
+          </View>
+          <ArrowRight size={16} color="#f59e0b" />
+        </TouchableOpacity>
+
         {isLoading ? (
           <View style={styles.loaderContainer}>
             <ActivityIndicator size="large" color={BRAND_COLORS.primary} />
@@ -425,5 +457,51 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: BRAND_COLORS.border,
+  },
+  bodmasPromoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#0f172a",
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#f59e0b44",
+  },
+  bodmasPromoLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  bodmasPromoIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bodmasPromoTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  bodmasPromoTag: {
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  bodmasPromoTagText: {
+    fontSize: 8,
+    fontWeight: "900",
+    color: "#0f172a",
+  },
+  bodmasPromoSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 1,
   },
 });

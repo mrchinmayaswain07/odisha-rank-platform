@@ -282,15 +282,52 @@ export function updateRuntimeMaterialStatus(id: string, status: "draft" | "publi
   return false;
 }
 
-// In-memory runtime doubts cache
-let RUNTIME_DOUBTS: StudentDoubt[] = [...SEED_DOUBTS];
+import * as fs from "fs";
+import * as path from "path";
+
+const DOUBTS_FILE_PATH = path.join(process.cwd(), "data", "student-doubts.json");
+
+function loadFileDoubts(): StudentDoubt[] {
+  if (typeof window !== "undefined") return [];
+  try {
+    if (fs.existsSync(DOUBTS_FILE_PATH)) {
+      const content = fs.readFileSync(DOUBTS_FILE_PATH, "utf-8");
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
+function saveFileDoubts(doubts: StudentDoubt[]): void {
+  if (typeof window !== "undefined") return;
+  try {
+    const dir = path.dirname(DOUBTS_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(DOUBTS_FILE_PATH, JSON.stringify(doubts, null, 2), "utf-8");
+  } catch {}
+}
+
+// In-memory runtime doubts cache synchronized with persistent disk storage
+const initialFileDoubts = loadFileDoubts();
+let RUNTIME_DOUBTS: StudentDoubt[] = initialFileDoubts.length > 0 ? initialFileDoubts : [...SEED_DOUBTS];
 
 export function getRuntimeDoubts(): StudentDoubt[] {
+  const fileDoubts = loadFileDoubts();
+  if (fileDoubts.length > 0) {
+    const existing = new Set(RUNTIME_DOUBTS.map((d) => d.id));
+    fileDoubts.forEach((fd) => {
+      if (!existing.has(fd.id)) RUNTIME_DOUBTS.push(fd);
+    });
+  }
   return RUNTIME_DOUBTS;
 }
 
 export function resetRuntimeDoubts(): void {
   RUNTIME_DOUBTS = [...SEED_DOUBTS];
+  saveFileDoubts(RUNTIME_DOUBTS);
 }
 
 export async function getStudentDoubts(filters?: {
@@ -331,7 +368,32 @@ export async function getStudentDoubts(filters?: {
         // Table may not yet be migrated on remote Supabase instance
       }
 
-      // Tier 2: Query fallback persistence store in study_sessions (duration_minutes: 99999)
+      // Tier 2: Query shared persistent store in study_materials with prefix [STUDENT_DOUBT]
+      try {
+        const { data: doubtRows } = await supabase
+          .from("study_materials")
+          .select("id, title, content, is_official, created_at, created_by")
+          .ilike("title", "[STUDENT_DOUBT]%");
+
+        if (doubtRows && Array.isArray(doubtRows)) {
+          for (const row of doubtRows) {
+            try {
+              if (row.content) {
+                const parsed = JSON.parse(row.content);
+                if (parsed.id && !allFetchedDoubts.some((d) => d.id === parsed.id)) {
+                  allFetchedDoubts.push(parsed as StudentDoubt);
+                }
+              }
+            } catch {
+              // Ignore non-json rows
+            }
+          }
+        }
+      } catch {
+        // Non-blocking fallback
+      }
+
+      // Tier 3: Query fallback persistence store in study_sessions (duration_minutes: 99999)
       try {
         const { data: sessionRows } = await supabase
           .from("study_sessions")
@@ -360,7 +422,22 @@ export async function getStudentDoubts(filters?: {
     }
   }
 
-  // Tier 3: Merge with in-memory RUNTIME_DOUBTS
+  // Tier 3: Merge with file storage & in-memory RUNTIME_DOUBTS
+  const fileDoubts = loadFileDoubts();
+  if (fileDoubts.length > 0) {
+    const existing = new Set(RUNTIME_DOUBTS.map((d) => d.id));
+    fileDoubts.forEach((fd) => {
+      if (!existing.has(fd.id)) RUNTIME_DOUBTS.push(fd);
+      else {
+        // Update if file version has answer
+        const idx = RUNTIME_DOUBTS.findIndex((d) => d.id === fd.id);
+        if (idx >= 0 && fd.answer && !RUNTIME_DOUBTS[idx].answer) {
+          RUNTIME_DOUBTS[idx] = fd;
+        }
+      }
+    });
+  }
+
   const existingIds = new Set(allFetchedDoubts.map((d) => d.id));
   const runtimeExtra = RUNTIME_DOUBTS.filter((rd) => !existingIds.has(rd.id));
   const combined = [...allFetchedDoubts, ...runtimeExtra];
@@ -445,6 +522,7 @@ export async function createStudentDoubt(payload: {
   };
 
   RUNTIME_DOUBTS.unshift(newDoubt);
+  saveFileDoubts(RUNTIME_DOUBTS);
 
   if (isSupabaseConfigured()) {
     let supabase: any;
@@ -486,7 +564,31 @@ export async function createStudentDoubt(payload: {
         persisted = false;
       }
 
-      // 2. If student_doubts table is not yet migrated, reliably persist in study_sessions (duration_minutes: 99999)
+      // 2. Persist in study_materials with title [STUDENT_DOUBT]
+      if (!persisted) {
+        try {
+          const { data: matData } = await supabase
+            .from("study_materials")
+            .insert({
+              topic_id: "c1111111-1111-1111-1111-111111111111",
+              title: `[STUDENT_DOUBT] ${newDoubt.id}`,
+              material_type: "note",
+              content: JSON.stringify({ type: "student_doubt", ...newDoubt }),
+              category: "doubt",
+              is_official: false,
+              status: "published",
+              created_by: payload.user_id && payload.user_id.length > 20 ? payload.user_id : null,
+            })
+            .select()
+            .single();
+
+          if (matData) {
+            persisted = true;
+          }
+        } catch {}
+      }
+
+      // 3. Fallback to study_sessions (duration_minutes: 99999)
       if (!persisted) {
         try {
           await supabase.from("study_sessions").insert({
@@ -554,7 +656,47 @@ export async function updateStudentDoubtAnswer(
         // Non-blocking
       }
 
-      // 2. Update in study_sessions fallback if present
+      // 2. Update in study_materials shared store
+      try {
+        const { data: matRows } = await supabase
+          .from("study_materials")
+          .select("id, content")
+          .eq("title", `[STUDENT_DOUBT] ${id}`);
+
+        if (matRows && matRows.length > 0) {
+          const existing = matRows[0];
+          let parsed: any = {};
+          try {
+            parsed = JSON.parse(existing.content);
+          } catch {}
+          const updatedContent = {
+            ...parsed,
+            answer: payload.answer,
+            answered_by: payload.answered_by,
+            status: payload.status,
+            answered_at: now,
+            updated_at: now,
+            is_notified: false,
+          };
+
+          await supabase
+            .from("study_materials")
+            .update({
+              content: JSON.stringify(updatedContent),
+              is_official: !updatedContent.is_private,
+              updated_at: now,
+            })
+            .eq("id", existing.id);
+
+          if (!updatedDoubt) {
+            updatedDoubt = updatedContent as StudentDoubt;
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
+
+      // 3. Update in study_sessions fallback if present
       try {
         const { data: sessionRows } = await supabase
           .from("study_sessions")
@@ -611,7 +753,10 @@ export async function updateStudentDoubtAnswer(
     if (!updatedDoubt) {
       updatedDoubt = RUNTIME_DOUBTS[idx];
     }
+  } else if (updatedDoubt) {
+    RUNTIME_DOUBTS.unshift(updatedDoubt);
   }
+  saveFileDoubts(RUNTIME_DOUBTS);
 
   return updatedDoubt;
 }

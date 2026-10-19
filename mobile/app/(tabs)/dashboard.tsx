@@ -408,28 +408,139 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            {/* Speed Math & BODMAS Practice Banner */}
-            <TouchableOpacity
-              style={styles.speedMathBanner}
-              onPress={() => router.push("/speed-math" as any)}
-              activeOpacity={0.85}
-            >
-              <View style={styles.speedMathBannerLeft}>
-                <View style={styles.speedMathIconCircle}>
-                  <Zap size={20} color="#f59e0b" fill="#f59e0b" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.speedMathBadgeRow}>
-                    <Text style={styles.speedMathBadgeText}>NEW SPEED DRILLS</Text>
+            {/* 3. Dedicated BODMAS & Speed Calculation Zone */}
+            <View style={styles.bodmasSection}>
+              <View style={styles.bodmasHeaderRow}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={styles.bodmasHeaderIconBadge}>
+                    <Zap size={16} color="#f59e0b" fill="#f59e0b" />
                   </View>
-                  <Text style={styles.speedMathTitle}>Speed Math & BODMAS Drills</Text>
-                  <Text style={styles.speedMathSub}>
-                    16 categories: BODMAS, Addition, Squares, Cubes, Tables & DI
-                  </Text>
+                  <View>
+                    <Text style={styles.bodmasSectionTitle}>BODMAS & Calculation Lab</Text>
+                    <Text style={styles.bodmasSectionSub}>Speed training for OSSC & OSSSC exams</Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => router.push("/speed-math" as any)}
+                  style={styles.bodmasViewAllBtn}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.bodmasViewAllText}>16 Drills</Text>
+                  <ArrowRight size={12} color="#38bdf8" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Featured BODMAS Master Card */}
+              <View style={styles.bodmasMainCard}>
+                <View style={styles.bodmasBadgeRow}>
+                  <View style={styles.bodmasPillTag}>
+                    <Text style={styles.bodmasPillTagText}>CORE EXAM TOPIC</Text>
+                  </View>
+                  <Text style={styles.bodmasRuleFormula}>B → O → D → M → A → S</Text>
+                </View>
+
+                <Text style={styles.bodmasMainTitle}>BODMAS Fast Simplification</Text>
+                <Text style={styles.bodmasMainDesc}>
+                  Master bracket evaluation, divisions, and multiplications with live countdown & accuracy metrics.
+                </Text>
+
+                {/* Difficulty Quick Start Row */}
+                <View style={styles.bodmasDiffRow}>
+                  <TouchableOpacity
+                    style={[styles.bodmasDiffBtn, { borderColor: "#10b981", backgroundColor: "rgba(16, 185, 129, 0.1)" }]}
+                    onPress={() =>
+                      router.push({ pathname: "/speed-math", params: { category: "bodmas", difficulty: "easy" } } as any)
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.bodmasDiffText, { color: "#34d399" }]}>Easy (2-Step)</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.bodmasDiffBtn, { borderColor: "#f59e0b", backgroundColor: "rgba(245, 158, 11, 0.1)" }]}
+                    onPress={() =>
+                      router.push({ pathname: "/speed-math", params: { category: "bodmas", difficulty: "medium" } } as any)
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.bodmasDiffText, { color: "#fbbf24" }]}>Medium (3-Step)</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.bodmasDiffBtn, { borderColor: "#ef4444", backgroundColor: "rgba(239, 68, 68, 0.1)" }]}
+                    onPress={() =>
+                      router.push({ pathname: "/speed-math", params: { category: "bodmas", difficulty: "hard" } } as any)
+                    }
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.bodmasDiffText, { color: "#f87171" }]}>Hard (Nested)</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-              <ArrowRight size={16} color="#94a3b8" />
-            </TouchableOpacity>
+
+              {/* Horizontal Drills Carousel */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.bodmasScrollCards}
+              >
+                <TouchableOpacity
+                  style={styles.bodmasSubCard}
+                  onPress={() =>
+                    router.push({ pathname: "/speed-math", params: { category: "addition", difficulty: "medium" } } as any)
+                  }
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.bodmasSubIconBox, { backgroundColor: "rgba(59, 130, 246, 0.15)" }]}>
+                    <Text style={{ fontSize: 16, fontWeight: "900", color: "#3b82f6" }}>＋</Text>
+                  </View>
+                  <Text style={styles.bodmasSubCardTitle}>Rapid Addition</Text>
+                  <Text style={styles.bodmasSubCardSub}>2 & 3 Digit Fast Math</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.bodmasSubCard}
+                  onPress={() =>
+                    router.push({ pathname: "/speed-math", params: { category: "tables", difficulty: "medium" } } as any)
+                  }
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.bodmasSubIconBox, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
+                    <Text style={{ fontSize: 16, fontWeight: "900", color: "#10b981" }}>×</Text>
+                  </View>
+                  <Text style={styles.bodmasSubCardTitle}>Tables (1-30)</Text>
+                  <Text style={styles.bodmasSubCardSub}>Instant Recall Speed</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.bodmasSubCard}
+                  onPress={() =>
+                    router.push({ pathname: "/speed-math", params: { category: "squares", difficulty: "medium" } } as any)
+                  }
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.bodmasSubIconBox, { backgroundColor: "rgba(139, 92, 246, 0.15)" }]}>
+                    <Text style={{ fontSize: 16, fontWeight: "900", color: "#8b5cf6" }}>x²</Text>
+                  </View>
+                  <Text style={styles.bodmasSubCardTitle}>Squares (1-50)</Text>
+                  <Text style={styles.bodmasSubCardSub}>Roots & Powers</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.bodmasSubCard}
+                  onPress={() =>
+                    router.push({ pathname: "/speed-math", params: { category: "percent_to_fraction", difficulty: "medium" } } as any)
+                  }
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.bodmasSubIconBox, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
+                    <Text style={{ fontSize: 16, fontWeight: "900", color: "#f59e0b" }}>%</Text>
+                  </View>
+                  <Text style={styles.bodmasSubCardTitle}>DI Percentages</Text>
+                  <Text style={styles.bodmasSubCardSub}>Fraction Shortcuts</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
 
             {/* 4. Quick Actions (With Doubts Feature) */}
             <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -953,6 +1064,146 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "700",
+  },
+  // BODMAS & Calculation Lab Section
+  bodmasSection: {
+    backgroundColor: "#0b1222",
+    borderRadius: 20,
+    padding: 16,
+    marginVertical: 14,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  bodmasHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  bodmasHeaderIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bodmasSectionTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#ffffff",
+    letterSpacing: -0.3,
+  },
+  bodmasSectionSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 1,
+  },
+  bodmasViewAllBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  bodmasViewAllText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#38bdf8",
+  },
+  bodmasMainCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#f59e0b44",
+    marginBottom: 12,
+  },
+  bodmasBadgeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  bodmasPillTag: {
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  bodmasPillTagText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: "#0f172a",
+    letterSpacing: 0.5,
+  },
+  bodmasRuleFormula: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#fbbf24",
+    letterSpacing: 1,
+  },
+  bodmasMainTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+  bodmasMainDesc: {
+    fontSize: 12,
+    color: "#94a3b8",
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  bodmasDiffRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  bodmasDiffBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bodmasDiffText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  bodmasScrollCards: {
+    gap: 10,
+    paddingVertical: 2,
+  },
+  bodmasSubCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    padding: 12,
+    width: 130,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  bodmasSubIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  bodmasSubCardTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#f8fafc",
+  },
+  bodmasSubCardSub: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 2,
   },
   speedMathBanner: {
     flexDirection: "row",

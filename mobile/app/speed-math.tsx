@@ -11,7 +11,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   ArrowLeft,
   Zap,
@@ -57,6 +57,26 @@ export default function SpeedMathScreen() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<SpeedMathDifficulty>("medium");
   const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(20);
   const [showConfigModal, setShowConfigModal] = useState(false);
+
+  // Route Params Deep Linking
+  const params = useLocalSearchParams<{ category?: string; difficulty?: string; count?: string; start?: string }>();
+
+  useEffect(() => {
+    if (params?.category) {
+      const catKey = params.category.toLowerCase().trim();
+      const match = SPEED_MATH_CATEGORIES.find((c) => c.id.toLowerCase() === catKey);
+      if (match) {
+        setSelectedCategory(match.id);
+        if (params.difficulty && ["easy", "medium", "hard"].includes(params.difficulty.toLowerCase())) {
+          setSelectedDifficulty(params.difficulty.toLowerCase() as SpeedMathDifficulty);
+        }
+        if (params.count && !isNaN(parseInt(params.count, 10))) {
+          setSelectedQuestionCount(parseInt(params.count, 10));
+        }
+        setShowConfigModal(true);
+      }
+    }
+  }, [params?.category, params?.difficulty, params?.count]);
 
   // Active Drill State
   const [isDrillActive, setIsDrillActive] = useState(false);

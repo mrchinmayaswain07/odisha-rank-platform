@@ -47,9 +47,9 @@ export default function DoubtsScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchDoubts = useCallback(async () => {
-    if (!user) return;
     try {
-      const data = await getStudentDoubts(user.id);
+      const studentId = user?.id || "demo-student-id";
+      const data = await getStudentDoubts(studentId);
       setDoubts(data);
     } catch (err) {
       console.warn("Failed to fetch doubts:", err);
@@ -57,7 +57,7 @@ export default function DoubtsScreen() {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     fetchDoubts();
@@ -73,14 +73,17 @@ export default function DoubtsScreen() {
       Alert.alert("Question Required", "Please enter your question or doubt description.");
       return;
     }
-    if (!user) return;
+
+    const studentId = user?.id || "demo-student-id";
+    const studentName = profile?.full_name || user?.email?.split("@")[0] || "Aspirant Scholar";
+    const studentEmail = user?.email || "student@odisharank.in";
 
     setIsSubmitting(true);
     try {
       const newDoubt = await createStudentDoubt({
-        user_id: user.id,
-        student_name: profile?.full_name || user.email?.split("@")[0] || "Aspirant",
-        student_email: user.email || undefined,
+        user_id: studentId,
+        student_name: studentName,
+        student_email: studentEmail,
         subject: subject.trim(),
         exam_id: activeExam?.id || null,
         question: questionText.trim(),
@@ -101,8 +104,9 @@ export default function DoubtsScreen() {
   };
 
   // Filtered doubts
+  const studentId = user?.id || "demo-student-id";
   const filteredDoubts = doubts.filter((d) => {
-    if (activeTab === "my" && d.user_id !== user?.id) return false;
+    if (activeTab === "my" && d.user_id !== studentId) return false;
     if (activeTab === "answered" && d.status !== "answered") return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
