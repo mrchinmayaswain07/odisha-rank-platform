@@ -53,6 +53,7 @@ import { fetchStudentNotifications, AppNotification } from "../../src/lib/notifi
 
 const TODAY_GOALS_KEY = "odisharank_today_goals_";
 const TARGET_HOURS_KEY = "odisharank_target_hours_";
+const DELETED_GOALS_KEY = "odisharank_deleted_goals_";
 const getTodayDateStr = () => new Date().toISOString().split("T")[0];
 
 export default function DashboardScreen() {
@@ -78,75 +79,85 @@ export default function DashboardScreen() {
   const [logNotes, setLogNotes] = useState("");
   const [isLogging, setIsLogging] = useState(false);
 
-  // Load Today's Goals from AsyncStorage with dynamic syllabus fallbacks
+  // Load Today's Goals from AsyncStorage with dynamic syllabus fallbacks and tombstone tracking
   const loadTodayGoals = useCallback(async () => {
-    if (!user) return;
+    const uid = user?.id || "student_user";
     const today = getTodayDateStr();
     try {
-      const savedHours = await AsyncStorage.getItem(`${TARGET_HOURS_KEY}${user.id}`);
+      const savedHours = await AsyncStorage.getItem(`${TARGET_HOURS_KEY}${uid}`);
       if (savedHours) setTargetHours(Number(savedHours) || 3);
 
-      const raw = await AsyncStorage.getItem(`${TODAY_GOALS_KEY}${user.id}_${today}`);
-      if (raw) {
+      // 1. Load tombstone deleted IDs
+      const deletedRaw = await AsyncStorage.getItem(`${DELETED_GOALS_KEY}${uid}`);
+      const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+      const deletedSet = new Set(deletedIds);
+
+      // 2. Check stored goals for today
+      const raw = await AsyncStorage.getItem(`${TODAY_GOALS_KEY}${uid}_${today}`);
+      if (raw !== null) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setTodayGoals(parsed);
+        if (Array.isArray(parsed)) {
+          // Filter out any tombstoned items
+          const filtered = parsed.filter((g: TodayGoalItem) => !deletedSet.has(g.id));
+          setTodayGoals(filtered);
           return;
         }
       }
+
+      // 3. Fallback dynamic goals based on active exam (only when no storage for today exists)
+      const examCode = activeExam?.conducting_body || "OSSC";
+      const initialGoals: TodayGoalItem[] = [
+        {
+          id: "tg-1",
+          title: `${examCode} General Studies – Indian Polity`,
+          subject: "Polity",
+          chapter: "Constitution & Governance",
+          durationMinutes: 45,
+          completed: false,
+        },
+        {
+          id: "tg-2",
+          title: "Odisha Special – History & Geography of Odisha",
+          subject: "Odisha GK",
+          chapter: "Historical Heritage",
+          durationMinutes: 45,
+          completed: false,
+        },
+        {
+          id: "tg-3",
+          title: "Quantitative Aptitude – Simplification Sprint",
+          subject: "Math",
+          chapter: "Number System",
+          durationMinutes: 30,
+          completed: false,
+        },
+        {
+          id: "tg-4",
+          title: `Attempt Mock Test (${examCode} Sectional Simulation)`,
+          subject: "Simulation",
+          chapter: "Full Paper",
+          durationMinutes: 60,
+          completed: false,
+        },
+      ].filter((g) => !deletedSet.has(g.id));
+
+      setTodayGoals(initialGoals);
+      await AsyncStorage.setItem(`${TODAY_GOALS_KEY}${uid}_${today}`, JSON.stringify(initialGoals));
     } catch (err) {
       console.warn("Failed to load today's goals:", err);
     }
-
-    // Default dynamic goals based on active exam
-    const examCode = activeExam?.conducting_body || "OSSC";
-    const initialGoals: TodayGoalItem[] = [
-      {
-        id: "tg-1",
-        title: `${examCode} General Studies – Indian Polity`,
-        subject: "Polity",
-        chapter: "Constitution & Governance",
-        durationMinutes: 45,
-        completed: false,
-      },
-      {
-        id: "tg-2",
-        title: "Odisha Special – History & Geography of Odisha",
-        subject: "Odisha GK",
-        chapter: "Historical Heritage",
-        durationMinutes: 45,
-        completed: false,
-      },
-      {
-        id: "tg-3",
-        title: "Quantitative Aptitude – Simplification Sprint",
-        subject: "Math",
-        chapter: "Number System",
-        durationMinutes: 30,
-        completed: false,
-      },
-      {
-        id: "tg-4",
-        title: `Attempt Mock Test (${examCode} Sectional Simulation)`,
-        subject: "Simulation",
-        chapter: "Full Paper",
-        durationMinutes: 60,
-        completed: false,
-      },
-    ];
-    setTodayGoals(initialGoals);
-  }, [user, activeExam]);
+  }, [user?.id, activeExam?.conducting_body]);
 
   // Load Notifications
   const loadNotifications = useCallback(async () => {
-    if (!user) return;
     try {
-      const list = await fetchStudentNotifications(user.id, activeExam?.id);
+      const uid = user?.id || "student_user";
+      const list = await fetchStudentNotifications(uid, activeExam?.id);
       setNotifications(list);
     } catch (err) {
       console.warn("Failed to load notifications:", err);
     }
-  }, [user, activeExam]);
+  }, [user?.id, activeExam?.id]);
 
   const fetchMetrics = useCallback(async () => {
     if (!user) return;
@@ -176,42 +187,64 @@ export default function DashboardScreen() {
 
   // Toggle Today's Goal Item
   const toggleGoal = async (goalId: string) => {
+    const uid = user?.id || "student_user";
     const today = getTodayDateStr();
-    const updated = todayGoals.map((g) =>
-      g.id === goalId ? { ...g, completed: !g.completed } : g
-    );
-    setTodayGoals(updated);
-    if (user) {
-      await AsyncStorage.setItem(`${TODAY_GOALS_KEY}${user.id}_${today}`, JSON.stringify(updated));
-    }
+    setTodayGoals((prev) => {
+      const updated = prev.map((g) =>
+        g.id === goalId ? { ...g, completed: !g.completed } : g
+      );
+      AsyncStorage.setItem(`${TODAY_GOALS_KEY}${uid}_${today}`, JSON.stringify(updated)).catch((err) =>
+        console.warn("Failed to save goals after toggle:", err)
+      );
+      return updated;
+    });
   };
 
   // Add Today's Goal Item
   const handleAddGoalItem = async (newItem: TodayGoalItem) => {
+    const uid = user?.id || "student_user";
     const today = getTodayDateStr();
-    const updated = [newItem, ...todayGoals];
-    setTodayGoals(updated);
-    if (user) {
-      await AsyncStorage.setItem(`${TODAY_GOALS_KEY}${user.id}_${today}`, JSON.stringify(updated));
-    }
+    setTodayGoals((prev) => {
+      const updated = [newItem, ...prev];
+      AsyncStorage.setItem(`${TODAY_GOALS_KEY}${uid}_${today}`, JSON.stringify(updated)).catch((err) =>
+        console.warn("Failed to save goals after add:", err)
+      );
+      return updated;
+    });
   };
 
   // Delete Today's Goal Item
   const handleDeleteGoalItem = async (goalId: string) => {
+    const uid = user?.id || "student_user";
     const today = getTodayDateStr();
-    const updated = todayGoals.filter((g) => g.id !== goalId);
-    setTodayGoals(updated);
-    if (user) {
-      await AsyncStorage.setItem(`${TODAY_GOALS_KEY}${user.id}_${today}`, JSON.stringify(updated));
+
+    // 1. Immediately update state and persist updated goals list
+    setTodayGoals((prev) => {
+      const updated = prev.filter((g) => g.id !== goalId);
+      AsyncStorage.setItem(`${TODAY_GOALS_KEY}${uid}_${today}`, JSON.stringify(updated)).catch((err) =>
+        console.warn("Failed to save goals after delete:", err)
+      );
+      return updated;
+    });
+
+    // 2. Add to permanent deleted goals tombstone so it NEVER resurfaces
+    try {
+      const deletedRaw = await AsyncStorage.getItem(`${DELETED_GOALS_KEY}${uid}`);
+      const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+      if (!deletedIds.includes(goalId)) {
+        deletedIds.push(goalId);
+        await AsyncStorage.setItem(`${DELETED_GOALS_KEY}${uid}`, JSON.stringify(deletedIds));
+      }
+    } catch (err) {
+      console.warn("Failed to save deleted goal tombstone:", err);
     }
   };
 
   // Save Target Hours
   const handleSaveTargetHours = async (hours: number) => {
+    const uid = user?.id || "student_user";
     setTargetHours(hours);
-    if (user) {
-      await AsyncStorage.setItem(`${TARGET_HOURS_KEY}${user.id}`, String(hours));
-    }
+    await AsyncStorage.setItem(`${TARGET_HOURS_KEY}${uid}`, String(hours));
   };
 
   // Start Stopwatch for a specific topic

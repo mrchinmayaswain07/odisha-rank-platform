@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Linking,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -26,16 +27,17 @@ import {
   GraduationCap,
   RefreshCw,
   FolderOpen,
+  Trash2,
 } from "lucide-react-native";
 import { BRAND_COLORS, StudyMaterial } from "@odisha-rank/shared";
 import { useAuth } from "../src/lib/auth-context";
-import { getStudyMaterials, getExams } from "../src/lib/data-service";
+import { getStudyMaterials, getExams, deleteStudyMaterial } from "../src/lib/data-service";
 import { Badge } from "../src/components/Badge";
 
 type MaterialCategory = "all" | "note" | "pdf" | "pyq" | "formula" | "drive";
 
 export default function MaterialsScreen() {
-  const { user, activeExam } = useAuth();
+  const { user, activeExam, isAdmin } = useAuth();
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -135,6 +137,25 @@ export default function MaterialsScreen() {
     } catch (e) {
       console.warn("Could not open external link:", e);
     }
+  };
+
+  const handleDeleteMaterial = (item: StudyMaterial) => {
+    Alert.alert(
+      "Delete Study Material",
+      `Are you sure you want to permanently delete "${item.title}"?\n\nThis material will be removed from all student and admin views.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setMaterials((prev) => prev.filter((m) => m.id !== item.id));
+            await deleteStudyMaterial(item.id);
+            Alert.alert("Deleted", "Material removed permanently.");
+          },
+        },
+      ]
+    );
   };
 
   const categories: { key: MaterialCategory; label: string }[] = [
@@ -395,6 +416,18 @@ export default function MaterialsScreen() {
                             ? "View PDF"
                             : "Open Link"}
                         </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {isAdmin && (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteMaterial(item)}
+                        style={styles.adminDeleteButton}
+                        activeOpacity={0.7}
+                        accessibilityLabel="Delete material"
+                      >
+                        <Trash2 size={14} color="#ef4444" />
+                        <Text style={styles.adminDeleteButtonText}>Delete</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -695,6 +728,23 @@ const styles = StyleSheet.create({
   },
   openLinkButtonText: {
     color: BRAND_COLORS.primary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  adminDeleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#fef2f2",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    marginLeft: "auto",
+  },
+  adminDeleteButtonText: {
+    color: "#ef4444",
     fontSize: 12,
     fontWeight: "700",
   },

@@ -1168,13 +1168,13 @@ export async function getStudyMaterials(filters?: {
 
     // 1. Add remote materials (filtering out tombstone rows, custom containers, and deleted IDs)
     remoteList.forEach((m) => {
-      if (m.title?.startsWith("[SYSTEM_") || deletedIds.has(m.id)) {
+      if (m.title?.startsWith("[SYSTEM_") || m.title?.startsWith("[STUDENT_") || m.category === "doubt" || deletedIds.has(m.id)) {
         if (m.title === "[SYSTEM_CUSTOM_MATERIALS]" && m.content) {
           try {
             const parsed = JSON.parse(m.content);
             if (Array.isArray(parsed)) {
               parsed.forEach((customMat: StudyMaterial) => {
-                if (customMat.id && !deletedIds.has(customMat.id)) {
+                if (customMat.id && !deletedIds.has(customMat.id) && !customMat.title?.startsWith("[STUDENT_") && customMat.category !== "doubt") {
                   combinedMap.set(customMat.id, {
                     ...customMat,
                     material_type: customMat.material_type || (customMat.category === "pdf" ? "pdf" : "note"),
@@ -1201,7 +1201,7 @@ export async function getStudyMaterials(filters?: {
 
     // 2. Add local persistent materials (strictly skipping any deleted IDs or system rows)
     localMaterials.forEach((m) => {
-      if (deletedIds.has(m.id) || m.title?.startsWith("[SYSTEM_")) {
+      if (deletedIds.has(m.id) || m.title?.startsWith("[SYSTEM_") || m.title?.startsWith("[STUDENT_") || m.category === "doubt") {
         return;
       }
       const existing = combinedMap.get(m.id);
@@ -1220,7 +1220,7 @@ export async function getStudyMaterials(filters?: {
 
     // 3. Guarantee that no deleted material or system container row can ever be present
     const combinedList = Array.from(combinedMap.values()).filter(
-      (m) => !deletedIds.has(m.id) && !m.title?.startsWith("[SYSTEM_")
+      (m) => !deletedIds.has(m.id) && !m.title?.startsWith("[SYSTEM_") && !m.title?.startsWith("[STUDENT_") && m.category !== "doubt"
     );
 
     const res = applyMaterialFilters(combinedList, filters);
@@ -1228,7 +1228,7 @@ export async function getStudyMaterials(filters?: {
     return res;
   } catch {
     const activeLocal = localMaterials.filter(
-      (m) => !deletedIds.has(m.id) && !m.title?.startsWith("[SYSTEM_")
+      (m) => !deletedIds.has(m.id) && !m.title?.startsWith("[SYSTEM_") && !m.title?.startsWith("[STUDENT_") && m.category !== "doubt"
     );
     const res = applyMaterialFilters(activeLocal, filters);
     catalogCache.set(cacheKey, { data: res, timestamp: Date.now() });

@@ -17,6 +17,7 @@ import {
   calculateStudyStreak,
   SITE_CONFIG,
   SEED_DOUBTS,
+  SEED_STUDY_MATERIALS,
 } from "@odisha-rank/shared";
 
 interface CacheEntry<T> {
@@ -177,6 +178,86 @@ export async function getTopics(chapterId: string, userId?: string, forceRefresh
 /**
  * Fetch study materials filtered by topic, subject, or exam
  */
+const LOCAL_CUSTOM_MATERIALS_KEY = "odisharank_custom_materials";
+const LOCAL_DELETED_MATERIALS_KEY = "odisharank_deleted_materials";
+
+/**
+ * Permanently delete study material and ensure it never reappears
+ */
+export async function deleteStudyMaterial(id: string): Promise<boolean> {
+  try {
+    // 1. Persist to local tombstone so it NEVER comes back
+    const localTombstone = await AsyncStorage.getItem(LOCAL_DELETED_MATERIALS_KEY);
+    const arr: string[] = localTombstone ? JSON.parse(localTombstone) : [];
+    if (!arr.includes(id)) {
+      arr.push(id);
+      await AsyncStorage.setItem(LOCAL_DELETED_MATERIALS_KEY, JSON.stringify(arr));
+    }
+
+    // 2. Remove from local custom materials if present
+    const rawCustom = await AsyncStorage.getItem(LOCAL_CUSTOM_MATERIALS_KEY);
+    if (rawCustom) {
+      const customArr: StudyMaterial[] = JSON.parse(rawCustom);
+      const filtered = customArr.filter((m) => m.id !== id);
+      await AsyncStorage.setItem(LOCAL_CUSTOM_MATERIALS_KEY, JSON.stringify(filtered));
+    }
+
+    // 3. Try deleting/archiving on Supabase
+    try {
+      await supabase.from("study_materials").delete().eq("id", id);
+    } catch {}
+    try {
+      await supabase.from("study_materials").update({ status: "archived" }).eq("id", id);
+    } catch {}
+
+    invalidateMobileCache("materials_");
+    return true;
+  } catch (err) {
+    console.warn("Failed to delete study material:", err);
+    return false;
+  }
+}
+
+/**
+ * Save an admin shared material (Google Drive link, PDF, or note)
+ */
+export async function saveSharedMaterial(material: StudyMaterial): Promise<void> {
+  try {
+    const rawCustom = await AsyncStorage.getItem(LOCAL_CUSTOM_MATERIALS_KEY);
+    const customArr: StudyMaterial[] = rawCustom ? JSON.parse(rawCustom) : [];
+    const index = customArr.findIndex((m) => m.id === material.id);
+    if (index >= 0) {
+      customArr[index] = material;
+    } else {
+      customArr.unshift(material);
+    }
+    await AsyncStorage.setItem(LOCAL_CUSTOM_MATERIALS_KEY, JSON.stringify(customArr));
+
+    try {
+      await supabase.from("study_materials").insert({
+        id: material.id,
+        topic_id: material.topic_id || "c1111111-1111-1111-1111-111111111111",
+        title: material.title,
+        material_type: material.material_type || "note",
+        content: material.content,
+        url: material.url || material.file_url || null,
+        file_url: material.file_url || material.url || null,
+        category: material.category || "notes",
+        status: material.status || "published",
+        is_official: material.is_official ?? true,
+        exam_id: material.exam_id || null,
+      });
+    } catch {}
+
+    invalidateMobileCache("materials_");
+  } catch (err) {
+    console.warn("Failed to save shared material:", err);
+  }
+}
+
+/**
+ * Fetch study materials filtered by topic, subject, or exam
+ */
 export async function getStudyMaterials(
   filters?: {
     topicId?: string;
@@ -190,42 +271,107 @@ export async function getStudyMaterials(
   const cacheKey = `materials_${filters?.examId || "all"}_${filters?.subjectId || "all"}_${filters?.topicId || "all"}_${filters?.category || "all"}_${filters?.search || ""}`;
   return fetchWithCache(cacheKey, 2 * 60 * 1000, async () => {
     try {
-      let query = supabase
-        .from("study_materials")
-        .select("*")
-        .neq("status", "archived")
-        .order("created_at", { ascending: false });
-
-      if (filters?.topicId) query = query.eq("topic_id", filters.topicId);
-      if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
-      if (filters?.examId && filters.examId !== "all") query = query.eq("exam_id", filters.examId);
-      if (filters?.category && filters.category !== "all") query = query.eq("category", filters.category);
-
-      if (!filters?.topicId) {
-        query = query.limit(100);
-      }
-
-      const { data, error } = await query;
-      if (error || !data) return [];
-
-      // Extract tombstone deleted IDs if present
-      const tombstone = (data as any[]).find((m) => m.title === "[SYSTEM_DELETED_MATERIALS]");
+      // 1. Gather deleted tombstones (both remote and local)
       const deletedSet = new Set<string>();
-      if (tombstone?.content) {
-        try {
-          const parsed = JSON.parse(tombstone.content);
+      try {
+        const localTombstone = await AsyncStorage.getItem(LOCAL_DELETED_MATERIALS_KEY);
+        if (localTombstone) {
+          const parsed = JSON.parse(localTombstone);
           if (Array.isArray(parsed)) parsed.forEach((id: string) => deletedSet.add(id));
-        } catch {}
+        }
+      } catch {}
+
+      // 2. Query remote materials from Supabase
+      let remoteMaterials: any[] = [];
+      try {
+        let query = supabase
+          .from("study_materials")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (filters?.topicId) query = query.eq("topic_id", filters.topicId);
+        if (filters?.subjectId) query = query.eq("subject_id", filters.subjectId);
+        if (!filters?.topicId) query = query.limit(100);
+
+        const { data } = await query;
+        if (data && Array.isArray(data)) {
+          remoteMaterials = data;
+          const tombstone = remoteMaterials.find((m) => m.title === "[SYSTEM_DELETED_MATERIALS]");
+          if (tombstone?.content) {
+            try {
+              const parsed = JSON.parse(tombstone.content);
+              if (Array.isArray(parsed)) parsed.forEach((id: string) => deletedSet.add(id));
+            } catch {}
+          }
+        }
+      } catch {}
+
+      // 3. Gather local custom materials saved on device
+      let localCustomMaterials: StudyMaterial[] = [];
+      try {
+        const rawCustom = await AsyncStorage.getItem(LOCAL_CUSTOM_MATERIALS_KEY);
+        if (rawCustom) {
+          const parsed = JSON.parse(rawCustom);
+          if (Array.isArray(parsed)) localCustomMaterials = parsed;
+        }
+      } catch {}
+
+      // 4. Merge all sources using Map by ID
+      const materialMap = new Map<string, StudyMaterial>();
+
+      // A. Seed verified official materials
+      SEED_STUDY_MATERIALS.forEach((m) => {
+        if (!deletedSet.has(m.id)) {
+          materialMap.set(m.id, {
+            ...m,
+            material_type: m.material_type || (m.category === "pdf" ? "pdf" : "note"),
+            file_url: m.file_url || m.url || null,
+            url: m.url || m.file_url || null,
+          });
+        }
+      });
+
+      // B. Local custom materials (added by admin or downloaded)
+      localCustomMaterials.forEach((m) => {
+        if (!deletedSet.has(m.id) && m.status !== "archived") {
+          materialMap.set(m.id, {
+            ...m,
+            material_type: m.material_type || (m.category === "pdf" ? "pdf" : "note"),
+            file_url: m.file_url || m.url || null,
+            url: m.url || m.file_url || null,
+          });
+        }
+      });
+
+      // C. Remote Supabase materials
+      remoteMaterials.forEach((m) => {
+        if (
+          !m.title?.startsWith("[SYSTEM_") &&
+          !m.title?.startsWith("[STUDENT_") &&
+          m.category !== "doubt" &&
+          !deletedSet.has(m.id) &&
+          m.status !== "archived"
+        ) {
+          materialMap.set(m.id, {
+            ...m,
+            material_type: m.material_type || (m.category === "pdf" ? "pdf" : "note"),
+            file_url: m.file_url || m.url || null,
+            url: m.url || m.file_url || null,
+          });
+        }
+      });
+
+      let list = Array.from(materialMap.values());
+
+      // Filter by exam if specified (allow universal materials where exam_id is null/all)
+      if (filters?.examId && filters.examId !== "all") {
+        list = list.filter((m) => !m.exam_id || m.exam_id === filters.examId);
       }
 
-      let list = (data as any[])
-        .filter((m) => !m.title?.startsWith("[SYSTEM_") && !deletedSet.has(m.id))
-        .map((m) => ({
-          ...m,
-          material_type: m.material_type || (m.category === "pdf" ? "pdf" : "note"),
-          file_url: m.file_url || m.url || null,
-          url: m.url || m.file_url || null,
-        })) as StudyMaterial[];
+      // Filter by category if specified
+      if (filters?.category && filters.category !== "all") {
+        list = list.filter((m) => m.category === filters.category);
+      }
 
       // Client-side search for maximum responsiveness & robust text matching
       if (filters?.search) {
@@ -237,6 +383,9 @@ export async function getStudyMaterials(
             m.category?.toLowerCase().includes(q)
         );
       }
+
+      // Sort by newest first
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       return list;
     } catch {

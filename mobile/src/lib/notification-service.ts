@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
+import { getStudentDoubts, getStudyMaterials } from "./data-service";
 
 export interface AppNotification {
   id: string;
@@ -81,101 +82,122 @@ export async function fetchStudentNotifications(
   examId?: string
 ): Promise<AppNotification[]> {
   const notifications: AppNotification[] = [];
-  const readSet = await getReadNotificationIds(userId);
+  const readSet = await getReadNotificationIds(userId || "guest_student");
 
+  // 1. Safe Doubt Notifications
   try {
-    // 1. Personalized Doubt Notifications
-    if (userId) {
-      const { data: doubts } = await supabase
-        .from("doubts")
-        .select("id, subject, question_text, status, updated_at, created_at, answers(id, answer_text, created_at)")
-        .eq("user_id", userId)
-        .order("updated_at", { ascending: false })
-        .limit(5);
+    const allDoubts = await getStudentDoubts(userId || "demo-student-id");
+    if (allDoubts && allDoubts.length > 0) {
+      const answeredDoubts = allDoubts.filter(
+        (d) => d.status === "answered" || Boolean(d.answer)
+      );
 
-      if (doubts && doubts.length > 0) {
-        doubts.forEach((d: any) => {
-          const hasAnswer = d.status === "answered" || (d.answers && d.answers.length > 0);
-          if (hasAnswer) {
-            const time = d.updated_at || d.created_at;
-            notifications.push({
-              id: `notif-doubt-${d.id}`,
-              type: "doubt",
-              title: "Doubt Answered",
-              message: `Faculty responded to your ${d.subject || "exam"} question: "${d.question_text.slice(0, 55)}..."`,
-              timestamp: time,
-              timeAgo: formatTimeAgo(time),
-              isRead: readSet.has(`notif-doubt-${d.id}`),
-              actionRoute: "/doubts",
-              actionLabel: "View Solution",
-            });
-          }
+      // Prioritize doubts submitted by this student, or top answered community questions
+      const userDoubts = answeredDoubts.filter((d) => d.user_id === userId);
+      const listToDisplay = userDoubts.length > 0 ? userDoubts : answeredDoubts;
+
+      listToDisplay.slice(0, 3).forEach((d) => {
+        const time = d.answered_at || d.updated_at || d.created_at || new Date().toISOString();
+        const notifId = `notif-doubt-${d.id}`;
+        notifications.push({
+          id: notifId,
+          type: "doubt",
+          title: "Doubt Answered by Faculty",
+          message: `Faculty responded to: "${(d.question || "").slice(0, 50)}..."`,
+          timestamp: time,
+          timeAgo: formatTimeAgo(time),
+          isRead: readSet.has(notifId),
+          actionRoute: "/doubts",
+          actionLabel: "View Solution",
         });
-      }
+      });
     }
+  } catch (doubtErr) {
+    console.warn("Error processing doubt notifications:", doubtErr);
+  }
 
-    // 2. New Mock Tests Released
+  // 2. Safe New Mock Tests Notifications
+  try {
     let mockQuery = supabase
       .from("mock_tests")
-      .select("id, title, duration_minutes, created_at, exam_id")
-      .eq("is_published", true)
-      .neq("status", "archived")
+      .select("id, title, duration_minutes, created_at, exam_id, status, is_published")
       .order("created_at", { ascending: false })
-      .limit(3);
-
-    if (examId) {
-      mockQuery = mockQuery.eq("exam_id", examId);
-    }
+      .limit(6);
 
     const { data: mocks } = await mockQuery;
-    if (mocks && mocks.length > 0) {
-      mocks.forEach((m: any) => {
+    if (mocks && Array.isArray(mocks)) {
+      const activeMocks = mocks.filter((m: any) => {
+        if (m.status === "archived") return false;
+        if (m.is_published === false) return false;
+        if (examId && m.exam_id && m.exam_id !== examId) return false;
+        return true;
+      });
+
+      activeMocks.slice(0, 3).forEach((m: any) => {
+        const notifId = `notif-mock-${m.id}`;
         notifications.push({
-          id: `notif-mock-${m.id}`,
+          id: notifId,
           type: "mock",
-          title: "New Mock Test Published",
-          message: `"${m.title}" is now active with full time-bound exam simulation.`,
-          timestamp: m.created_at,
-          timeAgo: formatTimeAgo(m.created_at),
-          isRead: readSet.has(`notif-mock-${m.id}`),
+          title: "New Mock Test Available",
+          message: `"${m.title}" is live. Take full timed exam simulation.`,
+          timestamp: m.created_at || new Date().toISOString(),
+          timeAgo: formatTimeAgo(m.created_at || new Date().toISOString()),
+          isRead: readSet.has(notifId),
           actionRoute: "/(tabs)/mock-tests",
           actionLabel: "Take Mock",
         });
       });
     }
+  } catch (mockErr) {
+    console.warn("Error processing mock test notifications:", mockErr);
+  }
 
-    // 3. New Study Notes & PDFs
-    let matQuery = supabase
-      .from("study_materials")
-      .select("id, title, category, created_at, exam_id")
-      .neq("status", "archived")
-      .order("created_at", { ascending: false })
-      .limit(2);
+  // 3. Safe Admin Shared Study Materials, PDFs & Google Drive links
+  try {
+    const materials = await getStudyMaterials({ examId });
+    if (materials && Array.isArray(materials) && materials.length > 0) {
+      const realMaterials = materials.filter(
+        (m) =>
+          !m.title?.startsWith("[STUDENT_") &&
+          !m.title?.startsWith("[SYSTEM_") &&
+          m.category !== "doubt"
+      );
 
-    if (examId) {
-      matQuery = matQuery.eq("exam_id", examId);
-    }
+      realMaterials.slice(0, 4).forEach((mat) => {
+        const notifId = `notif-mat-${mat.id}`;
+        const url = mat.file_url || mat.url || "";
+        const isDrive = url.includes("drive.google.com") || url.includes("docs.google.com");
+        const isPdf = mat.material_type === "pdf" || mat.category === "pdf" || url.endsWith(".pdf");
 
-    const { data: materials } = await matQuery;
-    if (materials && materials.length > 0) {
-      materials.forEach((mat: any) => {
-        if (!mat.title.startsWith("[SYSTEM_")) {
-          notifications.push({
-            id: `notif-mat-${mat.id}`,
-            type: "material",
-            title: "Study Material Added",
-            message: `New official notes added: "${mat.title}" (${mat.category?.toUpperCase() || "PDF"}).`,
-            timestamp: mat.created_at,
-            timeAgo: formatTimeAgo(mat.created_at),
-            isRead: readSet.has(`notif-mat-${mat.id}`),
-            actionRoute: "/materials",
-            actionLabel: "Open PDF",
-          });
+        let title = "New Study Material Shared";
+        let actionLabel = "Read Notes";
+        if (isDrive) {
+          title = "Admin Shared Google Drive Link";
+          actionLabel = "Open Drive";
+        } else if (isPdf) {
+          title = "Official Exam PDF Added";
+          actionLabel = "View PDF";
         }
+
+        notifications.push({
+          id: notifId,
+          type: "material",
+          title,
+          message: `Admin published: "${mat.title}" (${(mat.category || "notes").toUpperCase()}).`,
+          timestamp: mat.created_at || new Date().toISOString(),
+          timeAgo: formatTimeAgo(mat.created_at || new Date().toISOString()),
+          isRead: readSet.has(notifId),
+          actionRoute: "/materials",
+          actionLabel,
+        });
       });
     }
+  } catch (matErr) {
+    console.warn("Error processing study material notifications:", matErr);
+  }
 
-    // 4. Personalized Daily Goal Reminder
+  // 4. Daily Study Goal Reminder
+  try {
     const todayStr = new Date().toISOString().split("T")[0];
     const goalNotifId = `notif-goal-${todayStr}`;
     notifications.push({
@@ -189,15 +211,15 @@ export async function fetchStudentNotifications(
       actionRoute: "/(tabs)/dashboard",
       actionLabel: "Plan Day",
     });
-
-    // Sort by unread first, then latest timestamp
-    notifications.sort((a, b) => {
-      if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-    });
-  } catch (err) {
-    console.warn("Failed to build notifications:", err);
+  } catch (goalErr) {
+    console.warn("Error processing goal notification:", goalErr);
   }
+
+  // Sort: Unread first, then newest timestamp
+  notifications.sort((a, b) => {
+    if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
+    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+  });
 
   return notifications;
 }
