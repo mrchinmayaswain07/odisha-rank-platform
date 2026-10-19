@@ -82,6 +82,7 @@ export async function middleware(request: NextRequest) {
     "/courses",
     "/planner",
     "/profile",
+    "/speed-math",
     "/admin",
   ];
 

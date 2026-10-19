@@ -16,6 +16,7 @@ import {
   MessageSquare,
   User,
   ShieldCheck,
+  Zap,
   X,
 } from "lucide-react";
 
@@ -50,6 +51,11 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
       name: "Mock Tests",
       href: "/mock-tests",
       icon: Clock,
+    },
+    {
+      name: "Speed Calculation",
+      href: "/speed-math",
+      icon: Zap,
     },
     {
       name: "Study Materials",

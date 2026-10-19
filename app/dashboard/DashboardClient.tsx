@@ -37,6 +37,7 @@ import {
   ChevronDown,
   Star,
   Flame,
+  Zap,
   Menu,
   X,
   Target,
@@ -1144,6 +1145,35 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               </div>
             </div>
           </div>
+
+          {/* ========================================================= */}
+          {/* SPEED CALCULATION & MENTAL MATH PRACTICE PROMO CARD        */}
+          {/* ========================================================= */}
+          <Link
+            href="/speed-math"
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white shadow-md shadow-blue-950/20 hover:shadow-lg hover:scale-[1.005] transition-all border border-blue-700/40 group"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-blue-500/30 border border-blue-400/40 flex items-center justify-center text-amber-400 shadow-inner group-hover:scale-105 transition-transform shrink-0">
+                <Zap className="w-6 h-6 fill-amber-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-black tracking-tight">Speed Calculation Practice</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-400 text-slate-950">
+                    NEW FEATURE
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  16 drill categories: Addition, Squares, Cubes, BODMAS, Tables, Percentages, and DI fast calculations.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 font-bold text-xs text-blue-200 group-hover:text-white transition-colors self-end sm:self-center shrink-0">
+              <span>Start Speed Drill</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </Link>
 
           {/* ========================================================= */}
           {/* ROW 2: (1) TODAY'S STUDY PLAN (2) OVERALL COURSE PROGRESS */}

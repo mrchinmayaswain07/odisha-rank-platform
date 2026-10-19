@@ -30,6 +30,7 @@ import {
   X,
   Play,
   Check,
+  Zap,
 } from "lucide-react-native";
 import { BRAND_COLORS, DashboardMetrics } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
@@ -406,6 +407,29 @@ export default function DashboardScreen() {
                 <Text style={styles.metricSub}>Daily consistency</Text>
               </View>
             </View>
+
+            {/* Speed Calculation Practice Banner */}
+            <TouchableOpacity
+              style={styles.speedMathBanner}
+              onPress={() => router.push("/speed-math" as any)}
+              activeOpacity={0.85}
+            >
+              <View style={styles.speedMathBannerLeft}>
+                <View style={styles.speedMathIconCircle}>
+                  <Zap size={20} color="#f59e0b" fill="#f59e0b" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.speedMathBadgeRow}>
+                    <Text style={styles.speedMathBadgeText}>NEW PRACTICE</Text>
+                  </View>
+                  <Text style={styles.speedMathTitle}>Speed Calculation Drills</Text>
+                  <Text style={styles.speedMathSub}>
+                    16 categories: Add, Subtract, Squares, Cubes, Tables & DI
+                  </Text>
+                </View>
+              </View>
+              <ArrowRight size={16} color="#94a3b8" />
+            </TouchableOpacity>
 
             {/* 4. Quick Actions (With Doubts Feature) */}
             <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -929,5 +953,51 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "700",
+  },
+  speedMathBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#0f172a",
+    borderRadius: 20,
+    padding: 16,
+    marginVertical: 12,
+  },
+  speedMathBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  speedMathIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(245, 158, 11, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  speedMathBadgeRow: {
+    alignSelf: "flex-start",
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  speedMathBadgeText: {
+    fontSize: 8,
+    fontWeight: "900",
+    color: "#0f172a",
+  },
+  speedMathTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#ffffff",
+  },
+  speedMathSub: {
+    fontSize: 11,
+    color: "#94a3b8",
+    marginTop: 2,
   },
 });

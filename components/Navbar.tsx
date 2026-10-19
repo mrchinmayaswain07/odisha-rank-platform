@@ -60,7 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user }) => {
   // NOTE: Must be evaluated AFTER all React hooks are executed unconditionally to satisfy React Rules of Hooks
   const isPortalRoute =
     pathname?.startsWith("/admin") ||
-    ["/dashboard", "/planner", "/courses", "/materials", "/performance", "/bookmarks", "/doubts"].includes(
+    ["/dashboard", "/planner", "/courses", "/materials", "/performance", "/bookmarks", "/doubts", "/speed-math"].includes(
       pathname || ""
     );
 

@@ -72,7 +72,7 @@ export default async function RootLayout({
     const pathname = headerList.get("x-pathname") || "";
     const isPortalRoute =
       pathname.startsWith("/admin") ||
-      ["/dashboard", "/planner", "/courses", "/materials", "/performance", "/bookmarks", "/doubts"].includes(
+      ["/dashboard", "/planner", "/courses", "/materials", "/performance", "/bookmarks", "/doubts", "/speed-math"].includes(
         pathname
       );
 

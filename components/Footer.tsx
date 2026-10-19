@@ -13,7 +13,7 @@ export const Footer: React.FC = () => {
   // Suppress public student footer on administrative routes and dedicated student portal pages
   const isPortalRoute =
     pathname?.startsWith("/admin") ||
-    ["/dashboard", "/planner", "/courses", "/materials", "/performance", "/bookmarks", "/doubts"].includes(
+    ["/dashboard", "/planner", "/courses", "/materials", "/performance", "/bookmarks", "/doubts", "/speed-math"].includes(
       pathname || ""
     );
 

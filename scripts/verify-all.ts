@@ -994,6 +994,77 @@ async function runTests() {
     assert(activeMetrics.study_streak_days >= 1, "Active study streak is >= 1 day");
   }
 
+  // 24. SPEED CALCULATION DRILLS & MENTAL MATH ENGINE
+  {
+    console.log("\n24. SPEED CALCULATION DRILLS & MENTAL MATH ENGINE");
+    const {
+      SPEED_MATH_CATEGORIES,
+      generateSpeedMathQuestions,
+      generateSingleQuestion,
+      calculateSpeedMathResult,
+    } = await import("../packages/shared/src/speed-math");
+
+    // 1. Verify 16 categories exist
+    assert(SPEED_MATH_CATEGORIES.length === 16, "All 16 speed calculation drill categories are registered");
+
+    // Verify key categories present
+    const categoryIds = SPEED_MATH_CATEGORIES.map((c) => c.id);
+    assert(categoryIds.includes("addition"), "Addition drill registered");
+    assert(categoryIds.includes("subtraction"), "Subtraction drill registered");
+    assert(categoryIds.includes("multiplication"), "Multiplication drill registered");
+    assert(categoryIds.includes("division"), "Division drill registered");
+    assert(categoryIds.includes("bodmas"), "BODMAS drill registered");
+    assert(categoryIds.includes("squares"), "Squares drill registered");
+    assert(categoryIds.includes("cubes"), "Cubes drill registered");
+    assert(categoryIds.includes("tables"), "Tables drill registered");
+    assert(categoryIds.includes("square_root"), "Square Root drill registered");
+    assert(categoryIds.includes("cube_root"), "Cube Root drill registered");
+    assert(categoryIds.includes("exponents"), "Exponents drill registered");
+    assert(categoryIds.includes("exponent_root"), "Exponent Root drill registered");
+    assert(categoryIds.includes("fraction_of_percent"), "Fraction of % drill registered");
+    assert(categoryIds.includes("percent_to_fraction"), "% to Fraction drill registered");
+    assert(categoryIds.includes("di_addition"), "DI Addition drill registered");
+    assert(categoryIds.includes("mix"), "Mix Mode drill registered");
+
+    // 2. Test Question Generation across difficulties
+    const easyAddition = generateSingleQuestion("addition", "easy", 1);
+    assert(Boolean(easyAddition.prompt && easyAddition.answer), "Easy addition question generated with prompt and answer");
+
+    const hardSquares = generateSingleQuestion("squares", "hard", 1);
+    const nMatch = hardSquares.prompt.match(/^(\d+)²$/);
+    assert(Boolean(nMatch), "Hard squares generates valid prompt n²");
+    if (nMatch) {
+      const base = Number(nMatch[1]);
+      assert(base >= 51 && base <= 99, "Hard squares chooses base between 51 and 99");
+      assert(hardSquares.answer === String(base * base), "Hard squares calculates exact square value");
+    }
+
+    const midDivision = generateSingleQuestion("division", "medium", 1);
+    assert(midDivision.prompt.includes("÷"), "Division drill generates prompt with division symbol");
+
+    // 3. Test Question Count Generation
+    const questionsList10 = generateSpeedMathQuestions("multiplication", "easy", 10);
+    assert(questionsList10.length === 10, "Generates requested 10 questions");
+
+    const questionsList20 = generateSpeedMathQuestions("cubes", "medium", 20);
+    assert(questionsList20.length === 20, "Generates requested 20 questions");
+
+    // 4. Test Performance & Accuracy Calculation
+    const testRecords = [
+      { prompt: "12 + 15", userAnswer: "27", correctAnswer: "27", isCorrect: true, timeSeconds: 1.5 },
+      { prompt: "20 + 30", userAnswer: "50", correctAnswer: "50", isCorrect: true, timeSeconds: 2.0 },
+      { prompt: "45 + 55", userAnswer: "100", correctAnswer: "100", isCorrect: true, timeSeconds: 1.8 },
+      { prompt: "18 + 19", userAnswer: "36", correctAnswer: "37", isCorrect: false, timeSeconds: 3.5 },
+    ];
+    const evaluated = calculateSpeedMathResult("addition", "easy", testRecords);
+    assert(evaluated.totalQuestions === 4, "Total questions equals 4");
+    assert(evaluated.correctAnswers === 3, "Correct answers equals 3");
+    assert(evaluated.incorrectAnswers === 1, "Incorrect answers equals 1");
+    assert(evaluated.accuracyPercentage === 75, "Accuracy equals 75% ((3/4)*100)");
+    assert(evaluated.averageSecondsPerQuestion === 2.2, "Avg seconds per question accurately evaluates: (1.5+2.0+1.8+3.5)/4 = 2.2s");
+    assert(evaluated.speedRating === "👍 Solid Pace", "75% accuracy and 2.2s pace rated as Solid Pace");
+  }
+
   console.log("\n=================================================");
   console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`);
   console.log("=================================================");
