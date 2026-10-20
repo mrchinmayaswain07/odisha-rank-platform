@@ -49,6 +49,10 @@ import {
   createAdminCourse,
   getAdminMockTestsList,
   createAdminMockTest,
+  getMockTestQuestions,
+  addQuestionToMockTest,
+  bulkAddQuestionsToMockTest,
+  removeQuestionFromMockTest,
   getAdminMaterialsList,
   createAdminMaterial,
   deleteAdminMaterial,
@@ -118,6 +122,30 @@ export default function AdminScreen() {
   const [mTotalMarks, setMTotalMarks] = useState("100");
   const [mPassPct, setMPassPct] = useState("40");
   const [mExamId, setMExamId] = useState("");
+
+  // Manage Mock Test Questions States
+  const [selectedMockForQuestions, setSelectedMockForQuestions] = useState<any | null>(null);
+  const [showMockQuestionsModal, setShowMockQuestionsModal] = useState(false);
+  const [mockQuestionsTab, setMockQuestionsTab] = useState<"list" | "single" | "bulk">("list");
+  const [mockQuestionsList, setMockQuestionsList] = useState<any[]>([]);
+  const [loadingMockQuestions, setLoadingMockQuestions] = useState(false);
+  const [isSavingMockQuestion, setIsSavingMockQuestion] = useState(false);
+  const [isUploadingMockBulk, setIsUploadingMockBulk] = useState(false);
+
+  // Single Mock Question Form
+  const [mqText, setMqText] = useState("");
+  const [mqOptA, setMqOptA] = useState("");
+  const [mqOptB, setMqOptB] = useState("");
+  const [mqOptC, setMqOptC] = useState("");
+  const [mqOptD, setMqOptD] = useState("");
+  const [mqCorrectIdx, setMqCorrectIdx] = useState(0);
+  const [mqDifficulty, setMqDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [mqMarks, setMqMarks] = useState("1.0");
+  const [mqNegative, setMqNegative] = useState("0.25");
+  const [mqExplanation, setMqExplanation] = useState("");
+
+  // Bulk Mock Question Form
+  const [mqBulkText, setMqBulkText] = useState("");
 
   // Form states - Add Material
   const [matTitle, setMatTitle] = useState("");
@@ -579,6 +607,202 @@ What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odish
     }
   };
 
+  // Open Manage Questions Modal for a Mock Test
+  const openManageMockQuestions = async (mock: any) => {
+    setSelectedMockForQuestions(mock);
+    setShowMockQuestionsModal(true);
+    setMockQuestionsTab("list");
+    setMqMarks("1.0");
+    setMqNegative(String(mock.negative_marking ?? 0.25));
+    setMqText("");
+    setMqOptA("");
+    setMqOptB("");
+    setMqOptC("");
+    setMqOptD("");
+    setMqCorrectIdx(0);
+    setMqExplanation("");
+    setMqBulkText("");
+    setLoadingMockQuestions(true);
+    try {
+      const qList = await getMockTestQuestions(mock.id);
+      setMockQuestionsList(qList);
+    } catch (err) {
+      console.warn("Failed to load mock test questions:", err);
+      setMockQuestionsList([]);
+    } finally {
+      setLoadingMockQuestions(false);
+    }
+  };
+
+  // Single Question Submit for Mock Test
+  const handleSaveSingleMockQuestion = async () => {
+    if (!selectedMockForQuestions) return;
+    if (!mqText.trim() || !mqOptA.trim() || !mqOptB.trim() || !mqOptC.trim() || !mqOptD.trim()) {
+      Alert.alert("Required Fields", "Please enter question text and all 4 options (A, B, C, D).");
+      return;
+    }
+
+    setIsSavingMockQuestion(true);
+    try {
+      const created = await addQuestionToMockTest({
+        mock_test_id: selectedMockForQuestions.id,
+        exam_id: selectedMockForQuestions.exam_id,
+        question_text: mqText.trim(),
+        options: [mqOptA.trim(), mqOptB.trim(), mqOptC.trim(), mqOptD.trim()],
+        correct_option_index: mqCorrectIdx,
+        difficulty: mqDifficulty,
+        marks: parseFloat(mqMarks) || 1.0,
+        negative_marks: parseFloat(mqNegative) || 0.25,
+        explanation: mqExplanation.trim() || undefined,
+      });
+
+      const updatedList = [...mockQuestionsList, created];
+      setMockQuestionsList(updatedList);
+      setMockTests((prev) =>
+        prev.map((m) =>
+          m.id === selectedMockForQuestions.id
+            ? { ...m, questions_count: updatedList.length, mock_test_questions: [{ count: updatedList.length }] }
+            : m
+        )
+      );
+
+      Alert.alert("Success", "Question successfully added to this mock test simulation!");
+      setMqText("");
+      setMqOptA("");
+      setMqOptB("");
+      setMqOptC("");
+      setMqOptD("");
+      setMqExplanation("");
+      setMockQuestionsTab("list");
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to add question to mock test.");
+    } finally {
+      setIsSavingMockQuestion(false);
+    }
+  };
+
+  // Bulk Questions Submit for Mock Test
+  const handleSaveBulkMockQuestions = async () => {
+    if (!selectedMockForQuestions) return;
+    if (!mqBulkText.trim()) {
+      Alert.alert("Input Required", "Please paste questions or tap 'Insert Sample Data' first.");
+      return;
+    }
+
+    const lines = mqBulkText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const parsedQuestions: any[] = [];
+
+    for (const line of lines) {
+      if (line.toLowerCase().startsWith("question") || line.startsWith("#") || line.startsWith("//")) continue;
+
+      let parts: string[] = [];
+      if (line.includes("|")) {
+        parts = line.split("|").map((p) => p.trim());
+      } else {
+        parts = line.split(",").map((p) => p.trim());
+      }
+
+      if (parts.length >= 6) {
+        const question_text = parts[0];
+        const options = [parts[1], parts[2], parts[3], parts[4]];
+        let correct_option_index = 0;
+        const ans = parts[5].toUpperCase();
+        if (ans === "A" || ans === "0") correct_option_index = 0;
+        else if (ans === "B" || ans === "1") correct_option_index = 1;
+        else if (ans === "C" || ans === "2") correct_option_index = 2;
+        else if (ans === "D" || ans === "3") correct_option_index = 3;
+
+        const explanation = parts[6] || "";
+        const marks = parts[7] ? parseFloat(parts[7]) : 1.0;
+
+        parsedQuestions.push({
+          question_text,
+          options,
+          correct_option_index,
+          explanation,
+          difficulty: "medium",
+          marks: isNaN(marks) ? 1.0 : marks,
+          negative_marks: selectedMockForQuestions.negative_marking || 0.25,
+        });
+      }
+    }
+
+    if (parsedQuestions.length === 0) {
+      Alert.alert(
+        "Format Error",
+        "No valid questions detected. Please use format:\nQuestion | Opt A | Opt B | Opt C | Opt D | Correct (A-D) | Explanation"
+      );
+      return;
+    }
+
+    setIsUploadingMockBulk(true);
+    try {
+      const res = await bulkAddQuestionsToMockTest(
+        selectedMockForQuestions.id,
+        parsedQuestions,
+        selectedMockForQuestions.exam_id
+      );
+
+      Alert.alert("Success", `Uploaded ${res.successCount} questions to this mock test!`);
+      setMqBulkText("");
+
+      const refreshed = await getMockTestQuestions(selectedMockForQuestions.id);
+      setMockQuestionsList(refreshed);
+      setMockTests((prev) =>
+        prev.map((m) =>
+          m.id === selectedMockForQuestions.id
+            ? { ...m, questions_count: refreshed.length, mock_test_questions: [{ count: refreshed.length }] }
+            : m
+        )
+      );
+      setMockQuestionsTab("list");
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to upload bulk questions.");
+    } finally {
+      setIsUploadingMockBulk(false);
+    }
+  };
+
+  // Remove Question from Mock Test
+  const handleDeleteMockQuestion = (questionId: string) => {
+    if (!selectedMockForQuestions) return;
+    Alert.alert(
+      "Remove Question",
+      "Are you sure you want to remove this question from this mock test simulation?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await removeQuestionFromMockTest(selectedMockForQuestions.id, questionId);
+              const nextList = mockQuestionsList.filter((q) => q.id !== questionId);
+              setMockQuestionsList(nextList);
+              setMockTests((prev) =>
+                prev.map((m) =>
+                  m.id === selectedMockForQuestions.id
+                    ? { ...m, questions_count: nextList.length, mock_test_questions: [{ count: nextList.length }] }
+                    : m
+                )
+              );
+            } catch (err: any) {
+              Alert.alert("Error", err.message || "Failed to remove question.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Insert Sample Mock Questions Template
+  const insertSampleMockBulk = () => {
+    const sample = `Which river is known as the "Sorrow of Odisha" before the Hirakud Dam? | Mahanadi River | Brahmani River | Baitarani River | Subarnarekha River | A | Mahanadi caused seasonal floods in coastal Odisha.
+Who was the first President of the Utkal Sammilani in 1903? | Madhusudan Das | Maharaja Sriram Chandra Bhanja Deo | Gopabandhu Das | Fakir Mohan Senapati | B | Maharaja of Mayurbhanj presided over the first session.
+The Sun Temple of Konark was built during the reign of which king? | Anantavarman | Narasimhadeva I | Bhanudeva I | Rajaraja I | B | King Narasimhadeva I built the Sun Temple in circa 1250 CE.`;
+    setMqBulkText(sample);
+  };
+
   // Create Mock Test Submit
   const handleCreateMock = async () => {
     if (!mTitle.trim()) {
@@ -588,7 +812,7 @@ What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odish
 
     setIsSubmitting(true);
     try {
-      await createAdminMockTest({
+      const created = await createAdminMockTest({
         exam_id: mExamId || (courses[0]?.id),
         title: mTitle.trim(),
         description: mDesc.trim() || "Full timed syllabus simulation test.",
@@ -598,12 +822,21 @@ What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odish
         pass_percentage: parseFloat(mPassPct) || 40,
       });
 
-      Alert.alert("Success", "New mock test simulation added.");
       setShowAddMockModal(false);
       setMTitle("");
       setMDesc("");
       loadTabData("mock-tests");
       loadStats();
+
+      // Prompt to add questions right away
+      Alert.alert(
+        "Mock Test Created!",
+        "Simulation successfully created. Would you like to add questions now?",
+        [
+          { text: "Later", style: "cancel" },
+          { text: "Add Questions", onPress: () => openManageMockQuestions(created) },
+        ]
+      );
     } catch (err: any) {
       Alert.alert("Error", err.message || "Failed to create mock test.");
     } finally {
@@ -1228,21 +1461,68 @@ What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odish
             {tabLoading ? (
               <ActivityIndicator size="large" color={BRAND_COLORS.primary} style={{ marginVertical: 32 }} />
             ) : (
-              mockTests.map((m, idx) => (
-                <View key={m.id || idx} style={styles.itemCard}>
-                  <View style={styles.itemHeader}>
-                    <Badge label={m.exams?.title || "State Exam"} variant="blue" size="sm" />
-                    <Badge label={`${m.duration_minutes} Mins`} variant="slate" size="sm" />
+              mockTests.map((m, idx) => {
+                const qCount = m.questions_count ?? m.mock_test_questions?.[0]?.count ?? 0;
+                return (
+                  <View key={m.id || idx} style={styles.itemCard}>
+                    <View style={styles.itemHeader}>
+                      <Badge label={m.exams?.title || "State Exam"} variant="blue" size="sm" />
+                      <Badge label={`${m.duration_minutes} Mins`} variant="slate" size="sm" />
+                      <Badge label={`${qCount} Questions`} variant={qCount > 0 ? "emerald" : "amber"} size="sm" />
+                    </View>
+                    <Text style={styles.courseItemTitle}>{m.title}</Text>
+                    <Text style={styles.courseItemDesc}>{m.description}</Text>
+                    <View style={styles.mockMetaRow}>
+                      <Text style={styles.mockMetaText}>Total Marks: {m.total_marks}</Text>
+                      <Text style={styles.mockMetaText}>Negative: {m.negative_marking}</Text>
+                      <Text style={styles.mockMetaText}>Pass: {m.pass_percentage}%</Text>
+                    </View>
+
+                    <View style={{ flexDirection: "row", gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#1e293b" }}>
+                      <TouchableOpacity
+                        style={{
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#1e3a8a",
+                          paddingVertical: 9,
+                          borderRadius: 8,
+                          gap: 6,
+                        }}
+                        onPress={() => openManageMockQuestions(m)}
+                        activeOpacity={0.7}
+                      >
+                        <Layers size={15} color="#93c5fd" />
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff" }}>
+                          Manage Questions ({qCount})
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#0f172a",
+                          borderWidth: 1,
+                          borderColor: "#334155",
+                          paddingHorizontal: 12,
+                          paddingVertical: 9,
+                          borderRadius: 8,
+                        }}
+                        onPress={() => router.push(`/mock-test/${m.id}` as any)}
+                        activeOpacity={0.7}
+                      >
+                        <ExternalLink size={14} color="#94a3b8" />
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#cbd5e1", marginLeft: 4 }}>
+                          Preview
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <Text style={styles.courseItemTitle}>{m.title}</Text>
-                  <Text style={styles.courseItemDesc}>{m.description}</Text>
-                  <View style={styles.mockMetaRow}>
-                    <Text style={styles.mockMetaText}>Total Marks: {m.total_marks}</Text>
-                    <Text style={styles.mockMetaText}>Negative: {m.negative_marking}</Text>
-                    <Text style={styles.mockMetaText}>Pass: {m.pass_percentage}%</Text>
-                  </View>
-                </View>
-              ))
+                );
+              })
             )}
           </View>
         )}
@@ -1947,6 +2227,392 @@ What is the length of Odisha coastline?,380 km,485 km,550 km,620 km,1,easy,Odish
                 style={{ marginTop: 10, marginBottom: 20 }}
               />
             </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* MODAL 3B: MANAGE MOCK TEST QUESTIONS (Single + Bulk + List) */}
+      <Modal visible={showMockQuestionsModal} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalBackdrop}
+        >
+          <View style={[styles.modalCard, { maxHeight: "92%" }]}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                style={styles.modalBackBtn}
+                onPress={() => setShowMockQuestionsModal(false)}
+                activeOpacity={0.7}
+              >
+                <ArrowLeft size={16} color="#ffffff" />
+                <Text style={styles.modalBackText}>Close</Text>
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Manage Test Questions</Text>
+              <TouchableOpacity
+                onPress={() => setShowMockQuestionsModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Test Info Pill */}
+            {selectedMockForQuestions && (
+              <View style={{ backgroundColor: "#1e293b", padding: 10, borderRadius: 10, marginBottom: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff", flex: 1, marginRight: 8 }} numberOfLines={1}>
+                    {selectedMockForQuestions.title}
+                  </Text>
+                  <Badge label={`${mockQuestionsList.length} Questions`} variant="emerald" size="sm" />
+                </View>
+                <Text style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                  Total: {selectedMockForQuestions.total_marks} Marks • Duration: {selectedMockForQuestions.duration_minutes}m • Negative: -{selectedMockForQuestions.negative_marking}
+                </Text>
+              </View>
+            )}
+
+            {/* Sub-Tab Navigation */}
+            <View style={{ flexDirection: "row", backgroundColor: "#020617", padding: 4, borderRadius: 10, marginBottom: 14 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 7,
+                  alignItems: "center",
+                  borderRadius: 7,
+                  backgroundColor: mockQuestionsTab === "list" ? BRAND_COLORS.primary : "transparent",
+                }}
+                onPress={() => setMockQuestionsTab("list")}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: mockQuestionsTab === "list" ? "#ffffff" : "#94a3b8",
+                  }}
+                >
+                  Questions ({mockQuestionsList.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 7,
+                  alignItems: "center",
+                  borderRadius: 7,
+                  backgroundColor: mockQuestionsTab === "single" ? BRAND_COLORS.primary : "transparent",
+                }}
+                onPress={() => setMockQuestionsTab("single")}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: mockQuestionsTab === "single" ? "#ffffff" : "#94a3b8",
+                  }}
+                >
+                  + Add Single
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  paddingVertical: 7,
+                  alignItems: "center",
+                  borderRadius: 7,
+                  backgroundColor: mockQuestionsTab === "bulk" ? BRAND_COLORS.primary : "transparent",
+                }}
+                onPress={() => setMockQuestionsTab("bulk")}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: mockQuestionsTab === "bulk" ? "#ffffff" : "#94a3b8",
+                  }}
+                >
+                  + Bulk Upload
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* TAB 1: QUESTIONS LIST */}
+            {mockQuestionsTab === "list" && (
+              <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+                {loadingMockQuestions ? (
+                  <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                    <ActivityIndicator size="large" color={BRAND_COLORS.primary} />
+                    <Text style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>Loading questions...</Text>
+                  </View>
+                ) : mockQuestionsList.length === 0 ? (
+                  <View style={{ paddingVertical: 36, alignItems: "center", paddingHorizontal: 20 }}>
+                    <HelpCircle size={40} color="#64748b" style={{ marginBottom: 12 }} />
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: "#ffffff", marginBottom: 6 }}>
+                      No Questions Attached Yet
+                    </Text>
+                    <Text style={{ fontSize: 12, color: "#94a3b8", textAlign: "center", marginBottom: 18 }}>
+                      This mock test doesn't have questions attached. Add questions one by one or upload in bulk.
+                    </Text>
+                    <View style={{ flexDirection: "row", gap: 10 }}>
+                      <Button
+                        title="Add Single Question"
+                        size="sm"
+                        variant="primary"
+                        onPress={() => setMockQuestionsTab("single")}
+                      />
+                      <Button
+                        title="Bulk Upload"
+                        size="sm"
+                        variant="outline"
+                        onPress={() => setMockQuestionsTab("bulk")}
+                      />
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ gap: 10 }}>
+                    {mockQuestionsList.map((q, idx) => {
+                      const correctIdx = Number(q.correct_option_index ?? 0);
+                      return (
+                        <View
+                          key={q.id || idx}
+                          style={{
+                            backgroundColor: "#020617",
+                            borderWidth: 1,
+                            borderColor: "#1e293b",
+                            borderRadius: 12,
+                            padding: 12,
+                          }}
+                        >
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                              <Badge label={`#${idx + 1}`} variant="slate" size="sm" />
+                              <Badge label={q.difficulty || "medium"} variant={q.difficulty === "easy" ? "emerald" : q.difficulty === "hard" ? "amber" : "blue"} size="sm" />
+                              <Text style={{ fontSize: 11, color: "#94a3b8" }}>
+                                +{q.marks || 1.0}m / -{q.negative_marks || selectedMockForQuestions?.negative_marking || 0.25}m
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => handleDeleteMockQuestion(q.id)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Trash2 size={16} color="#ef4444" />
+                            </TouchableOpacity>
+                          </View>
+
+                          <Text style={{ fontSize: 13, fontWeight: "700", color: "#f8fafc", marginBottom: 8, lineHeight: 18 }}>
+                            {q.question_text}
+                          </Text>
+
+                          <View style={{ gap: 4 }}>
+                            {Array.isArray(q.options) &&
+                              q.options.map((opt: string, optIdx: number) => {
+                                const isCorrect = optIdx === correctIdx;
+                                return (
+                                  <View
+                                    key={optIdx}
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      backgroundColor: isCorrect ? "rgba(5, 150, 105, 0.15)" : "#0f172a",
+                                      borderWidth: 1,
+                                      borderColor: isCorrect ? "#059669" : "#1e293b",
+                                      borderRadius: 6,
+                                      paddingVertical: 5,
+                                      paddingHorizontal: 8,
+                                    }}
+                                  >
+                                    <Text
+                                      style={{
+                                        fontSize: 11,
+                                        fontWeight: isCorrect ? "800" : "600",
+                                        color: isCorrect ? "#34d399" : "#cbd5e1",
+                                        flex: 1,
+                                      }}
+                                    >
+                                      {String.fromCharCode(65 + optIdx)}. {opt}
+                                    </Text>
+                                    {isCorrect && (
+                                      <CheckCircle2 size={13} color="#34d399" />
+                                    )}
+                                  </View>
+                                );
+                              })}
+                          </View>
+
+                          {q.explanation && (
+                            <View style={{ marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: "#1e293b" }}>
+                              <Text style={{ fontSize: 11, color: "#94a3b8" }}>
+                                <Text style={{ fontWeight: "700", color: "#e2e8f0" }}>Explanation: </Text>
+                                {q.explanation}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </ScrollView>
+            )}
+
+            {/* TAB 2: SINGLE ADD QUESTION */}
+            {mockQuestionsTab === "single" && (
+              <ScrollView contentContainerStyle={styles.modalScroll}>
+                <Text style={styles.formLabel}>Question Text *</Text>
+                <TextInput
+                  style={[styles.formInput, { height: 64, textAlignVertical: "top" }]}
+                  multiline
+                  placeholder="e.g. Which river is known as the Sorrow of Odisha?"
+                  value={mqText}
+                  onChangeText={setMqText}
+                />
+
+                <Text style={styles.formLabel}>Option A *</Text>
+                <TextInput style={styles.formInput} placeholder="Option A" value={mqOptA} onChangeText={setMqOptA} />
+
+                <Text style={styles.formLabel}>Option B *</Text>
+                <TextInput style={styles.formInput} placeholder="Option B" value={mqOptB} onChangeText={setMqOptB} />
+
+                <Text style={styles.formLabel}>Option C *</Text>
+                <TextInput style={styles.formInput} placeholder="Option C" value={mqOptC} onChangeText={setMqOptC} />
+
+                <Text style={styles.formLabel}>Option D *</Text>
+                <TextInput style={styles.formInput} placeholder="Option D" value={mqOptD} onChangeText={setMqOptD} />
+
+                <Text style={styles.formLabel}>Correct Answer Option *</Text>
+                <View style={styles.choiceRow}>
+                  {["A", "B", "C", "D"].map((letter, idx) => (
+                    <TouchableOpacity
+                      key={letter}
+                      style={[styles.choicePill, mqCorrectIdx === idx && styles.choicePillActive]}
+                      onPress={() => setMqCorrectIdx(idx)}
+                    >
+                      <Text style={[styles.choiceText, mqCorrectIdx === idx && styles.choiceTextActive]}>
+                        Option {letter}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Marks (+m)</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      keyboardType="numeric"
+                      value={mqMarks}
+                      onChangeText={setMqMarks}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Negative (-m)</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      keyboardType="numeric"
+                      value={mqNegative}
+                      onChangeText={setMqNegative}
+                    />
+                  </View>
+                </View>
+
+                <Text style={styles.formLabel}>Difficulty</Text>
+                <View style={styles.choiceRow}>
+                  {(["easy", "medium", "hard"] as const).map((diff) => (
+                    <TouchableOpacity
+                      key={diff}
+                      style={[styles.choicePill, mqDifficulty === diff && styles.choicePillActive]}
+                      onPress={() => setMqDifficulty(diff)}
+                    >
+                      <Text style={[styles.choiceText, mqDifficulty === diff && styles.choiceTextActive]}>
+                        {diff.toUpperCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.formLabel}>Explanation / Rationale</Text>
+                <TextInput
+                  style={[styles.formInput, { height: 50, textAlignVertical: "top" }]}
+                  multiline
+                  placeholder="Optional answer explanation..."
+                  value={mqExplanation}
+                  onChangeText={setMqExplanation}
+                />
+
+                <Button
+                  title={isSavingMockQuestion ? "Adding Question..." : "Add Question to Mock Test"}
+                  variant="primary"
+                  size="md"
+                  onPress={handleSaveSingleMockQuestion}
+                  disabled={isSavingMockQuestion}
+                  style={{ marginTop: 14 }}
+                />
+              </ScrollView>
+            )}
+
+            {/* TAB 3: BULK UPLOAD QUESTIONS */}
+            {mockQuestionsTab === "bulk" && (
+              <ScrollView contentContainerStyle={styles.modalScroll}>
+                <View style={{ backgroundColor: "#020617", borderWidth: 1, borderColor: "#1e293b", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#38bdf8", marginBottom: 4 }}>
+                    Bulk Questions Format:
+                  </Text>
+                  <Text style={{ fontSize: 11, color: "#94a3b8", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", lineHeight: 16 }}>
+                    Question | Option A | Option B | Option C | Option D | Correct (A-D) | Explanation
+                  </Text>
+                  <TouchableOpacity
+                    style={{
+                      marginTop: 10,
+                      backgroundColor: "#1e3a8a",
+                      paddingVertical: 7,
+                      paddingHorizontal: 12,
+                      borderRadius: 6,
+                      alignSelf: "flex-start",
+                    }}
+                    onPress={insertSampleMockBulk}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#93c5fd" }}>
+                      Insert Sample Data
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.formLabel}>Paste Bulk Questions *</Text>
+                <TextInput
+                  style={[
+                    styles.formInput,
+                    {
+                      height: 180,
+                      textAlignVertical: "top",
+                      fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+                      fontSize: 11,
+                    },
+                  ]}
+                  multiline
+                  placeholder="Paste question lines here..."
+                  value={mqBulkText}
+                  onChangeText={setMqBulkText}
+                />
+
+                <Button
+                  title={isUploadingMockBulk ? "Uploading Batch..." : "Upload Bulk Questions"}
+                  variant="primary"
+                  size="md"
+                  onPress={handleSaveBulkMockQuestions}
+                  disabled={isUploadingMockBulk || !mqBulkText.trim()}
+                  style={{ marginTop: 14 }}
+                />
+
+                <Button
+                  title="Cancel & Back"
+                  variant="outline"
+                  size="md"
+                  onPress={() => setMockQuestionsTab("list")}
+                  style={{ marginTop: 8, marginBottom: 20 }}
+                />
+              </ScrollView>
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>

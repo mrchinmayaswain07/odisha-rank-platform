@@ -1496,7 +1496,8 @@ export async function getMockTestById(id: string): Promise<{ test: MockTest; que
       .order("order_index", { ascending: true });
 
     if (qErr || !mtq || mtq.length === 0) {
-      return { test, questions: SEED_QUESTIONS };
+      const isSeed = SEED_MOCK_TESTS.some((m) => m.id === id);
+      return { test, questions: isSeed ? SEED_QUESTIONS : [] };
     }
 
     const questions = mtq.map((row: any) => row.questions).filter(Boolean) as Question[];

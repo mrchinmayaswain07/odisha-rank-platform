@@ -485,7 +485,8 @@ export async function getMockTests(examId?: string, forceRefresh: boolean = fals
  * Fetch a mock test with its questions in sequence
  */
 export async function getMockTestById(
-  id: string
+  id: string,
+  forceRefresh: boolean = false
 ): Promise<{ test: MockTest; questions: Question[] } | null> {
   return fetchWithCache(`mocktest_${id}`, 5 * 60 * 1000, async () => {
     try {
@@ -510,7 +511,7 @@ export async function getMockTestById(
     } catch {
       return null;
     }
-  });
+  }, forceRefresh);
 }
 
 /**
@@ -969,13 +970,218 @@ export async function getAdminMockTestsList(): Promise<any[]> {
   try {
     const { data, error } = await supabase
       .from("mock_tests")
-      .select("*, exams(title)")
+      .select("*, exams(title), mock_test_questions(count)")
       .order("created_at", { ascending: false });
     if (error || !data) return [];
-    return data;
+    return data.map((item: any) => ({
+      ...item,
+      questions_count: item.mock_test_questions?.[0]?.count ?? 0,
+    }));
   } catch {
     return [];
   }
+}
+
+/**
+ * Fetch Questions Belonging to a Specific Mock Test
+ */
+export async function getMockTestQuestions(mockTestId: string): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from("mock_test_questions")
+      .select("id, mock_test_id, question_id, marks, order_index, questions(*)")
+      .eq("mock_test_id", mockTestId)
+      .order("order_index", { ascending: true });
+
+    if (error || !data) return [];
+
+    return (data as any[])
+      .map((row: any) => {
+        if (!row.questions) return null;
+        return {
+          ...row.questions,
+          mtq_id: row.id,
+          mtq_marks: row.marks ?? 1.0,
+          mtq_order: row.order_index ?? 0,
+        };
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Add Single Question Directly to a Mock Test
+ */
+export async function addQuestionToMockTest(payload: {
+  mock_test_id: string;
+  exam_id?: string;
+  question_text: string;
+  options: string[];
+  correct_option_index: number;
+  explanation?: string;
+  difficulty?: "easy" | "medium" | "hard";
+  marks?: number;
+  negative_marks?: number;
+}) {
+  // 1. Insert question into questions table
+  const qPayload = {
+    exam_id: payload.exam_id || null,
+    question_text: payload.question_text.trim(),
+    options: payload.options,
+    correct_option_index: payload.correct_option_index,
+    explanation: payload.explanation?.trim() || null,
+    difficulty: payload.difficulty || "medium",
+    marks: payload.marks || 1.0,
+    negative_marks: payload.negative_marks || 0.25,
+    is_sample: false,
+    status: "published",
+  };
+
+  const { data: createdQ, error: qErr } = await supabase
+    .from("questions")
+    .insert([qPayload])
+    .select()
+    .single();
+
+  if (qErr || !createdQ) throw qErr || new Error("Failed to create question");
+
+  // 2. Determine highest order_index
+  const { data: maxOrderRow } = await supabase
+    .from("mock_test_questions")
+    .select("order_index")
+    .eq("mock_test_id", payload.mock_test_id)
+    .order("order_index", { ascending: false })
+    .limit(1);
+
+  const nextOrder = (maxOrderRow?.[0]?.order_index ?? 0) + 1;
+
+  // 3. Link to mock_test_questions
+  const { data: linkData, error: linkErr } = await supabase
+    .from("mock_test_questions")
+    .insert([
+      {
+        mock_test_id: payload.mock_test_id,
+        question_id: createdQ.id,
+        marks: qPayload.marks,
+        order_index: nextOrder,
+      },
+    ])
+    .select()
+    .single();
+
+  if (linkErr) throw linkErr;
+
+  // Invalidate caches so student sees fresh test immediately
+  invalidateMobileCache(`mocktest_${payload.mock_test_id}`);
+  invalidateMobileCache("mock_test");
+
+  return { ...createdQ, mtq_id: linkData.id, mtq_order: nextOrder };
+}
+
+/**
+ * Bulk Add Questions to a Mock Test
+ */
+export async function bulkAddQuestionsToMockTest(
+  mockTestId: string,
+  questionsList: {
+    question_text: string;
+    options: string[];
+    correct_option_index: number;
+    explanation?: string;
+    difficulty?: "easy" | "medium" | "hard";
+    marks?: number;
+    negative_marks?: number;
+  }[],
+  examId?: string
+): Promise<{ successCount: number; errors: string[] }> {
+  let successCount = 0;
+  const errors: string[] = [];
+
+  // Determine starting order index
+  const { data: maxOrderRow } = await supabase
+    .from("mock_test_questions")
+    .select("order_index")
+    .eq("mock_test_id", mockTestId)
+    .order("order_index", { ascending: false })
+    .limit(1);
+
+  let currentOrder = (maxOrderRow?.[0]?.order_index ?? 0) + 1;
+
+  for (let i = 0; i < questionsList.length; i++) {
+    const q = questionsList[i];
+    try {
+      const qPayload = {
+        exam_id: examId || null,
+        question_text: q.question_text.trim(),
+        options: Array.isArray(q.options) && q.options.length === 4
+          ? q.options
+          : [q.options?.[0] || "Option A", q.options?.[1] || "Option B", q.options?.[2] || "Option C", q.options?.[3] || "Option D"],
+        correct_option_index: Number(q.correct_option_index ?? 0),
+        explanation: q.explanation?.trim() || null,
+        difficulty: q.difficulty || "medium",
+        marks: q.marks || 1.0,
+        negative_marks: q.negative_marks || 0.25,
+        is_sample: false,
+        status: "published",
+      };
+
+      const { data: createdQ, error: qErr } = await supabase
+        .from("questions")
+        .insert([qPayload])
+        .select()
+        .single();
+
+      if (qErr || !createdQ) {
+        errors.push(`Q #${i + 1}: ${qErr?.message || "Failed to create"}`);
+        continue;
+      }
+
+      const { error: linkErr } = await supabase
+        .from("mock_test_questions")
+        .insert([
+          {
+            mock_test_id: mockTestId,
+            question_id: createdQ.id,
+            marks: qPayload.marks,
+            order_index: currentOrder++,
+          },
+        ]);
+
+      if (linkErr) {
+        errors.push(`Q #${i + 1} link: ${linkErr.message}`);
+      } else {
+        successCount++;
+      }
+    } catch (err: any) {
+      errors.push(`Q #${i + 1}: ${err.message}`);
+    }
+  }
+
+  invalidateMobileCache(`mocktest_${mockTestId}`);
+  invalidateMobileCache("mock_test");
+
+  return { successCount, errors };
+}
+
+/**
+ * Remove a question from a mock test
+ */
+export async function removeQuestionFromMockTest(
+  mockTestId: string,
+  questionId: string
+) {
+  const { error } = await supabase
+    .from("mock_test_questions")
+    .delete()
+    .eq("mock_test_id", mockTestId)
+    .eq("question_id", questionId);
+
+  if (error) throw error;
+
+  invalidateMobileCache(`mocktest_${mockTestId}`);
+  invalidateMobileCache("mock_test");
 }
 
 /**
@@ -1008,6 +1214,7 @@ export async function createAdminMockTest(payload: {
     .single();
 
   if (error) throw error;
+  invalidateMobileCache("mock_test");
   return data;
 }
 

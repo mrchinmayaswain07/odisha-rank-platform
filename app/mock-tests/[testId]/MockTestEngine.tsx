@@ -259,6 +259,31 @@ export const MockTestEngine: React.FC<MockTestEngineProps> = ({ test, questions 
     );
   }
 
+  // Empty state if test has no questions yet
+  if (questions.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 text-center">
+        <Card className="p-8 border-slate-200 shadow-subtle space-y-4">
+          <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 mx-auto flex items-center justify-center">
+            <HelpCircle className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">{test.title}</h2>
+          <p className="text-sm text-slate-500">
+            No questions have been attached to this mock test yet. The administrator is currently preparing the question set.
+          </p>
+          <div className="pt-4">
+            <Link href="/mock-tests">
+              <Button variant="outline" size="sm">
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Return to Mock Tests Catalog
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   // Active Timed Exam Engine UI
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
