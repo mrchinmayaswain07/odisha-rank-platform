@@ -37,6 +37,7 @@ import {
   Timer,
   Trash2,
   Flame,
+  Calculator,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BRAND_COLORS, DashboardMetrics } from "@odisha-rank/shared";
@@ -447,13 +448,23 @@ export default function DashboardScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
+                style={[styles.actionCard, { backgroundColor: "#2563eb" }]}
+                onPress={() => router.push("/speed-math" as any)}
+                activeOpacity={0.8}
+              >
+                <Calculator size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Speed Math</Text>
+                <Text style={styles.actionCardSub}>16 Calculation Drills</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.actionCard, { backgroundColor: "#059669" }]}
                 onPress={() => router.push("/bodmas" as any)}
                 activeOpacity={0.8}
               >
                 <Zap size={18} color="#ffffff" fill="#ffffff" />
                 <Text style={styles.actionCardTitle}>BODMAS Lab</Text>
-                <Text style={styles.actionCardSub}>Speed calculation</Text>
+                <Text style={styles.actionCardSub}>Fast Simplification</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -520,24 +531,12 @@ export default function DashboardScreen() {
 
                 <View style={styles.goalHeaderActions}>
                   <TouchableOpacity
-                    style={styles.headerStopwatchBtn}
-                    onPress={() => {
-                      setActiveStopwatchTopic("Focused Study Session");
-                      setShowStopwatchModal(true);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Timer size={13} color="#ffffff" />
-                    <Text style={styles.headerStopwatchText}>Stopwatch</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
                     style={styles.headerAddGoalBtn}
                     onPress={() => setShowAddGoalModal(true)}
                     activeOpacity={0.8}
                   >
                     <Plus size={13} color={BRAND_COLORS.primary} />
-                    <Text style={styles.headerAddGoalText}>+ Topic</Text>
+                    <Text style={styles.headerAddGoalText}>Add Topic</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -720,22 +719,105 @@ export default function DashboardScreen() {
             {/* 3. Dedicated BODMAS & Speed Calculation Zone */}
             <View style={styles.bodmasSection}>
               <View style={styles.bodmasHeaderRow}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
                   <View style={styles.bodmasHeaderIconBadge}>
                     <Zap size={16} color="#f59e0b" fill="#f59e0b" />
                   </View>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.bodmasSectionTitle}>BODMAS & Calculation Lab</Text>
-                    <Text style={styles.bodmasSectionSub}>Speed training for OSSC & OSSSC exams</Text>
+                    <Text style={styles.bodmasSectionSub}>16 Speed Drills & Fast Simplification</Text>
                   </View>
                 </View>
-                <TouchableOpacity
-                  onPress={() => router.push("/bodmas" as any)}
-                  style={styles.bodmasViewAllBtn}
-                  activeOpacity={0.7}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <TouchableOpacity
+                    onPress={() => router.push("/speed-math" as any)}
+                    style={[styles.bodmasViewAllBtn, { borderColor: "#f59e0b", backgroundColor: "rgba(245, 158, 11, 0.12)" }]}
+                    activeOpacity={0.7}
+                  >
+                    <Zap size={11} color="#f59e0b" fill="#f59e0b" />
+                    <Text style={[styles.bodmasViewAllText, { color: "#fbbf24" }]}>16 Drills ⚡</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => router.push("/bodmas" as any)}
+                    style={styles.bodmasViewAllBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.bodmasViewAllText}>BODMAS</Text>
+                    <ArrowRight size={12} color="#38bdf8" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* 16 Speed Calculation Drills Feature Hub */}
+              <View style={styles.speedMathBannerCard}>
+                <View style={styles.speedMathBannerLeft}>
+                  <View style={styles.speedMathIconCircle}>
+                    <Calculator size={20} color="#f59e0b" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                      <View style={styles.speedMathBadgeRow}>
+                        <Text style={styles.speedMathBadgeText}>16 SPEED DRILLS</Text>
+                      </View>
+                      <Text style={{ fontSize: 10, color: "#94a3b8", fontWeight: "700" }}>Aptitude Training</Text>
+                    </View>
+                    <Text style={styles.speedMathTitle}>Rapid Calculation Drills</Text>
+                    <Text style={styles.speedMathSub}>
+                      Addition, Multiplication, Squares, Cubes, Roots, Tables & % Fractions
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Horizontal 16 Drills Carousel */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.bodmasScrollCards}
                 >
-                  <Text style={styles.bodmasViewAllText}>Practice Lab</Text>
-                  <ArrowRight size={12} color="#38bdf8" />
+                  {[
+                    { id: "addition", name: "Addition", symbol: "+", desc: "Column & Row Sums", color: "#2563eb", bg: "rgba(37, 99, 235, 0.2)" },
+                    { id: "subtraction", name: "Subtraction", symbol: "−", desc: "Borrowing Drills", color: "#ef4444", bg: "rgba(239, 68, 68, 0.2)" },
+                    { id: "multiplication", name: "Multiplication", symbol: "×", desc: "Speed Tables & Products", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.2)" },
+                    { id: "division", name: "Division", symbol: "÷", desc: "Clean Integer Division", color: "#f97316", bg: "rgba(249, 115, 22, 0.2)" },
+                    { id: "squares", name: "Squares", symbol: "x²", desc: "Square Values 1-50", color: "#10b981", bg: "rgba(16, 185, 129, 0.2)" },
+                    { id: "cubes", name: "Cubes", symbol: "x³", desc: "Cube Values 1-30", color: "#14b8a6", bg: "rgba(20, 184, 166, 0.2)" },
+                    { id: "square_root", name: "Square Root", symbol: "√", desc: "Perfect Square Roots", color: "#0284c7", bg: "rgba(2, 132, 199, 0.2)" },
+                    { id: "cube_root", name: "Cube Root", symbol: "∛", desc: "Perfect Cube Roots", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.2)" },
+                    { id: "tables", name: "Tables", symbol: "12×", desc: "Tables 11-25 Range", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.2)" },
+                    { id: "exponents", name: "Exponents", symbol: "2ⁿ", desc: "Powers of 2, 3, 5", color: "#7c3aed", bg: "rgba(124, 58, 237, 0.2)" },
+                    { id: "exponent_root", name: "Exponent Root", symbol: "x√", desc: "Reverse Exponents", color: "#f43f5e", bg: "rgba(244, 63, 94, 0.2)" },
+                    { id: "fraction_of_percent", name: "Fraction of %", symbol: "%", desc: "x% of N using Fractions", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.2)" },
+                    { id: "percent_to_fraction", name: "% to Fraction", symbol: "½", desc: "Percent to Fraction Match", color: "#6366f1", bg: "rgba(99, 102, 241, 0.2)" },
+                    { id: "di_addition", name: "DI Addition", symbol: "📊", desc: "Column Sums for DI", color: "#ec4899", bg: "rgba(236, 72, 153, 0.2)" },
+                    { id: "mix", name: "Mix Mode", symbol: "🔀", desc: "Random Mix Speed Drill", color: "#94a3b8", bg: "rgba(148, 163, 184, 0.2)" },
+                  ].map((drill) => (
+                    <TouchableOpacity
+                      key={drill.id}
+                      style={[styles.bodmasSubCard, { width: 135 }]}
+                      onPress={() =>
+                        router.push({ pathname: "/speed-math", params: { category: drill.id } } as any)
+                      }
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.bodmasSubIconBox, { backgroundColor: drill.bg }]}>
+                        <Text style={{ fontSize: 16, fontWeight: "900", color: drill.color }}>
+                          {drill.symbol}
+                        </Text>
+                      </View>
+                      <Text style={styles.bodmasSubCardTitle}>{drill.name}</Text>
+                      <Text style={styles.bodmasSubCardSub}>{drill.desc}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={styles.openAllDrillsCta}
+                  onPress={() => router.push("/speed-math" as any)}
+                  activeOpacity={0.8}
+                >
+                  <Zap size={14} color="#ffffff" fill="#ffffff" />
+                  <Text style={styles.openAllDrillsCtaText}>Explore All 16 Speed Calculation Drills</Text>
+                  <ArrowRight size={14} color="#ffffff" />
                 </TouchableOpacity>
               </View>
 
@@ -1867,6 +1949,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#94a3b8",
     marginTop: 2,
+  },
+  speedMathBannerCard: {
+    backgroundColor: "#131b2e",
+    borderRadius: 18,
+    padding: 16,
+    marginVertical: 12,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  openAllDrillsCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#2563eb",
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 12,
+  },
+  openAllDrillsCtaText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "800",
   },
   // Brain Games Hero Section
   gamesHeroSection: {

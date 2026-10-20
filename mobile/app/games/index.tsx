@@ -252,6 +252,34 @@ export default function GamesCatalogueScreen() {
           </View>
         </View>
 
+        {/* Speed Calculation Drills Banner */}
+        <TouchableOpacity
+          style={styles.speedCalculationBanner}
+          onPress={() => router.push("/speed-math" as any)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.speedCalculationBannerLeft}>
+            <View style={styles.speedCalculationIconBox}>
+              <Calculator size={18} color="#ffffff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                <View style={styles.speedCalculationPill}>
+                  <Text style={styles.speedCalculationPillText}>16 SPEED DRILLS</Text>
+                </View>
+                <Text style={{ fontSize: 10, color: "#93c5fd", fontWeight: "700" }}>Math Aptitude</Text>
+              </View>
+              <Text style={styles.speedCalculationTitle}>Speed Math & Calculation Lab</Text>
+              <Text style={styles.speedCalculationSub}>
+                Squares, Cubes, Roots, Tables, Powers & % Fractions
+              </Text>
+            </View>
+          </View>
+          <View style={styles.speedCalculationCtaBtn}>
+            <Text style={styles.speedCalculationCtaText}>Start ⚡</Text>
+          </View>
+        </TouchableOpacity>
+
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Search size={16} color="#94a3b8" />
@@ -589,6 +617,65 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#fde68a",
+  },
+  speedCalculationBanner: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  speedCalculationBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  speedCalculationIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#2563eb",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  speedCalculationPill: {
+    backgroundColor: "rgba(37, 99, 235, 0.2)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  speedCalculationPillText: {
+    fontSize: 8,
+    fontWeight: "900",
+    color: "#60a5fa",
+  },
+  speedCalculationTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  speedCalculationSub: {
+    fontSize: 10,
+    color: "#94a3b8",
+    marginTop: 1,
+  },
+  speedCalculationCtaBtn: {
+    backgroundColor: "#2563eb",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  speedCalculationCtaText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#ffffff",
   },
   dailyGameNum: {
     fontSize: 10,

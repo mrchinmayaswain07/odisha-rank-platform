@@ -251,6 +251,27 @@ export default function BodmasScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Switcher to 16 Speed Calculation Drills */}
+        <TouchableOpacity
+          style={styles.speedDrillsSwitchBanner}
+          onPress={() => router.push("/speed-math" as any)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.speedDrillsSwitchLeft}>
+            <View style={styles.speedDrillsSwitchIconBox}>
+              <Calculator size={14} color="#2563eb" />
+            </View>
+            <View>
+              <Text style={styles.speedDrillsSwitchTitle}>16 Speed Calculation Drills</Text>
+              <Text style={styles.speedDrillsSwitchSub}>Squares, Roots, Tables, % to Fractions</Text>
+            </View>
+          </View>
+          <View style={styles.speedDrillsSwitchRight}>
+            <Text style={styles.speedDrillsSwitchAction}>Open ⚡</Text>
+            <ChevronRight size={14} color="#2563eb" />
+          </View>
+        </TouchableOpacity>
+
         {/* Difficulty Selector Tabs */}
         <View style={styles.diffSelector}>
           {(["easy", "medium", "hard", "sprint"] as BodmasDifficulty[]).map((d) => {
@@ -524,6 +545,57 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
+  },
+  speedDrillsSwitchBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#eff6ff",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    marginBottom: 14,
+  },
+  speedDrillsSwitchLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  speedDrillsSwitchIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#dbeafe",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  speedDrillsSwitchTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#1e40af",
+  },
+  speedDrillsSwitchSub: {
+    fontSize: 11,
+    color: "#3b82f6",
+    marginTop: 1,
+  },
+  speedDrillsSwitchRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  speedDrillsSwitchAction: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#2563eb",
   },
   diffSelector: {
     flexDirection: "row",

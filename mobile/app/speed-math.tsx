@@ -9,6 +9,7 @@ import {
   Alert,
   Dimensions,
   Platform,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -36,6 +37,7 @@ import {
   Trophy,
   Play,
   Check,
+  Search,
 } from "lucide-react-native";
 import {
   SpeedMathCategory,
@@ -53,6 +55,7 @@ const { width } = Dimensions.get("window");
 
 export default function SpeedMathScreen() {
   const [activeFilter, setActiveFilter] = useState<string>("ALL");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<SpeedMathCategory | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] = useState<SpeedMathDifficulty>("medium");
   const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(20);
@@ -244,6 +247,14 @@ export default function SpeedMathScreen() {
     if (activeFilter === "CONCEPT" && cat.badge !== "CONCEPT") return false;
     if (activeFilter === "PERCENT" && cat.badge !== "PERCENT") return false;
     if (activeFilter === "EXAM_DI" && !["EXAM", "DI", "RANDOM"].includes(cat.badge)) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = cat.name.toLowerCase().includes(q);
+      const matchDesc = cat.description.toLowerCase().includes(q);
+      const matchBadge = cat.badge.toLowerCase().includes(q);
+      if (!matchName && !matchDesc && !matchBadge) return false;
+    }
     return true;
   });
 
@@ -577,25 +588,43 @@ export default function SpeedMathScreen() {
           <View style={styles.heroBanner}>
             <View style={styles.heroBadge}>
               <Zap size={14} color="#f59e0b" fill="#f59e0b" />
-              <Text style={styles.heroBadgeText}>Speed Math & BODMAS</Text>
+              <Text style={styles.heroBadgeText}>Quantitative Aptitude & Speed Drills</Text>
             </View>
-            <Text style={styles.heroTitle}>BODMAS & Speed Drills</Text>
+            <Text style={styles.heroTitle}>Speed Math & BODMAS Practice</Text>
             <Text style={styles.heroSub}>
-              Build lightning calculation speed for OSSC, OSSSC, and OPSC exams with 16 dedicated
-              speed drills including BODMAS, powers, roots, and percentages.
+              Master rapid mental calculations, speed arithmetic, squares, cubes, tables, percentage
+              fractions, and DI row-column additions for OSSC CGL, OSSSC RI/AMIN, and OPSC examinations.
             </Text>
           </View>
 
-          {/* Filter Pills */}
+          {/* Search Bar matching Image 1 */}
+          <View style={styles.searchContainer}>
+            <Search size={16} color="#94a3b8" />
+            <TextInput
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search calculation drill..."
+              placeholderTextColor="#94a3b8"
+              clearButtonMode="while-editing"
+            />
+            {searchQuery ? (
+              <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.searchClearBtn}>
+                <X size={14} color="#94a3b8" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {/* Filter Pills matching Image 1 */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterPillsContainer}
           >
             {[
-              { id: "ALL", label: "All (16)" },
+              { id: "ALL", label: "All Drills (16)" },
               { id: "CORE", label: "Core Operations" },
-              { id: "MEMORY", label: "Memory (Sq & Cubes)" },
+              { id: "MEMORY", label: "Memory (Squares & Cubes)" },
               { id: "CONCEPT", label: "Roots & Exponents" },
               { id: "PERCENT", label: "Percentages" },
               { id: "EXAM_DI", label: "Exam & DI" },
@@ -622,33 +651,52 @@ export default function SpeedMathScreen() {
           </ScrollView>
 
           {/* Cards Grid */}
-          <View style={styles.cardsGrid}>
-            {filteredCategories.map((cat) => (
+          {filteredCategories.length === 0 ? (
+            <View style={styles.emptyDrillsBox}>
+              <Calculator size={32} color="#94a3b8" />
+              <Text style={styles.emptyDrillsTitle}>No calculation drill found</Text>
+              <Text style={styles.emptyDrillsSub}>
+                Try searching for &quot;squares&quot;, &quot;addition&quot;, &quot;cubes&quot;, or &quot;percent&quot;.
+              </Text>
               <TouchableOpacity
-                key={cat.id}
-                style={styles.drillCard}
-                onPress={() => handleOpenConfig(cat.id)}
-                activeOpacity={0.8}
+                style={styles.resetFiltersBtn}
+                onPress={() => {
+                  setSearchQuery("");
+                  setActiveFilter("ALL");
+                }}
               >
-                <View style={styles.cardTopRow}>
-                  <View style={[styles.cardIconBox, { backgroundColor: cat.color }]}>
-                    {renderDrillIcon(cat.iconName, cat.color)}
-                  </View>
-                  <View style={styles.cardBadgePill}>
-                    <Text style={styles.cardBadgePillText}>{cat.badge}</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.cardName}>{cat.name}</Text>
-                <Text style={styles.cardDesc}>{cat.description}</Text>
-
-                <View style={styles.cardFooter}>
-                  <Text style={styles.cardFooterText}>Start Practice</Text>
-                  <ArrowRight size={14} color={BRAND_COLORS.primary} />
-                </View>
+                <Text style={styles.resetFiltersBtnText}>Reset Filters & Search</Text>
               </TouchableOpacity>
-            ))}
-          </View>
+            </View>
+          ) : (
+            <View style={styles.cardsGrid}>
+              {filteredCategories.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={styles.drillCard}
+                  onPress={() => handleOpenConfig(cat.id)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.cardTopRow}>
+                    <View style={[styles.cardIconBox, { backgroundColor: cat.color }]}>
+                      {renderDrillIcon(cat.iconName, cat.color)}
+                    </View>
+                    <View style={styles.cardBadgePill}>
+                      <Text style={styles.cardBadgePillText}>{cat.badge}</Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.cardName}>{cat.name}</Text>
+                  <Text style={styles.cardDesc}>{cat.description}</Text>
+
+                  <View style={styles.cardFooter}>
+                    <Text style={styles.cardFooterText}>Practice Speed Drill</Text>
+                    <ArrowRight size={14} color={BRAND_COLORS.primary} />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </ScrollView>
       )}
 
@@ -827,6 +875,70 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#94a3b8",
     lineHeight: 18,
+  },
+
+  /* Search Bar */
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    marginBottom: 14,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: "#0f172a",
+    padding: 0,
+  },
+  searchClearBtn: {
+    padding: 4,
+  },
+
+  /* Empty State */
+  emptyDrillsBox: {
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginVertical: 10,
+  },
+  emptyDrillsTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0f172a",
+    marginTop: 10,
+  },
+  emptyDrillsSub: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  resetFiltersBtn: {
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  resetFiltersBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: BRAND_COLORS.primary,
   },
 
   /* Filter Pills */
