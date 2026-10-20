@@ -64,7 +64,7 @@ export default function SyllabusScreen() {
     return () => {
       isCurrent = false;
     };
-  }, [activeExam, user?.id]);
+  }, [activeExam?.id, user?.id]);
 
   const handleSelectSubject = async (sub: Subject) => {
     if (activeSubject?.id === sub.id) return;

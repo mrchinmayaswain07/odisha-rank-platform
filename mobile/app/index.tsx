@@ -1,9 +1,9 @@
 import React, { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { router } from "expo-router";
-import { GraduationCap } from "lucide-react-native";
 import { BRAND_COLORS, SITE_CONFIG } from "@odisha-rank/shared";
 import { useAuth } from "../src/lib/auth-context";
+import { Logo } from "../src/components/Logo";
 
 export default function Index() {
   const { session, isLoading } = useAuth();
@@ -20,9 +20,7 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.logoBadge}>
-        <GraduationCap size={44} color="#ffffff" />
-      </View>
+      <Logo size={84} style={{ marginBottom: 16 }} />
       <Text style={styles.brandTitle}>
         Odisha<Text style={styles.brandAccent}>Rank</Text>
       </Text>

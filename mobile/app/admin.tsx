@@ -40,6 +40,7 @@ import {
 } from "lucide-react-native";
 import { BRAND_COLORS, SITE_CONFIG, StudentDoubt } from "@odisha-rank/shared";
 import { useAuth } from "../src/lib/auth-context";
+import { Logo } from "../src/components/Logo";
 import {
   getAdminOverviewStats,
   getAdminQuestionsList,
@@ -238,14 +239,16 @@ export default function AdminScreen() {
   };
 
   useEffect(() => {
-    loadStats();
-    getAdminCoursesList().then((cList) => {
-      setCourses(cList);
-      if (cList[0]) {
-        setQExamId(cList[0].id);
-        setMExamId(cList[0].id);
-      }
-    });
+    Promise.all([
+      loadStats(),
+      getAdminCoursesList().then((cList) => {
+        setCourses(cList);
+        if (cList[0]) {
+          setQExamId(cList[0].id);
+          setMExamId(cList[0].id);
+        }
+      }),
+    ]);
   }, []);
 
   const handleTabChange = (tab: AdminTab) => {
@@ -1021,6 +1024,7 @@ The Sun Temple of Konark was built during the reign of which king? | Anantavarma
         </TouchableOpacity>
         <View style={styles.headerTextCol}>
           <View style={styles.titleRow}>
+            <Logo size={24} style={{ marginRight: 8 }} />
             <Text style={styles.headerTitle}>
               Odisha<Text style={{ color: "#38bdf8" }}>Admin</Text>
             </Text>

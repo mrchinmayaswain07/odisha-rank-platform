@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Search,
   Timer,
@@ -110,6 +111,16 @@ export const StudentHeader: React.FC<StudentHeaderProps> = ({
         >
           <Menu className="w-5 h-5" />
         </button>
+
+        <Link href="/dashboard" className="lg:hidden flex items-center gap-1.5 shrink-0">
+          <Image
+            src="/logo.png"
+            alt="OdishaRank"
+            width={28}
+            height={28}
+            className="rounded-lg object-contain shadow-xs"
+          />
+        </Link>
 
         {/* Global Live Search Bar */}
         <div className="relative flex-1">

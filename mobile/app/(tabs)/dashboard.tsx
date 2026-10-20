@@ -55,6 +55,7 @@ import { fetchStudentNotifications, AppNotification } from "../../src/lib/notifi
 const TODAY_GOALS_KEY = "odisharank_today_goals_";
 const TARGET_HOURS_KEY = "odisharank_target_hours_";
 const DELETED_GOALS_KEY = "odisharank_deleted_goals_";
+const METRICS_CACHE_KEY = "odisharank_metrics_cache_";
 const getTodayDateStr = () => new Date().toISOString().split("T")[0];
 
 export default function DashboardScreen() {
@@ -160,30 +161,54 @@ export default function DashboardScreen() {
     }
   }, [user?.id, activeExam?.id]);
 
-  const fetchMetrics = useCallback(async () => {
-    if (!user) return;
+  const fetchMetrics = useCallback(async (isInitial = false) => {
+    if (!user?.id) return;
+    const uid = user.id;
+    const cacheKey = `${METRICS_CACHE_KEY}${uid}_${activeExam?.id || "all"}`;
+
+    if (isInitial) {
+      // 1. Instant 0ms render from disk cache
+      try {
+        const cachedRaw = await AsyncStorage.getItem(cacheKey);
+        if (cachedRaw) {
+          const parsed = JSON.parse(cachedRaw);
+          if (parsed) {
+            setMetrics(parsed);
+            setIsLoading(false);
+          }
+        }
+      } catch {}
+    }
+
+    // 2. Fetch fresh metrics from database
     try {
-      const data = await getDashboardMetrics(user.id, activeExam?.id);
+      const data = await getDashboardMetrics(uid, activeExam?.id);
       setMetrics(data);
+      AsyncStorage.setItem(cacheKey, JSON.stringify(data)).catch(() => {});
     } catch (err) {
       console.warn("Failed to fetch dashboard metrics:", err);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, [user, activeExam]);
+  }, [user?.id, activeExam?.id]);
 
   useEffect(() => {
-    fetchMetrics();
+    // Run all initial loads concurrently
+    fetchMetrics(true);
     loadTodayGoals();
     loadNotifications();
   }, [fetchMetrics, loadTodayGoals, loadNotifications]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchMetrics();
-    loadTodayGoals();
-    loadNotifications();
+    Promise.all([
+      fetchMetrics(false),
+      loadTodayGoals(),
+      loadNotifications(),
+    ]).finally(() => {
+      setRefreshing(false);
+    });
   };
 
   // Toggle Today's Goal Item

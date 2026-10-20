@@ -16,6 +16,7 @@ import { GraduationCap, User, Mail, Lock, AlertCircle, CheckCircle2, MailCheck, 
 import { BRAND_COLORS, registerSchema } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
 import { Button } from "../../src/components/Button";
+import { Logo } from "../../src/components/Logo";
 
 export default function RegisterScreen() {
   const { user, isAdmin, signUp } = useAuth();
@@ -127,11 +128,7 @@ export default function RegisterScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Header */}
           <View style={styles.header}>
-            <Image
-              source={require("../../assets/logo.png")}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
+            <Logo size={72} style={styles.logoImage} />
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Join serious Odisha exam aspirants</Text>
           </View>

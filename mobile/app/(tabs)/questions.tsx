@@ -43,7 +43,7 @@ export default function QuestionsScreen() {
       setSubjects(subs);
     };
     loadSubjects();
-  }, [activeExam]);
+  }, [activeExam?.id]);
 
   // Load questions
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function QuestionsScreen() {
     };
 
     loadQuestions();
-  }, [activeExam, selectedSubjectId]);
+  }, [activeExam?.id, selectedSubjectId]);
 
   const currentQ = questions[currentIndex];
 

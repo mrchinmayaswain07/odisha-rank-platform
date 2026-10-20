@@ -14,6 +14,7 @@ import { KeyRound, Mail, AlertCircle, CheckCircle2, ArrowLeft } from "lucide-rea
 import { BRAND_COLORS, forgotPasswordSchema } from "@odisha-rank/shared";
 import { supabase } from "../../src/lib/supabase";
 import { Button } from "../../src/components/Button";
+import { Logo } from "../../src/components/Logo";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
@@ -57,11 +58,7 @@ export default function ForgotPasswordScreen() {
         </TouchableOpacity>
 
         <View style={styles.header}>
-          <Image
-            source={require("../../assets/logo.png")}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
+          <Logo size={72} style={styles.logoImage} />
           <Text style={styles.title}>Reset Password</Text>
           <Text style={styles.subtitle}>
             Enter your registered email and we will send you a secure password reset link.

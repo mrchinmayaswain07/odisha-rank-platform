@@ -32,7 +32,7 @@ export default function MockTestsScreen() {
     };
 
     loadTests();
-  }, [activeExam]);
+  }, [activeExam?.id]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>

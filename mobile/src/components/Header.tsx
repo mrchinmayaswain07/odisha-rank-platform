@@ -1,9 +1,10 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { ChevronLeft, GraduationCap, ArrowLeftRight, Bell } from "lucide-react-native";
 import { BRAND_COLORS } from "@odisha-rank/shared";
 import { useAuth } from "../lib/auth-context";
+import { Logo } from "./Logo";
 
 interface HeaderProps {
   title: string;
@@ -39,11 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
               <ChevronLeft size={24} color={BRAND_COLORS.textPrimary} />
             </TouchableOpacity>
           ) : (
-            <Image
-              source={require("../../assets/logo.png")}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
+            <Logo size={36} />
           )}
           <View style={{ flex: 1 }}>
             <Text style={styles.title} numberOfLines={1}>{title}</Text>

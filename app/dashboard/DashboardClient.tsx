@@ -701,6 +701,16 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               <Menu className="w-5 h-5" />
             </button>
 
+            <Link href="/dashboard" className="lg:hidden flex items-center gap-1.5 shrink-0">
+              <Image
+                src="/logo.png"
+                alt="OdishaRank"
+                width={28}
+                height={28}
+                className="rounded-lg object-contain shadow-xs"
+              />
+            </Link>
+
             {/* Live Search Input with Dropdown */}
             <div className="relative w-full">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />

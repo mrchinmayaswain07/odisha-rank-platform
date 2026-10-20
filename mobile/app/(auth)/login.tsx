@@ -17,6 +17,7 @@ import { BRAND_COLORS, loginSchema } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
 import { supabase } from "../../src/lib/supabase";
 import { Button } from "../../src/components/Button";
+import { Logo } from "../../src/components/Logo";
 
 export default function LoginScreen() {
   const { user, isAdmin, signIn } = useAuth();
@@ -99,11 +100,7 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Header */}
           <View style={styles.header}>
-            <Image
-              source={require("../../assets/logo.png")}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
+            <Logo size={76} style={styles.logoImage} />
             <Text style={styles.title}>
               Odisha<Text style={styles.brandAccent}>Rank</Text>
             </Text>
