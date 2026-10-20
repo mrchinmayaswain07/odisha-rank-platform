@@ -753,69 +753,7 @@ export default function DashboardScreen() {
 
 
 
-            {/* 4. Dedicated Brain Games & Mental Training Zone */}
-            <View style={styles.gamesHeroSection}>
-              <View style={styles.bodmasHeaderRow}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <View style={[styles.bodmasHeaderIconBadge, { backgroundColor: "rgba(99, 102, 241, 0.15)" }]}>
-                    <Gamepad2 size={16} color="#818cf8" />
-                  </View>
-                  <View>
-                    <Text style={styles.bodmasSectionTitle}>Brain Games & Logic Lab</Text>
-                    <Text style={styles.bodmasSectionSub}>32 Mental Puzzles for OSSC/OSSSC Aptitude</Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  onPress={() => router.push("/games" as any)}
-                  style={[styles.bodmasViewAllBtn, { borderColor: "#4f46e5" }]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.bodmasViewAllText, { color: "#a5b4fc" }]}>All 32 Games</Text>
-                  <ArrowRight size={12} color="#a5b4fc" />
-                </TouchableOpacity>
-              </View>
 
-              {/* Featured Games Quick Launch Carousel */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.bodmasScrollCards}
-              >
-                {[
-                  { id: "game-24", title: "24 Game", cat: "Math", color: "#3b82f6", emoji: "🎯" },
-                  { id: "sudoku", title: "Sudoku", cat: "Logic", color: "#8b5cf6", emoji: "🔢" },
-                  { id: "game-2048", title: "2048", cat: "Math", color: "#ea580c", emoji: "🧩" },
-                  { id: "minesweeper", title: "Minesweeper", cat: "Logic", color: "#ef4444", emoji: "💣" },
-                  { id: "memory-matrix", title: "Memory Matrix", cat: "Memory", color: "#10b981", emoji: "🧠" },
-                  { id: "nerdle", title: "Nerdle", cat: "Math", color: "#9333ea", emoji: "🧮" },
-                  { id: "number-bonds", title: "Number Bonds", cat: "Math", color: "#059669", emoji: "🔗" },
-                  { id: "tower-of-hanoi", title: "Tower of Hanoi", cat: "Logic", color: "#d97706", emoji: "🗼" },
-                ].map((gm) => (
-                  <TouchableOpacity
-                    key={gm.id}
-                    style={styles.gameCarouselCard}
-                    onPress={() => router.push(`/games/${gm.id}` as any)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.gameEmojiBox, { backgroundColor: `${gm.color}22` }]}>
-                      <Text style={{ fontSize: 20 }}>{gm.emoji}</Text>
-                    </View>
-                    <Text style={styles.gameCarouselTitle} numberOfLines={1}>{gm.title}</Text>
-                    <Text style={styles.gameCarouselCat}>{gm.cat}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <TouchableOpacity
-                style={styles.openAllGamesCta}
-                onPress={() => router.push("/games" as any)}
-                activeOpacity={0.8}
-              >
-                <Brain size={16} color="#ffffff" />
-                <Text style={styles.openAllGamesCtaText}>Explore All 32 Brain Games</Text>
-                <ArrowRight size={14} color="#ffffff" />
-              </TouchableOpacity>
-            </View>
 
 
             {/* 5. Subject Breakdown */}
