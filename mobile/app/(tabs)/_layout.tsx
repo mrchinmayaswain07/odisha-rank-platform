@@ -3,7 +3,7 @@ import { Tabs, useRouter } from "expo-router";
 import {
   LayoutDashboard,
   Layers,
-  HelpCircle,
+  Brain,
   Award,
   User,
 } from "lucide-react-native";
@@ -58,11 +58,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="questions"
+        name="brain-gym"
         options={{
-          title: "Practice",
+          title: "Brain Gym",
           tabBarIcon: ({ color, size }) => (
-            <HelpCircle size={size || 22} color={color} />
+            <Brain size={size || 22} color={color} />
           ),
         }}
       />
@@ -82,6 +82,12 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <User size={size || 22} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="questions"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

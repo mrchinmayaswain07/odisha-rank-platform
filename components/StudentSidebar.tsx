@@ -44,12 +44,13 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
       icon: GraduationCap,
     },
     {
-      name: "Speed Math & BODMAS",
+      name: "Brain Gym & Speed Math",
       href: "/speed-math",
       icon: Zap,
+      badge: "WARM-UP",
     },
     {
-      name: "Games & Brain Training",
+      name: "Brain Gym: 32 Games",
       href: "/games",
       icon: Gamepad2,
       badge: "32 GAMES",

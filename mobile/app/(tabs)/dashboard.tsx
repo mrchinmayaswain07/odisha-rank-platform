@@ -464,12 +464,12 @@ export default function DashboardScreen() {
             <View style={styles.actionGrid}>
               <TouchableOpacity
                 style={[styles.actionCard, { backgroundColor: BRAND_COLORS.primary }]}
-                onPress={() => router.push("/(tabs)/questions")}
+                onPress={() => router.push("/(tabs)/brain-gym" as any)}
                 activeOpacity={0.8}
               >
-                <HelpCircle size={18} color="#ffffff" />
-                <Text style={styles.actionCardTitle}>Practice MCQs</Text>
-                <Text style={styles.actionCardSub}>Topic-wise questions</Text>
+                <Brain size={18} color="#ffffff" />
+                <Text style={styles.actionCardTitle}>Brain Gym</Text>
+                <Text style={styles.actionCardSub}>Speed Math & Games</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
