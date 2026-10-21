@@ -534,33 +534,45 @@ export default function BrainGymScreen() {
         {/* ============================================================ */}
         {/* 3. SECTION SELECTOR (ALL / CALCULATIONS / GAMES / DAILY)      */}
         {/* ============================================================ */}
-        <View style={styles.sectionTabs}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.sectionTabsContent}
+          style={styles.sectionTabsScroll}
+        >
           {[
             { id: "all", label: "Gym Arena" },
             { id: "calc", label: "⚡ Calculations" },
             { id: "games", label: "🎮 Brain Games" },
             { id: "daily", label: "📋 Daily Workout" },
-          ].map((tab) => (
-            <TouchableOpacity
-              key={tab.id}
-              style={[
-                styles.sectionTabBtn,
-                activeTab === tab.id && styles.sectionTabBtnActive,
-              ]}
-              onPress={() => setActiveTab(tab.id as any)}
-              activeOpacity={0.7}
-            >
-              <Text
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
                 style={[
-                  styles.sectionTabText,
-                  activeTab === tab.id && styles.sectionTabTextActive,
+                  styles.sectionTabBtn,
+                  isActive
+                    ? styles.sectionTabBtnActive
+                    : styles.sectionTabBtnInactive,
                 ]}
+                onPress={() => setActiveTab(tab.id as any)}
+                activeOpacity={0.7}
               >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+                <Text
+                  style={[
+                    styles.sectionTabText,
+                    isActive
+                      ? styles.sectionTabTextActive
+                      : styles.sectionTabTextInactive,
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
         {/* ============================================================ */}
         {/* 4. SPEED CALCULATION SECTION ("caclatution part")             */}
@@ -1201,40 +1213,52 @@ const styles = StyleSheet.create({
   },
 
   // Section Selector Tabs
-  sectionTabs: {
-    flexDirection: "row",
-    backgroundColor: "#e2e8f0",
-    borderRadius: 10,
-    padding: 3,
+  sectionTabsScroll: {
     marginBottom: 18,
   },
+  sectionTabsContent: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
   sectionTabBtn: {
-    flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
+    flexDirection: "row",
   },
   sectionTabBtnActive: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#eff6ff",
+    borderColor: "#2563eb",
     ...Platform.select({
       ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
+        shadowColor: "#2563eb",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
       },
-      android: { elevation: 1 },
+      android: { elevation: 2 },
     }),
   },
+  sectionTabBtnInactive: {
+    backgroundColor: "#ffffff",
+    borderColor: "#cbd5e1",
+  },
   sectionTabText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#64748b",
+    fontSize: 13,
+    letterSpacing: 0.2,
   },
   sectionTabTextActive: {
-    color: "#0f172a",
+    color: "#2563eb",
     fontWeight: "700",
+  },
+  sectionTabTextInactive: {
+    color: "#475569",
+    fontWeight: "600",
   },
 
   // Generic Section Blocks
