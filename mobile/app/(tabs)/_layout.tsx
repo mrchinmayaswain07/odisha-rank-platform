@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import {
   View,
+  Text,
   Pressable,
   StyleSheet,
   Platform,
@@ -41,6 +42,33 @@ function TabBarIcon({ Icon, focused, color }: TabBarIconProps) {
   );
 }
 
+interface TabBarLabelProps {
+  label: string;
+  focused: boolean;
+}
+
+function TabBarLabel({ label, focused }: TabBarLabelProps) {
+  return (
+    <View style={styles.labelWrapper}>
+      <Text
+        numberOfLines={1}
+        style={[
+          styles.labelText,
+          focused ? styles.labelTextFocused : styles.labelTextInactive,
+        ]}
+      >
+        {label}
+      </Text>
+      <View
+        style={[
+          styles.activeIndicator,
+          focused ? styles.activeIndicatorFocused : styles.activeIndicatorHidden,
+        ]}
+      />
+    </View>
+  );
+}
+
 export default function TabLayout() {
   const { session, isLoading } = useAuth();
   const router = useRouter();
@@ -54,7 +82,7 @@ export default function TabLayout() {
 
   // Android safe-area calculation: gracefully adapts to system gesture nav or 3-button nav
   const bottomPadding = insets.bottom > 0 ? insets.bottom + 4 : 8;
-  const barHeight = 56 + bottomPadding;
+  const barHeight = 62 + bottomPadding;
 
   return (
     <Tabs
@@ -64,6 +92,8 @@ export default function TabLayout() {
         tabBarInactiveTintColor: "#64748b",
         tabBarStyle: {
           backgroundColor: "#ffffff",
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
           borderTopColor: "#e2e8f0",
           borderTopWidth: 1,
           height: barHeight,
@@ -72,12 +102,12 @@ export default function TabLayout() {
           ...Platform.select({
             ios: {
               shadowColor: "#0f172a",
-              shadowOffset: { width: 0, height: -2 },
-              shadowOpacity: 0.05,
-              shadowRadius: 6,
+              shadowOffset: { width: 0, height: -3 },
+              shadowOpacity: 0.06,
+              shadowRadius: 8,
             },
             android: {
-              elevation: 6,
+              elevation: 8,
             },
           }),
         },
@@ -85,13 +115,6 @@ export default function TabLayout() {
           paddingVertical: 2,
           alignItems: "center",
           justifyContent: "center",
-        },
-        tabBarLabelStyle: {
-          fontSize: 10.5,
-          fontWeight: "700",
-          letterSpacing: 0.1,
-          marginTop: 2,
-          marginBottom: 0,
         },
         tabBarButton: (props) => (
           <Pressable
@@ -103,7 +126,7 @@ export default function TabLayout() {
             }}
             style={({ pressed }) => [
               props.style as any,
-              pressed && { opacity: 0.85 },
+              pressed && { opacity: 0.82 },
             ]}
           />
         ),
@@ -116,6 +139,9 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon Icon={LayoutDashboard} focused={focused} color={color} />
           ),
+          tabBarLabel: ({ focused }) => (
+            <TabBarLabel label="Dashboard" focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -124,6 +150,9 @@ export default function TabLayout() {
           title: "Syllabus",
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon Icon={Layers} focused={focused} color={color} />
+          ),
+          tabBarLabel: ({ focused }) => (
+            <TabBarLabel label="Syllabus" focused={focused} />
           ),
         }}
       />
@@ -134,6 +163,9 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon Icon={Brain} focused={focused} color={color} />
           ),
+          tabBarLabel: ({ focused }) => (
+            <TabBarLabel label="Brain Gym" focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -143,6 +175,9 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon Icon={Award} focused={focused} color={color} />
           ),
+          tabBarLabel: ({ focused }) => (
+            <TabBarLabel label="Mocks" focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -151,6 +186,9 @@ export default function TabLayout() {
           title: "Profile",
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon Icon={User} focused={focused} color={color} />
+          ),
+          tabBarLabel: ({ focused }) => (
+            <TabBarLabel label="Profile" focused={focused} />
           ),
         }}
       />
@@ -171,11 +209,45 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   iconContainerFocused: {
     backgroundColor: "rgba(37, 99, 235, 0.10)",
+    borderColor: "rgba(37, 99, 235, 0.12)",
   },
   iconContainerInactive: {
+    backgroundColor: "transparent",
+    borderColor: "transparent",
+  },
+  labelWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  labelText: {
+    fontSize: 10.5,
+    letterSpacing: 0.1,
+    textAlign: "center",
+  },
+  labelTextFocused: {
+    fontWeight: "700",
+    color: BRAND_COLORS.primary,
+  },
+  labelTextInactive: {
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  activeIndicator: {
+    width: 14,
+    height: 3,
+    borderRadius: 2,
+    marginTop: 2,
+  },
+  activeIndicatorFocused: {
+    backgroundColor: BRAND_COLORS.primary,
+  },
+  activeIndicatorHidden: {
     backgroundColor: "transparent",
   },
 });
