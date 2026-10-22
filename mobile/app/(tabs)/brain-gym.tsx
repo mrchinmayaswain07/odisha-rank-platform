@@ -9,6 +9,7 @@ import {
   Dimensions,
   Platform,
   Animated,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -48,6 +49,7 @@ import {
   TrendingUp,
   AlertCircle,
   HelpCircle,
+  Plus,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -807,6 +809,48 @@ export default function BrainGymScreen() {
                 </View>
               ))}
             </View>
+
+            {/* Quick action to add drills to today's goals */}
+            <TouchableOpacity
+              style={{
+                marginTop: 12,
+                paddingVertical: 11,
+                paddingHorizontal: 16,
+                borderRadius: 14,
+                backgroundColor: "#2563eb",
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+              }}
+              onPress={async () => {
+                try {
+                  const today = new Date().toISOString().split("T")[0];
+                  const storageKey = `odisharank_today_goals_student_user_${today}`;
+                  const raw = await AsyncStorage.getItem(storageKey);
+                  const list = raw ? JSON.parse(raw) : [];
+                  const brainGymTask = {
+                    id: `tg-braingym-${Date.now()}`,
+                    title: "⚡ Brain Gym Speed Math & Mental Drills",
+                    subject: "Mental Agility",
+                    durationMinutes: 20,
+                    completed: false,
+                    category: "braingym",
+                    priority: "high",
+                  };
+                  await AsyncStorage.setItem(storageKey, JSON.stringify([brainGymTask, ...list]));
+                  Alert.alert("Plan Updated!", "Added 20-minute Brain Gym Workout to Today's Study Goal.");
+                } catch {
+                  Alert.alert("Plan Updated", "Added to today's study plan.");
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Plus size={15} color="#ffffff" />
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#ffffff" }}>
+                Add Drills to Daily Study Plan
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 

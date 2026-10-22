@@ -6,7 +6,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
@@ -16,6 +18,8 @@ import {
   CheckCircle2,
   Circle,
   FileText,
+  Plus,
+  Filter,
 } from "lucide-react-native";
 import { BRAND_COLORS, Subject, Chapter, Topic } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
@@ -30,6 +34,7 @@ export default function SyllabusScreen() {
   const [activeSubject, setActiveSubject] = useState<Subject | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [expandedChapterIds, setExpandedChapterIds] = useState<Set<string>>(new Set());
+  const [stageFilter, setStageFilter] = useState<"all" | "prelims" | "mains">("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingChapters, setIsLoadingChapters] = useState(false);
 
@@ -132,6 +137,41 @@ export default function SyllabusScreen() {
         </View>
       ) : null}
 
+      {/* Stage Filter Chips */}
+      <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8, gap: 8, backgroundColor: "#f8fafc", borderBottomWidth: 1, borderBottomColor: "#e2e8f0" }}>
+        <Filter size={12} color="#64748b" />
+        <Text style={{ fontSize: 11, fontWeight: "700", color: "#64748b" }}>Stage:</Text>
+        {(["all", "prelims", "mains"] as const).map((stage) => {
+          const isActive = stageFilter === stage;
+          return (
+            <TouchableOpacity
+              key={stage}
+              onPress={() => setStageFilter(stage)}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 3,
+                borderRadius: 12,
+                backgroundColor: isActive ? BRAND_COLORS.primary : "#ffffff",
+                borderWidth: 1,
+                borderColor: isActive ? BRAND_COLORS.primary : "#cbd5e1",
+              }}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "700",
+                  color: isActive ? "#ffffff" : "#475569",
+                  textTransform: "capitalize",
+                }}
+              >
+                {stage === "all" ? "All" : stage}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {isLoading ? (
           <View style={styles.loaderContainer}>
@@ -206,6 +246,50 @@ export default function SyllabusScreen() {
                               {t.estimated_minutes || 45} mins • Tap to study
                             </Text>
                           </View>
+                          <TouchableOpacity
+                            style={{
+                              paddingHorizontal: 8,
+                              paddingVertical: 4,
+                              borderRadius: 8,
+                              backgroundColor: "rgba(37, 99, 235, 0.08)",
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 3,
+                              marginRight: 6,
+                            }}
+                            onPress={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const uid = user?.id || "student_user";
+                                const today = new Date().toISOString().split("T")[0];
+                                const storageKey = `odisharank_today_goals_${uid}_${today}`;
+                                const raw = await AsyncStorage.getItem(storageKey);
+                                const list = raw ? JSON.parse(raw) : [];
+                                if (list.some((item: any) => item.topic_id === t.id)) {
+                                  Alert.alert("Already in Goal", `"${t.title}" is already in today's study plan.`);
+                                  return;
+                                }
+                                const newItem = {
+                                  id: `tg-${t.id}-${Date.now()}`,
+                                  title: `${activeSubject?.name || "Subject"}: ${t.title}`,
+                                  subject: activeSubject?.name || "General",
+                                  durationMinutes: t.estimated_minutes || 45,
+                                  completed: false,
+                                  topic_id: t.id,
+                                  category: "study",
+                                  priority: "high",
+                                };
+                                await AsyncStorage.setItem(storageKey, JSON.stringify([newItem, ...list]));
+                                Alert.alert("Goal Added!", `Added "${t.title}" to today's study targets.`);
+                              } catch {
+                                Alert.alert("Goal Added", `Added to today's study plan.`);
+                              }
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Plus size={11} color={BRAND_COLORS.primary} />
+                            <Text style={{ fontSize: 10, fontWeight: "700", color: BRAND_COLORS.primary }}>+ Goal</Text>
+                          </TouchableOpacity>
                           <ChevronRight size={16} color={BRAND_COLORS.textMuted} />
                         </TouchableOpacity>
                       ))}

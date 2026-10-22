@@ -12,7 +12,8 @@ import {
 import { CourseSelectModal } from "@/components/CourseSelectModal";
 import { TodayGoalModal } from "@/components/TodayGoalModal";
 import { StudyTimerModal } from "@/components/StudyTimerModal";
-import { getStoredDailyGoal, DailyGoal } from "@/lib/goal-storage";
+import { getStoredDailyGoal, saveStoredDailyGoal, DailyGoal, GoalTask } from "@/lib/goal-storage";
+import { TaskStatus } from "@odisha-rank/shared";
 import { createClient } from "@/lib/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 import {
@@ -21,6 +22,8 @@ import {
   HelpCircle,
   Clock,
   Timer,
+  Play,
+  RotateCcw,
   BookOpen,
   BarChart3,
   Calendar,
@@ -95,6 +98,16 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [dailyGoal, setDailyGoal] = useState<DailyGoal>(getStoredDailyGoal());
+
+  const examDaysRemaining = useMemo(() => {
+    if (!dailyGoal.examDate) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exam = new Date(dailyGoal.examDate);
+    exam.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((exam.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, diff);
+  }, [dailyGoal.examDate]);
 
   // Listen for goal and study session updates
   React.useEffect(() => {
@@ -869,26 +882,38 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
               </p>
 
               {/* Today's Goal Pill (Dynamic & Clickable to Set/Customize) */}
-              <div
-                onClick={() => setShowGoalModal(true)}
-                className="mt-4 inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/70 shadow-2xs cursor-pointer transition-all group"
-                title="Click to customize today's goal"
-              >
-                <div className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <Target className="w-3.5 h-3.5 text-amber-600" />
+              <div className="flex flex-wrap items-center gap-2 mt-4">
+                <div
+                  onClick={() => setShowGoalModal(true)}
+                  className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-amber-50/90 hover:bg-amber-100/90 border border-amber-200/70 shadow-2xs cursor-pointer transition-all group"
+                  title="Click to customize today's goal"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <Target className="w-3.5 h-3.5 text-amber-600" />
+                  </div>
+                  <div className="text-xs text-slate-700 font-medium flex items-center flex-wrap gap-y-1">
+                    <strong className="text-amber-900 font-bold">Today&apos;s Goal</strong>
+                    <span className="mx-2 text-slate-300">•</span>
+                    <span>{dailyGoal.tasks.filter((t) => t.completed).length}/{dailyGoal.tasks.length} tasks done</span>
+                    <span className="mx-2 text-slate-300">•</span>
+                    <span>Study {currentMetrics.study_hours_today || 0} / {dailyGoal.targetStudyHours}h</span>
+                    <span className="mx-2 text-slate-300">•</span>
+                    <span>Practice {currentMetrics.questions_practiced_today || 0} / {dailyGoal.targetQuestions} MCQs</span>
+                    <span className="ml-2 text-[10px] font-bold text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-md hover:bg-amber-300/60 transition-colors">
+                      Customize ⚙️
+                    </span>
+                  </div>
                 </div>
-                <div className="text-xs text-slate-700 font-medium flex items-center flex-wrap gap-y-1">
-                  <strong className="text-amber-900 font-bold">Today&apos;s Goal</strong>
-                  <span className="mx-2 text-slate-300">•</span>
-                  <span>Complete {dailyGoal.targetSubjects} subjects</span>
-                  <span className="mx-2 text-slate-300">•</span>
-                  <span>Practice {dailyGoal.targetQuestions} questions</span>
-                  <span className="mx-2 text-slate-300">•</span>
-                  <span>Study for {dailyGoal.targetStudyHours} hours</span>
-                  <span className="ml-2 text-[10px] font-bold text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-md hover:bg-amber-300/60 transition-colors">
-                    Set Goal ⚙️
-                  </span>
-                </div>
+
+                {examDaysRemaining !== null && (
+                  <div
+                    onClick={() => setShowGoalModal(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50/90 hover:bg-blue-100 border border-blue-200/70 text-blue-800 text-xs font-bold cursor-pointer transition-all shadow-2xs"
+                    title="Target Exam Countdown"
+                  >
+                    <span>⏳ {examDaysRemaining} Days to Exam</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1285,59 +1310,114 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
                     <Calendar className="w-4 h-4 text-blue-600" />
                     <h3 className="text-sm font-bold text-slate-900">Today&apos;s Study Plan</h3>
                   </div>
-                  <button
-                    onClick={() => setShowLogModal(true)}
-                    className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
-                  >
-                    <span>+ Log Study</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowGoalModal(true)}
+                      className="text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors"
+                    >
+                      + Add Task
+                    </button>
+                    <button
+                      onClick={() => setShowLogModal(true)}
+                      className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <span>+ Log Study</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-3">
-                  {studyPlan.map((task) => (
-                    <div
-                      key={task.id}
-                      onClick={() => toggleStudyPlan(task.id)}
-                      className="flex items-start justify-between gap-3 p-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <button className="mt-0.5 shrink-0 focus:outline-none">
-                          {task.completed ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500 fill-emerald-100" />
-                          ) : (
-                            <Circle className="w-4 h-4 text-slate-300 hover:text-slate-400" />
-                          )}
-                        </button>
-                        <div>
-                          <h4
-                            className={`text-xs font-bold ${
-                              task.completed ? "text-slate-700 line-through opacity-75" : "text-slate-900"
-                            }`}
-                          >
-                            {task.title}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            {task.description}
-                          </p>
-                        </div>
-                      </div>
-
-                      <span
-                        className={`text-[11px] font-semibold shrink-0 ${
-                          task.completed ? "text-emerald-600" : "text-slate-400"
+                <div className="space-y-2.5">
+                  {(dailyGoal.tasks && dailyGoal.tasks.length > 0 ? dailyGoal.tasks : studyPlan).map((task: any) => {
+                    const isCompleted = task.completed || task.status === "completed";
+                    const isGoalTask = "category" in task;
+                    return (
+                      <div
+                        key={task.id}
+                        className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border transition-all ${
+                          isCompleted
+                            ? "bg-emerald-50/50 border-emerald-200"
+                            : "bg-slate-50/50 border-slate-100 hover:border-slate-200 hover:bg-white"
                         }`}
                       >
-                        {task.completed ? `✔ ${task.duration}` : task.duration}
-                      </span>
-                    </div>
-                  ))}
+                        <div
+                          onClick={() => {
+                            if (isGoalTask) {
+                              const updatedTasks = dailyGoal.tasks.map((t) =>
+                                t.id === task.id
+                                  ? { ...t, completed: !t.completed, status: (!t.completed ? "completed" : "not_started") as TaskStatus }
+                                  : t
+                              );
+                              const updated = { ...dailyGoal, tasks: updatedTasks };
+                              setDailyGoal(updated);
+                              saveStoredDailyGoal(updated);
+                            } else {
+                              toggleStudyPlan(task.id);
+                            }
+                          }}
+                          className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
+                        >
+                          <button className="shrink-0 focus:outline-none">
+                            {isCompleted ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500 fill-emerald-100" />
+                            ) : (
+                              <Circle className="w-4 h-4 text-slate-300 hover:text-slate-400" />
+                            )}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4
+                                className={`text-xs font-bold truncate ${
+                                  isCompleted ? "text-slate-500 line-through" : "text-slate-900"
+                                }`}
+                              >
+                                {task.title}
+                              </h4>
+                              {task.priority && (
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                  task.priority === "high"
+                                    ? "bg-rose-100 text-rose-700"
+                                    : "bg-amber-100 text-amber-700"
+                                } uppercase`}>
+                                  {task.priority}
+                                </span>
+                              )}
+                              {task.category && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 uppercase">
+                                  {task.category}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 truncate">
+                              {task.description || (task.durationMinutes ? `${task.durationMinutes} min focus session` : "Target study task")}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => setShowTimerModal(true)}
+                            className="p-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                            title="Start study timer for this task"
+                          >
+                            <Play className="w-3 h-3 fill-current" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-                <span>Completed: {studyPlan.filter((t) => t.completed).length} / {studyPlan.length}</span>
-                <Link href={`/syllabus${courseQueryParam}`} className="text-blue-600 hover:underline font-semibold">
-                  Open Course Syllabus &rarr;
+                <span>
+                  Completed:{" "}
+                  {dailyGoal.tasks && dailyGoal.tasks.length > 0
+                    ? `${dailyGoal.tasks.filter((t) => t.completed).length} / ${dailyGoal.tasks.length}`
+                    : `${studyPlan.filter((t) => t.completed).length} / ${studyPlan.length}`}
+                </span>
+                <Link href="/planner" className="text-blue-600 hover:underline font-semibold flex items-center gap-1">
+                  <span>Open Full Planner</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
             </div>

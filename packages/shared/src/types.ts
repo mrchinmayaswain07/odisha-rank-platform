@@ -312,3 +312,146 @@ export interface StudentDoubt {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================================
+// CUSTOMIZABLE STUDY PLANNER & EXAM PREPARATION SYSTEM TYPES
+// ============================================================
+
+export type GoalStatus = "active" | "paused" | "completed" | "reset";
+export type TaskCategory = "study" | "practice" | "mock" | "revision" | "braingym" | "custom";
+export type TaskStatus = "not_started" | "in_progress" | "completed" | "skipped";
+export type TaskPriority = "high" | "medium" | "low";
+export type TopicDifficulty = "easy" | "medium" | "hard";
+export type ExamStageType = "prelims" | "mains" | "both";
+
+export interface PlannerTask {
+  id: string;
+  user_id?: string;
+  task_date: string; // YYYY-MM-DD
+  title: string;
+  category: TaskCategory;
+  status: TaskStatus;
+  priority: TaskPriority;
+  duration_minutes: number;
+  target_duration_minutes: number;
+  exam_id?: string | null;
+  subject_id?: string | null;
+  subject_name?: string | null;
+  chapter_id?: string | null;
+  topic_id?: string | null;
+  topic_title?: string | null;
+  notes?: string | null;
+  deadline_time?: string | null;
+  order_index?: number;
+  rescheduled_from?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TimetableSlot {
+  id: string;
+  day: string; // "Monday", "Tuesday", etc. or "Weekday" | "Weekend"
+  slot_type: "morning" | "afternoon" | "evening" | "late_night";
+  start_time: string; // "06:00"
+  end_time: string;   // "08:30"
+  subject_id?: string;
+  subject_name?: string;
+  category: TaskCategory | "rest";
+  label: string;
+  is_auto_generated: boolean;
+}
+
+export interface TimetableConfig {
+  preferred_slots: ("morning" | "afternoon" | "evening" | "late_night")[];
+  slot_timings: {
+    morning: { start: string; end: string };
+    afternoon: { start: string; end: string };
+    evening: { start: string; end: string };
+    late_night: { start: string; end: string };
+  };
+  commitments: {
+    office_college_hours: number;
+    days: string[];
+    notes?: string;
+  };
+  rest_days: string[];
+  break_minutes: number;
+  overtime_allowed: boolean;
+  weekly_schedule: Record<string, TimetableSlot[]>;
+  weekly_slots?: Record<string, TimetableSlot[]>;
+}
+
+export interface SubjectPriority {
+  subject_id: string;
+  subject_name: string;
+  priority: TaskPriority;
+  weekly_hours: number;
+  suggested_hours?: number;
+  accuracy_pct?: number | null;
+  needs_attention?: boolean;
+}
+
+export interface TopicCustomization {
+  topic_id: string;
+  difficulty: TopicDifficulty;
+  priority: TaskPriority;
+  stage: ExamStageType;
+  estimated_hours: number;
+  personal_notes?: string;
+  needs_revision: boolean;
+  last_revised_at?: string | null;
+  next_revision_date?: string | null;
+}
+
+export interface LearningPreferences {
+  language: "en" | "or" | "bilingual";
+  revision_system: "spaced_repetition" | "weekly" | "custom";
+  spaced_intervals: number[]; // e.g. [1, 3, 7, 21]
+  daily_reminder_enabled: boolean;
+  reminder_time: string; // "07:00"
+  quiet_hours: { start: string; end: string };
+}
+
+export interface NotificationSettings {
+  task_reminders: boolean;
+  revision_alerts: boolean;
+  daily_goal_prompt: boolean;
+  streak_warning: boolean;
+  sound_enabled: boolean;
+  reminder_time: string;
+  quiet_hours_start: string;
+  quiet_hours_end: string;
+}
+
+export interface StudentStudyGoal {
+  id?: string;
+  user_id: string;
+  exam_id?: string | null;
+  target_total_hours: number;      // e.g. 300, 500, 1000
+  daily_target_hours: number;      // e.g. 3, 4
+  weekly_target_hours: number;     // e.g. 20
+  daily_topics_target: number;     // e.g. 3
+  exam_date?: string | null;       // YYYY-MM-DD
+  completed_hours?: number;        // total recorded study hours
+  status: GoalStatus;
+  timetable_config?: TimetableConfig;
+  subject_priorities?: SubjectPriority[];
+  learning_preferences?: LearningPreferences;
+  notification_settings?: NotificationSettings;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface StudyPaceEstimate {
+  has_enough_data: boolean;
+  avg_daily_hours: number;
+  completed_hours: number;
+  remaining_hours: number;
+  target_total_hours: number;
+  progress_pct: number;
+  estimated_completion_date: string | null;
+  days_to_exam: number | null;
+  required_daily_hours: number | null;
+  pace_status: "ahead" | "on_track" | "behind" | "insufficient_data";
+  message: string;
+}

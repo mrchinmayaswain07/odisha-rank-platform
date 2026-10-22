@@ -2,7 +2,7 @@ import React from "react";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAuthenticatedUser } from "@/lib/auth-server";
-import { getStudentProfile, getDashboardMetrics, getExams } from "@/lib/data-service";
+import { getStudentProfile, getDashboardMetrics, getExams, getSubjects } from "@/lib/data-service";
 import { PlannerClient } from "./PlannerClient";
 
 export const metadata: Metadata = {
@@ -26,7 +26,10 @@ export default async function PlannerPage() {
     ? allExams.find((e) => e.id === profile.target_exam_id) || null
     : allExams[0] || null;
 
-  const metrics = await getDashboardMetrics(user.id, targetExam?.id);
+  const [metrics, subjects] = await Promise.all([
+    getDashboardMetrics(user.id, targetExam?.id),
+    getSubjects(targetExam?.id),
+  ]);
 
   return (
     <PlannerClient
@@ -34,6 +37,7 @@ export default async function PlannerPage() {
       metrics={metrics}
       targetExam={targetExam}
       allExams={allExams}
+      initialSubjects={subjects}
     />
   );
 }

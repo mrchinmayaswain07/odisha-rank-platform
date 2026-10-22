@@ -31,6 +31,9 @@ export interface TodayGoalItem {
   durationMinutes: number;
   completed: boolean;
   topic_id?: string;
+  category?: "study" | "practice" | "braingym" | "mock" | "revision" | "custom";
+  priority?: "high" | "medium" | "low";
+  rescheduled_from?: string;
 }
 
 interface AddGoalModalProps {
@@ -53,6 +56,8 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
   onAddGoalItem,
 }) => {
   const [targetHours, setTargetHours] = useState(currentTargetHours || 3);
+  const [taskCategory, setTaskCategory] = useState<"study" | "practice" | "braingym" | "mock" | "revision" | "custom">("study");
+  const [taskPriority, setTaskPriority] = useState<"high" | "medium" | "low">("high");
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -138,6 +143,8 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
       durationMinutes: durationMinutes || 45,
       completed: false,
       topic_id: selectedTopicId,
+      category: taskCategory,
+      priority: taskPriority,
     };
 
     onSaveTargetHours(targetHours);
@@ -315,6 +322,70 @@ export const AddGoalModal: React.FC<AddGoalModalProps> = ({
                 placeholderTextColor="#94a3b8"
                 style={styles.textInput}
               />
+            </View>
+
+            {/* Task Category Selection */}
+            <View style={styles.section}>
+              <Text style={styles.inputLabel}>Task Category</Text>
+              <View style={styles.chipsRow}>
+                {[
+                  { id: "study", label: "Study" },
+                  { id: "practice", label: "Practice" },
+                  { id: "braingym", label: "Brain Gym" },
+                  { id: "mock", label: "Mock" },
+                  { id: "revision", label: "Revision" },
+                ].map((cat) => (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[
+                      styles.durationChip,
+                      taskCategory === cat.id && styles.durationChipActive,
+                    ]}
+                    onPress={() => setTaskCategory(cat.id as any)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.durationChipText,
+                        taskCategory === cat.id && styles.durationChipTextActive,
+                      ]}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Task Priority Selection */}
+            <View style={styles.section}>
+              <Text style={styles.inputLabel}>Priority Level</Text>
+              <View style={styles.chipsRow}>
+                {[
+                  { id: "high", label: "🔴 High" },
+                  { id: "medium", label: "🟡 Medium" },
+                  { id: "low", label: "🔵 Low" },
+                ].map((pri) => (
+                  <TouchableOpacity
+                    key={pri.id}
+                    style={[
+                      styles.durationChip,
+                      taskPriority === pri.id && styles.durationChipActive,
+                    ]}
+                    onPress={() => setTaskPriority(pri.id as any)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.durationChipText,
+                        taskPriority === pri.id && styles.durationChipTextActive,
+                      ]}
+                    >
+                      {pri.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
             {/* 4. Planned Duration */}

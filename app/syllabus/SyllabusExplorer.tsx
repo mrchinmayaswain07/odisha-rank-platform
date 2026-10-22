@@ -26,7 +26,16 @@ import {
   Layers,
   Lock,
   GraduationCap,
+  Target,
+  Filter,
 } from "lucide-react";
+import {
+  getStoredDailyGoal,
+  saveStoredDailyGoal,
+  GoalTask,
+  getStoredTopicCustomizations,
+  saveStoredTopicCustomization,
+} from "@/lib/goal-storage";
 
 interface SyllabusExplorerProps {
   initialSubjects: Subject[];
@@ -64,6 +73,12 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
   );
 
   const [completedTopicIds, setCompletedTopicIds] = useState<Set<string>>(new Set());
+
+  // Stage & Status filters
+  const [stageFilter, setStageFilter] = useState<"all" | "prelims" | "mains">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "incomplete" | "completed" | "difficult">("all");
+  const [topicCustomMap, setTopicCustomMap] = useState<Record<string, any>>(getStoredTopicCustomizations());
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   // Custom chapter modal state
   const [showAddChapter, setShowAddChapter] = useState(false);
@@ -114,6 +129,19 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
   const activeTopic = topics.find((t) => t.id === selectedTopicId);
   const activeMaterials = initialMaterials.filter((m) => m.topic_id === selectedTopicId);
 
+  // Filter topics by examination stage and status
+  const filteredActiveTopics = activeTopics.filter((t) => {
+    const custom = topicCustomMap[t.id];
+    if (stageFilter !== "all" && custom?.stage && custom.stage !== "both" && custom.stage !== stageFilter) {
+      return false;
+    }
+    const isCompleted = completedTopicIds.has(t.id);
+    if (statusFilter === "completed") return isCompleted;
+    if (statusFilter === "incomplete") return !isCompleted;
+    if (statusFilter === "difficult") return custom?.difficulty === "hard";
+    return true;
+  });
+
   const handleToggleTopicCompletion = (topicId: string) => {
     setCompletedTopicIds((prev) => {
       const next = new Set(prev);
@@ -126,41 +154,61 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
     });
   };
 
+  const handleAddTopicToDailyGoal = (topic: Topic) => {
+    const goal = getStoredDailyGoal();
+    const existing = goal.tasks.find((t) => t.topic_id === topic.id);
+    if (existing) {
+      setActionMessage(`"${topic.title}" is already in today's study plan!`);
+      setTimeout(() => setActionMessage(null), 3500);
+      return;
+    }
+    const newTask: GoalTask = {
+      id: `gt-${topic.id}-${Date.now()}`,
+      title: `${activeSubject?.name || "Subject"}: ${topic.title}`,
+      completed: false,
+      status: "not_started",
+      priority: "high",
+      category: "study",
+      durationMinutes: topic.estimated_minutes || 45,
+      targetDurationMinutes: topic.estimated_minutes || 45,
+      subject_id: activeSubject?.id,
+      subject_name: activeSubject?.name,
+      topic_id: topic.id,
+      topic_title: topic.title,
+    };
+    const updated = { ...goal, tasks: [newTask, ...goal.tasks] };
+    saveStoredDailyGoal(updated);
+    setActionMessage(`✨ Added "${topic.title}" to Today's Goal!`);
+    setTimeout(() => setActionMessage(null), 3500);
+  };
+
+  const handleToggleDifficulty = (topicId: string, currentDiff?: string) => {
+    const nextDiff = currentDiff === "hard" ? "easy" : currentDiff === "easy" ? "medium" : "hard";
+    const custom = {
+      topic_id: topicId,
+      difficulty: nextDiff,
+      stage: "both",
+      needs_revision: nextDiff === "hard",
+      updated_at: new Date().toISOString(),
+    };
+    saveStoredTopicCustomization(custom as any);
+    setTopicCustomMap((prev) => ({ ...prev, [topicId]: custom }));
+  };
+
   const handleCreateCustomChapter = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newChapterTitle.trim() || !selectedSubjectId) return;
+    if (!newChapterTitle.trim()) return;
 
-    const title = newChapterTitle.trim();
-    const desc = newChapterDesc.trim() || null;
-
-    let newChap: Chapter = {
+    const newChap: Chapter = {
       id: `custom-chap-${Date.now()}`,
       subject_id: selectedSubjectId,
-      title,
-      description: desc,
-      order_index: activeChapters.length + 1,
+      title: newChapterTitle.trim(),
+      description: newChapterDesc.trim() || null,
+      order_index: chapters.length + 1,
       is_official: false,
-      created_by: userId || "me",
+      created_by: userId || null,
       created_at: new Date().toISOString(),
     };
-
-    try {
-      const res = await fetch("/api/syllabus/chapters", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject_id: selectedSubjectId,
-          title,
-          description: desc,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.chapter) {
-          newChap = data.chapter;
-        }
-      }
-    } catch {}
 
     setChapters((prev) => {
       const next = [...prev, newChap];
@@ -177,13 +225,14 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
     setShowAddChapter(false);
   };
 
-  const handleDeleteChapter = async (chapterId: string) => {
+  const handleDeleteChapter = (chapterId: string) => {
     const chap = chapters.find((c) => c.id === chapterId);
-    if (!chap || chap.is_official) return; // Strict security check: cannot delete official chapters
+    if (!chap || chap.is_official) {
+      alert("Official chapters cannot be deleted.");
+      return;
+    }
 
-    try {
-      await fetch(`/api/syllabus/chapters?id=${chapterId}`, { method: "DELETE" });
-    } catch {}
+    if (!confirm(`Are you sure you want to delete chapter "${chap.title}"?`)) return;
 
     setChapters((prev) => {
       const next = prev.filter((c) => c.id !== chapterId);
@@ -211,42 +260,19 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
 
   const handleCreateCustomTopic = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTopicTitle.trim() || !selectedChapterId) return;
+    if (!newTopicTitle.trim()) return;
 
-    const title = newTopicTitle.trim();
-    const desc = newTopicDesc.trim() || null;
-    const mins = newTopicMins;
-
-    let newTop: Topic = {
-      id: `custom-top-${Date.now()}`,
+    const newTop: Topic = {
+      id: `custom-topic-${Date.now()}`,
       chapter_id: selectedChapterId,
-      title,
-      description: desc,
-      estimated_minutes: mins,
-      order_index: activeTopics.length + 1,
+      title: newTopicTitle.trim(),
+      description: newTopicDesc.trim() || null,
+      estimated_minutes: newTopicMins || 45,
+      order_index: topics.length + 1,
       is_official: false,
-      created_by: userId || "me",
+      created_by: userId || null,
       created_at: new Date().toISOString(),
     };
-
-    try {
-      const res = await fetch("/api/syllabus/topics", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chapter_id: selectedChapterId,
-          title,
-          description: desc,
-          estimated_minutes: mins,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.topic) {
-          newTop = data.topic;
-        }
-      }
-    } catch {}
 
     setTopics((prev) => {
       const next = [...prev, newTop];
@@ -263,13 +289,14 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
     setShowAddTopic(false);
   };
 
-  const handleDeleteTopic = async (topicId: string) => {
+  const handleDeleteTopic = (topicId: string) => {
     const top = topics.find((t) => t.id === topicId);
-    if (!top || top.is_official) return; // Strict security check: cannot delete official topics
+    if (!top || top.is_official) {
+      alert("Official topics cannot be deleted.");
+      return;
+    }
 
-    try {
-      await fetch(`/api/syllabus/topics?id=${topicId}`, { method: "DELETE" });
-    } catch {}
+    if (!confirm(`Are you sure you want to delete topic "${top.title}"?`)) return;
 
     setTopics((prev) => {
       const next = prev.filter((t) => t.id !== topicId);
@@ -288,35 +315,35 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Course Selector Bar */}
-      {allExams && allExams.length > 0 && (
-        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+      {/* Exam Context Selector Bar */}
+      {allExams.length > 0 && (
+        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
               <GraduationCap className="w-4 h-4" />
-            </span>
+            </div>
             <div>
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                Target Exam Course
+                Official Examination Syllabus
               </span>
-              <span className="text-xs font-bold text-slate-800">
-                {activeExam?.title || "All Courses"}
+              <span className="text-sm font-extrabold text-slate-900">
+                {activeExam ? `${activeExam.title} (${activeExam.code})` : "All Odisha State Examinations"}
               </span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+          <div className="flex items-center gap-2 flex-wrap">
             {allExams.map((ex) => (
               <button
                 key={ex.id}
                 onClick={() => router.push(`/syllabus?exam=${ex.id}`)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  ex.id === activeExam?.id
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  activeExam?.id === ex.id
                     ? "bg-blue-600 text-white shadow-xs"
-                    : "bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100"
+                    : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
                 }`}
               >
-                {ex.conducting_body}
+                {ex.code || ex.conducting_body}
               </button>
             ))}
           </div>
@@ -346,6 +373,54 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
           );
         })}
       </div>
+
+      {/* Stage and Difficulty Quick Filters */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/90 p-3 rounded-2xl border border-slate-200/80">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+            <Filter className="w-3.5 h-3.5" /> Stage:
+          </span>
+          {(["all", "prelims", "mains"] as const).map((stage) => (
+            <button
+              key={stage}
+              onClick={() => setStageFilter(stage)}
+              className={`px-3 py-1 rounded-xl text-xs font-bold capitalize transition-colors ${
+                stageFilter === stage
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              {stage === "all" ? "All Stages" : stage}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            Status:
+          </span>
+          {(["all", "incomplete", "completed", "difficult"] as const).map((st) => (
+            <button
+              key={st}
+              onClick={() => setStatusFilter(st)}
+              className={`px-3 py-1 rounded-xl text-xs font-bold capitalize transition-colors ${
+                statusFilter === st
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              {st}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {actionMessage && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center justify-between">
+          <span>{actionMessage}</span>
+          <button onClick={() => setActionMessage(null)} className="text-emerald-600 hover:text-emerald-900 font-black">×</button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Chapters Column (Left: 4 cols) */}
@@ -418,7 +493,7 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
 
             {activeChapters.length === 0 && (
               <div className="p-6 bg-slate-50 rounded-xl text-center text-xs text-slate-500 border border-dashed">
-                No chapters under this subject. Click "Add Chapter" to create your own!
+                No chapters under this subject. Click &quot;Add Chapter&quot; to create your own!
               </div>
             )}
           </div>
@@ -429,7 +504,7 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-emerald-600" />
-              <span>Topics ({activeTopics.length})</span>
+              <span>Topics ({filteredActiveTopics.length})</span>
             </h3>
             {selectedChapterId && (
               <Button
@@ -445,9 +520,10 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
           </div>
 
           <div className="space-y-2">
-            {activeTopics.map((top) => {
+            {filteredActiveTopics.map((top) => {
               const isSelected = top.id === selectedTopicId;
               const isCompleted = completedTopicIds.has(top.id);
+              const custom = topicCustomMap[top.id];
 
               return (
                 <div
@@ -482,6 +558,37 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
 
                   <h4 className="text-sm font-bold text-slate-900 leading-snug">{top.title}</h4>
 
+                  {/* Difficulty Tag and Add to Goal Action */}
+                  <div className="mt-2.5 flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleDifficulty(top.id, custom?.difficulty);
+                      }}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-md border capitalize ${
+                        custom?.difficulty === "hard"
+                          ? "bg-rose-50 text-rose-700 border-rose-200"
+                          : custom?.difficulty === "medium"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      }`}
+                      title="Click to toggle difficulty tag"
+                    >
+                      {custom?.difficulty || "Medium"}
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddTopicToDailyGoal(top);
+                      }}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add to Goal</span>
+                    </button>
+                  </div>
+
                   {!top.is_official && (
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-medium">
@@ -503,9 +610,11 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
               );
             })}
 
-            {activeTopics.length === 0 && (
+            {filteredActiveTopics.length === 0 && (
               <div className="p-6 bg-slate-50 rounded-xl text-center text-xs text-slate-500 border border-dashed">
-                Select a chapter on the left to see topics.
+                {activeTopics.length === 0
+                  ? "Select a chapter on the left to see topics."
+                  : "No topics match the selected stage/status filters."}
               </div>
             )}
           </div>
@@ -523,9 +632,20 @@ export const SyllabusExplorer: React.FC<SyllabusExplorerProps> = ({
           {activeTopic ? (
             <Card className="p-5 space-y-4">
               <div className="border-b border-slate-100 pb-3">
-                <Badge variant={activeTopic.is_official ? "blue" : "amber"} size="sm" className="mb-2">
-                  {activeTopic.is_official ? "Official Syllabus Topic" : "Student Custom Topic"}
-                </Badge>
+                <div className="flex items-center justify-between mb-2">
+                  <Badge variant={activeTopic.is_official ? "blue" : "amber"} size="sm">
+                    {activeTopic.is_official ? "Official Syllabus Topic" : "Student Custom Topic"}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs py-1 px-2.5 gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                    onClick={() => handleAddTopicToDailyGoal(activeTopic)}
+                  >
+                    <Target className="w-3.5 h-3.5" />
+                    <span>+ Add to Goal</span>
+                  </Button>
+                </div>
                 <h4 className="text-base font-bold text-slate-900">{activeTopic.title}</h4>
                 {activeTopic.description && (
                   <p className="text-xs text-slate-500 mt-1">{activeTopic.description}</p>

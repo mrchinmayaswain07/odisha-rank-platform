@@ -18,6 +18,7 @@ import {
   SITE_CONFIG,
   SEED_DOUBTS,
   SEED_STUDY_MATERIALS,
+  StudentStudyGoal,
 } from "@odisha-rank/shared";
 
 interface CacheEntry<T> {
@@ -1899,5 +1900,55 @@ export async function updateStudentDoubtAnswer(
 
   return updatedDoubt;
 }
+
+const STUDY_GOAL_STORAGE_KEY = "odisharank_study_goal_";
+
+export async function getStudentStudyGoal(userId?: string): Promise<StudentStudyGoal> {
+  const uid = userId || "student_user";
+  try {
+    const raw = await AsyncStorage.getItem(`${STUDY_GOAL_STORAGE_KEY}${uid}`);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch {}
+  return {
+    user_id: uid,
+    target_total_hours: 300,
+    daily_target_hours: 3,
+    weekly_target_hours: 20,
+    daily_topics_target: 3,
+    exam_date: null,
+    status: "active",
+  };
+}
+
+export async function saveStudentStudyGoal(goal: StudentStudyGoal): Promise<void> {
+  const uid = goal.user_id || "student_user";
+  try {
+    await AsyncStorage.setItem(`${STUDY_GOAL_STORAGE_KEY}${uid}`, JSON.stringify(goal));
+    // Background sync with Supabase
+    (async () => {
+      try {
+        await supabase
+          .from("student_study_goals")
+          .upsert(
+            {
+              user_id: uid,
+              target_total_hours: goal.target_total_hours || 300,
+              daily_target_hours: goal.daily_target_hours || 3,
+              daily_topics_target: goal.daily_topics_target || 3,
+              exam_date: goal.exam_date || null,
+              status: goal.status || "active",
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" }
+          );
+      } catch {}
+    })();
+  } catch (err) {
+    console.warn("Error saving study goal:", err);
+  }
+}
+
 
 

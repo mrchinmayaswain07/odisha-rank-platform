@@ -38,6 +38,7 @@ import {
   Trash2,
   Flame,
   Calculator,
+  RotateCcw,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BRAND_COLORS, DashboardMetrics } from "@odisha-rank/shared";
@@ -687,6 +688,20 @@ export default function DashboardScreen() {
                           <View style={styles.goalSubjectChip}>
                             <Text style={styles.goalSubjectChipText}>{task.subject}</Text>
                           </View>
+                          {task.category ? (
+                            <View style={[styles.goalSubjectChip, { backgroundColor: task.category === "braingym" ? "rgba(245, 158, 11, 0.12)" : "rgba(100, 116, 139, 0.1)" }]}>
+                              <Text style={[styles.goalSubjectChipText, { color: task.category === "braingym" ? "#d97706" : "#475569" }]}>
+                                {task.category === "braingym" ? "⚡ Brain Gym" : task.category.toUpperCase()}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {task.priority ? (
+                            <View style={[styles.goalSubjectChip, { backgroundColor: task.priority === "high" ? "rgba(239, 68, 68, 0.1)" : "rgba(245, 158, 11, 0.1)" }]}>
+                              <Text style={[styles.goalSubjectChipText, { color: task.priority === "high" ? "#dc2626" : "#d97706" }]}>
+                                {task.priority.toUpperCase()}
+                              </Text>
+                            </View>
+                          ) : null}
                           {task.chapter ? (
                             <Text style={styles.goalChapterName} numberOfLines={1}>
                               {task.chapter}
@@ -734,7 +749,22 @@ export default function DashboardScreen() {
                   activeOpacity={0.8}
                 >
                   <Plus size={13} color={BRAND_COLORS.primary} />
-                  <Text style={styles.footerAddBtnText}>Add Syllabus Topic</Text>
+                  <Text style={styles.footerAddBtnText}>Add Topic</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.footerTimerBtn}
+                  onPress={() => {
+                    const incompleteCount = todayGoals.filter((g) => !g.completed).length;
+                    Alert.alert(
+                      "Reschedule Tasks",
+                      `You have ${incompleteCount} task${incompleteCount === 1 ? "" : "s"} scheduled for today. Tasks remain prioritized without losing any completion history.`
+                    );
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <RotateCcw size={13} color="#475569" />
+                  <Text style={styles.footerTimerBtnText}>Reschedule</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -746,7 +776,7 @@ export default function DashboardScreen() {
                   activeOpacity={0.8}
                 >
                   <Timer size={13} color="#475569" />
-                  <Text style={styles.footerTimerBtnText}>Stopwatch Timer</Text>
+                  <Text style={styles.footerTimerBtnText}>Stopwatch</Text>
                 </TouchableOpacity>
               </View>
             </View>
