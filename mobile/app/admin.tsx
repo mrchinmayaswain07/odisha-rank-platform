@@ -1142,7 +1142,7 @@ The Sun Temple of Konark was built during the reign of which king? | Anantavarma
                   }}
                 >
                   <Plus size={16} color="#ffffff" style={{ marginRight: 4 }} />
-                  <Text style={styles.quickBtnText}>+ Add MCQ</Text>
+                  <Text style={styles.quickBtnText}>Add MCQ</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1153,7 +1153,7 @@ The Sun Temple of Konark was built during the reign of which king? | Anantavarma
                   }}
                 >
                   <Plus size={16} color="#ffffff" style={{ marginRight: 4 }} />
-                  <Text style={styles.quickBtnText}>+ Add Course</Text>
+                  <Text style={styles.quickBtnText}>Add Course</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1164,7 +1164,7 @@ The Sun Temple of Konark was built during the reign of which king? | Anantavarma
                   }}
                 >
                   <Plus size={16} color="#ffffff" style={{ marginRight: 4 }} />
-                  <Text style={styles.quickBtnText}>+ Create Mock</Text>
+                  <Text style={styles.quickBtnText}>Create Mock</Text>
                 </TouchableOpacity>
               </View>
             </View>

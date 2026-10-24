@@ -13,7 +13,7 @@ import { CourseSelectModal } from "@/components/CourseSelectModal";
 import { TodayGoalModal } from "@/components/TodayGoalModal";
 import { StudyTimerModal } from "@/components/StudyTimerModal";
 import { getStoredDailyGoal, saveStoredDailyGoal, DailyGoal, GoalTask } from "@/lib/goal-storage";
-import { TaskStatus } from "@odisha-rank/shared";
+import { TaskStatus, getIndianDateStr } from "@odisha-rank/shared";
 import { createClient } from "@/lib/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 import {
@@ -437,7 +437,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
         body: JSON.stringify({
           duration_minutes: logMinutes,
           notes: logNotes || "Self-study revision",
-          session_date: new Date().toISOString().split("T")[0],
+          session_date: getIndianDateStr(),
         }),
       });
 
@@ -2014,6 +2014,7 @@ export const DashboardClient: React.FC<DashboardClientProps> = ({
         isOpen={showGoalModal}
         onClose={() => setShowGoalModal(false)}
         todayStudyHours={currentMetrics.study_hours_today || 0}
+        totalCompletedHours={currentMetrics.study_hours || 0}
         todayQuestions={currentMetrics.questions_practiced_today || 0}
         activeCourseTitle={targetExamTitle}
         onGoalUpdated={(g) => setDailyGoal(g)}

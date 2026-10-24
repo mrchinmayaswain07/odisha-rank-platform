@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -22,17 +23,29 @@ export default function MockTestsScreen() {
   const { activeExam } = useAuth();
   const [mockTests, setMockTests] = useState<MockTest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const loadTests = useCallback(async (force = false) => {
+    if (!force) setIsLoading(true);
+    try {
+      const list = await getMockTests(activeExam?.id, force);
+      setMockTests(list);
+    } catch (err) {
+      console.warn("Failed to load mock tests:", err);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [activeExam?.id]);
 
   useEffect(() => {
-    const loadTests = async () => {
-      setIsLoading(true);
-      const list = await getMockTests(activeExam?.id);
-      setMockTests(list);
-      setIsLoading(false);
-    };
+    loadTests(false);
+  }, [loadTests]);
 
-    loadTests();
-  }, [activeExam?.id]);
+  const onRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    loadTests(true);
+  }, [loadTests]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -42,7 +55,16 @@ export default function MockTestsScreen() {
         showCoursePill={true}
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            colors={[BRAND_COLORS.primary]}
+          />
+        }
+      >
         {isLoading ? (
           <View style={styles.loaderContainer}>
             <ActivityIndicator size="large" color={BRAND_COLORS.primary} />

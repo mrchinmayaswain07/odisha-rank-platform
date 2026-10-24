@@ -56,9 +56,11 @@ import {
   GAMES_CATALOG,
   GameMetadata,
   BRAND_COLORS,
+  getIndianDateStr,
 } from "@odisha-rank/shared";
 import { Header } from "../../src/components/Header";
 import { Badge } from "../../src/components/Badge";
+import { useAuth } from "../../src/lib/auth-context";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - 44) / 2;
@@ -159,6 +161,7 @@ function generateQuickMath(mode: QuickMode): QuickQuestion {
 }
 
 export default function BrainGymScreen() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"all" | "calc" | "games" | "daily">("all");
   const [gameCategoryFilter, setGameCategoryFilter] = useState<"all" | "math" | "memory" | "logic" | "pattern">("all");
   
@@ -825,8 +828,9 @@ export default function BrainGymScreen() {
               }}
               onPress={async () => {
                 try {
-                  const today = new Date().toISOString().split("T")[0];
-                  const storageKey = `odisharank_today_goals_student_user_${today}`;
+                  const uid = user?.id || "student_user";
+                  const today = getIndianDateStr();
+                  const storageKey = `odisharank_today_goals_${uid}_${today}`;
                   const raw = await AsyncStorage.getItem(storageKey);
                   const list = raw ? JSON.parse(raw) : [];
                   const brainGymTask = {

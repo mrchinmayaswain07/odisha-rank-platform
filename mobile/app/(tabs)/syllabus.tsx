@@ -21,7 +21,7 @@ import {
   Plus,
   Filter,
 } from "lucide-react-native";
-import { BRAND_COLORS, Subject, Chapter, Topic } from "@odisha-rank/shared";
+import { BRAND_COLORS, Subject, Chapter, Topic, getIndianDateStr } from "@odisha-rank/shared";
 import { useAuth } from "../../src/lib/auth-context";
 import { getSubjects, getChapters } from "../../src/lib/data-service";
 import { Header } from "../../src/components/Header";
@@ -241,7 +241,9 @@ export default function SyllabusScreen() {
                         >
                           <Circle size={16} color={BRAND_COLORS.primary} style={styles.circleIcon} />
                           <View style={styles.topicInfo}>
-                            <Text style={styles.topicTitle}>{t.title}</Text>
+                            <Text style={styles.topicTitle} numberOfLines={2}>
+                              {t.title}
+                            </Text>
                             <Text style={styles.topicMeta}>
                               {t.estimated_minutes || 45} mins • Tap to study
                             </Text>
@@ -261,7 +263,7 @@ export default function SyllabusScreen() {
                               e.stopPropagation();
                               try {
                                 const uid = user?.id || "student_user";
-                                const today = new Date().toISOString().split("T")[0];
+                                const today = getIndianDateStr();
                                 const storageKey = `odisharank_today_goals_${uid}_${today}`;
                                 const raw = await AsyncStorage.getItem(storageKey);
                                 const list = raw ? JSON.parse(raw) : [];
@@ -288,7 +290,7 @@ export default function SyllabusScreen() {
                             activeOpacity={0.7}
                           >
                             <Plus size={11} color={BRAND_COLORS.primary} />
-                            <Text style={{ fontSize: 10, fontWeight: "700", color: BRAND_COLORS.primary }}>+ Goal</Text>
+                            <Text style={{ fontSize: 10, fontWeight: "700", color: BRAND_COLORS.primary }}>Goal</Text>
                           </TouchableOpacity>
                           <ChevronRight size={16} color={BRAND_COLORS.textMuted} />
                         </TouchableOpacity>

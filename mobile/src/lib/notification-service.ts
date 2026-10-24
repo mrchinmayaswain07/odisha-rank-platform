@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "./supabase";
 import { getStudentDoubts, getStudyMaterials } from "./data-service";
+import { getIndianDateStr } from "@odisha-rank/shared";
 
 export interface AppNotification {
   id: string;
@@ -198,7 +199,7 @@ export async function fetchStudentNotifications(
 
   // 4. Daily Study Goal Reminder
   try {
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getIndianDateStr();
     const goalNotifId = `notif-goal-${todayStr}`;
     notifications.push({
       id: goalNotifId,

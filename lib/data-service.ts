@@ -30,6 +30,13 @@ import {
   SEED_MOCK_TESTS,
   SEED_DOUBTS,
 } from "./mock-data";
+import {
+  getIndianDateStr,
+  getIndianMonthPrefix,
+  addDaysToIndianDate,
+  isTimestampInIndianDate,
+  isTimestampInIndianMonth,
+} from "@odisha-rank/shared";
 
 /**
  * Checks if Supabase URL and anon key are properly configured
@@ -995,6 +1002,7 @@ export function saveRuntimeQuestionAttempt(att: {
   time_taken_seconds?: number;
 }) {
   invalidateCatalogCache(`metrics_${att.user_id}`);
+  invalidateCatalogCache(`analytics_${att.user_id}`);
   const record = {
     id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     user_id: att.user_id,
@@ -1028,11 +1036,12 @@ export function saveRuntimeStudySession(sess: {
   notes?: string;
 }) {
   invalidateCatalogCache(`metrics_${sess.user_id}`);
+  invalidateCatalogCache(`analytics_${sess.user_id}`);
   const record = {
     id: `sess-${Date.now()}`,
     user_id: sess.user_id,
     duration_minutes: sess.duration_minutes,
-    session_date: sess.session_date || new Date().toISOString().split("T")[0],
+    session_date: sess.session_date || getIndianDateStr(),
     notes: sess.notes,
   };
   RUNTIME_STUDY_SESSIONS.unshift(record);
@@ -1565,10 +1574,9 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
 
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const todayStr = new Date().toISOString().split("T")[0];
-  const yesterday = new Date(Date.now() - 86400000);
-  const yesterdayStr = yesterday.toISOString().split("T")[0];
-  const currentMonthPrefix = new Date().toISOString().slice(0, 7);
+  const todayStr = getIndianDateStr();
+  const yesterdayStr = addDaysToIndianDate(todayStr, -1);
+  const currentMonthPrefix = getIndianMonthPrefix();
 
   if (!isSupabaseConfigured()) {
     const runtimeSessions = getRuntimeStudySessions(userId);
@@ -1588,8 +1596,8 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
         : 0;
 
     const questionsPracticed = runtimeAtts.length;
-    const questionsToday = runtimeAtts.filter((a) => a.created_at?.startsWith(todayStr)).length;
-    const questionsYesterday = runtimeAtts.filter((a) => a.created_at?.startsWith(yesterdayStr)).length;
+    const questionsToday = runtimeAtts.filter((a) => isTimestampInIndianDate(a.created_at, todayStr)).length;
+    const questionsYesterday = runtimeAtts.filter((a) => isTimestampInIndianDate(a.created_at, yesterdayStr)).length;
     const questionsDeltaPct =
       questionsYesterday > 0
         ? Math.round(((questionsToday - questionsYesterday) / questionsYesterday) * 100)
@@ -1603,15 +1611,15 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
     const weeklyStats = [];
     const sparklineStudyHours = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateIso = d.toISOString().split("T")[0];
-      const dayAttempts = runtimeAtts.filter((a) => a.created_at?.startsWith(dateIso));
+      const dateIso = addDaysToIndianDate(todayStr, -i);
+      const [y, m, dNum] = dateIso.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, dNum, 12, 0, 0));
+      const dayAttempts = runtimeAtts.filter((a) => isTimestampInIndianDate(a.created_at, dateIso));
       const qCount = dayAttempts.length;
       const dayCorrect = dayAttempts.filter((a) => a.is_correct).length;
       weeklyStats.push({
-        date: `${monthNames[d.getMonth()]} ${d.getDate()}`,
-        dayLabel: dayNames[d.getDay()][0],
+        date: `${monthNames[m - 1]} ${dNum}`,
+        dayLabel: dayNames[dt.getUTCDay()][0],
         questionsCount: qCount,
         accuracyPercentage: qCount > 0 ? Math.round((dayCorrect / qCount) * 100) : 0,
       });
@@ -1622,15 +1630,15 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
 
     const monthlyStats = [];
     for (let i = 29; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateIso = d.toISOString().split("T")[0];
-      const dayAttempts = runtimeAtts.filter((a) => a.created_at?.startsWith(dateIso));
+      const dateIso = addDaysToIndianDate(todayStr, -i);
+      const [y, m, dNum] = dateIso.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, dNum, 12, 0, 0));
+      const dayAttempts = runtimeAtts.filter((a) => isTimestampInIndianDate(a.created_at, dateIso));
       const qCount = dayAttempts.length;
       const dayCorrect = dayAttempts.filter((a) => a.is_correct).length;
       monthlyStats.push({
-        date: `${monthNames[d.getMonth()]} ${d.getDate()}`,
-        dayLabel: dayNames[d.getDay()][0],
+        date: `${monthNames[m - 1]} ${dNum}`,
+        dayLabel: dayNames[dt.getUTCDay()][0],
         questionsCount: qCount,
         accuracyPercentage: qCount > 0 ? Math.round((dayCorrect / qCount) * 100) : 0,
       });
@@ -1838,8 +1846,8 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
     const runtimeAtts = getRuntimeQuestionAttempts(userId);
     const attempts = [...(questionsCountRes.data || []), ...runtimeAtts];
     const questionsPracticed = attempts.length;
-    const questionsToday = attempts.filter((a: any) => a.created_at?.startsWith(todayStr)).length;
-    const questionsYesterday = attempts.filter((a: any) => a.created_at?.startsWith(yesterdayStr)).length;
+    const questionsToday = attempts.filter((a: any) => isTimestampInIndianDate(a.created_at, todayStr)).length;
+    const questionsYesterday = attempts.filter((a: any) => isTimestampInIndianDate(a.created_at, yesterdayStr)).length;
     const questionsDeltaPct =
       questionsYesterday > 0
         ? Math.round(((questionsToday - questionsYesterday) / questionsYesterday) * 100)
@@ -1851,7 +1859,7 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
     const accuracyPercentage =
       questionsPracticed > 0 ? Math.round((correctCount / questionsPracticed) * 100) : 0;
 
-    const todayAttempts = attempts.filter((a: any) => a.created_at?.startsWith(todayStr));
+    const todayAttempts = attempts.filter((a: any) => isTimestampInIndianDate(a.created_at, todayStr));
     const todayCorrect = todayAttempts.filter((a: any) => a.is_correct).length;
     const accuracyToday =
       todayAttempts.length > 0 ? Math.round((todayCorrect / todayAttempts.length) * 100) : accuracyPercentage;
@@ -1876,12 +1884,12 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
     const weeklyStats = [];
     const sparklineStudyHours = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateIso = d.toISOString().split("T")[0];
-      const dateLabel = `${monthNames[d.getMonth()]} ${d.getDate()}`;
-      const dayLabel = dayNames[d.getDay()][0];
-      const dayAttempts = attempts.filter((a: any) => a.created_at?.startsWith(dateIso));
+      const dateIso = addDaysToIndianDate(todayStr, -i);
+      const [y, m, dNum] = dateIso.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, dNum, 12, 0, 0));
+      const dateLabel = `${monthNames[m - 1]} ${dNum}`;
+      const dayLabel = dayNames[dt.getUTCDay()][0];
+      const dayAttempts = attempts.filter((a: any) => isTimestampInIndianDate(a.created_at, dateIso));
       const qCount = dayAttempts.length;
       const dayCorrect = dayAttempts.filter((a: any) => a.is_correct).length;
       const acc = qCount > 0 ? Math.round((dayCorrect / qCount) * 100) : 0;
@@ -1900,12 +1908,12 @@ export async function getDashboardMetrics(userId: string, targetExamId?: string 
     // Last 30 days monthly performance breakdown
     const monthlyStats = [];
     for (let i = 29; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateIso = d.toISOString().split("T")[0];
-      const dateLabel = `${monthNames[d.getMonth()]} ${d.getDate()}`;
-      const dayLabel = dayNames[d.getDay()][0];
-      const dayAttempts = attempts.filter((a: any) => a.created_at?.startsWith(dateIso));
+      const dateIso = addDaysToIndianDate(todayStr, -i);
+      const [y, m, dNum] = dateIso.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, dNum, 12, 0, 0));
+      const dateLabel = `${monthNames[m - 1]} ${dNum}`;
+      const dayLabel = dayNames[dt.getUTCDay()][0];
+      const dayAttempts = attempts.filter((a: any) => isTimestampInIndianDate(a.created_at, dateIso));
       const qCount = dayAttempts.length;
       const dayCorrect = dayAttempts.filter((a: any) => a.is_correct).length;
       const acc = qCount > 0 ? Math.round((dayCorrect / qCount) * 100) : 0;

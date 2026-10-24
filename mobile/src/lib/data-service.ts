@@ -19,6 +19,10 @@ import {
   SEED_DOUBTS,
   SEED_STUDY_MATERIALS,
   StudentStudyGoal,
+  getIndianDateStr,
+  getIndianMonthPrefix,
+  isTimestampInIndianDate,
+  isTimestampInIndianMonth,
 } from "@odisha-rank/shared";
 
 interface CacheEntry<T> {
@@ -396,6 +400,70 @@ export async function getStudyMaterials(
 }
 
 /**
+ * Fetch a single study material by ID with fallback across seeds, local custom storage, and Supabase.
+ */
+export async function getStudyMaterialById(id: string): Promise<StudyMaterial | null> {
+  if (!id) return null;
+
+  // 1. Direct seed lookup
+  const seed = SEED_STUDY_MATERIALS.find((m) => m.id === id);
+  if (seed) {
+    return {
+      ...seed,
+      material_type: seed.material_type || (seed.category === "pdf" ? "pdf" : "note"),
+      file_url: seed.file_url || seed.url || null,
+      url: seed.url || seed.file_url || null,
+    };
+  }
+
+  // 2. Local custom materials lookup
+  try {
+    const rawCustom = await AsyncStorage.getItem(LOCAL_CUSTOM_MATERIALS_KEY);
+    if (rawCustom) {
+      const parsed: StudyMaterial[] = JSON.parse(rawCustom);
+      const customMatch = parsed.find((m) => m.id === id);
+      if (customMatch) {
+        return {
+          ...customMatch,
+          material_type: customMatch.material_type || (customMatch.category === "pdf" ? "pdf" : "note"),
+          file_url: customMatch.file_url || customMatch.url || null,
+          url: customMatch.url || customMatch.file_url || null,
+        };
+      }
+    }
+  } catch {}
+
+  // 3. Supabase lookup
+  try {
+    const { data, error } = await supabase
+      .from("study_materials")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (data && !error) {
+      return {
+        ...data,
+        material_type: data.material_type || (data.category === "pdf" ? "pdf" : "note"),
+        file_url: data.file_url || data.url || null,
+        url: data.url || data.file_url || null,
+      } as StudyMaterial;
+    }
+  } catch (err) {
+    console.warn("Supabase single material lookup failed:", err);
+  }
+
+  // 4. Catalog fallback
+  try {
+    const all = await getStudyMaterials();
+    const match = all.find((m) => m.id === id);
+    if (match) return match;
+  } catch {}
+
+  return null;
+}
+
+/**
  * Fetch questions matching exam and subject filters
  */
 export async function getQuestions(
@@ -470,14 +538,19 @@ export async function getMockTests(examId?: string, forceRefresh: boolean = fals
       if (examId) query = query.eq("exam_id", examId);
 
       const { data, error } = await query;
-      if (error || !data) return [];
+      if (error) {
+        // Do not cache network/database errors as empty results
+        throw error;
+      }
+      if (!data) return [];
 
       return data.map((item: any) => ({
         ...item,
         questions_count: item.mock_test_questions?.[0]?.count ?? 0,
       })) as MockTest[];
-    } catch {
-      return [];
+    } catch (err) {
+      // Propagate error to avoid caching empty arrays in memory
+      throw err;
     }
   }, forceRefresh);
 }
@@ -1432,8 +1505,8 @@ export async function getDashboardMetrics(
   const cacheKey = `metrics_${userId}_${targetExamId || "all"}`;
   return fetchWithCache(cacheKey, 2 * 60 * 1000, async () => {
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
-      const currentMonthPrefix = new Date().toISOString().slice(0, 7);
+      const todayStr = getIndianDateStr();
+      const currentMonthPrefix = getIndianMonthPrefix();
 
       const [
         sessionsRes,
@@ -1455,23 +1528,29 @@ export async function getDashboardMetrics(
         supabase.from("topics").select("id").eq("is_official", false).eq("created_by", userId),
       ]);
 
-      const sessions = sessionsRes.data || [];
+      const sessions = (sessionsRes.data || []).filter(
+        (s: any) => (s.duration_minutes || 0) > 0 && (s.duration_minutes || 0) < 1440 && s.duration_minutes !== 99999
+      );
       const totalMinutes = sessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0);
       const studyHours = Math.round((totalMinutes / 60) * 10) / 10;
       const studyStreakDays = calculateStudyStreak(sessions.map((s) => s.session_date));
 
-      const sessionsToday = sessions.filter((s: any) => s.session_date === todayStr);
+      const sessionsToday = sessions.filter(
+        (s: any) => s.session_date === todayStr || isTimestampInIndianDate(s.session_date, todayStr)
+      );
       const studyHoursToday = Math.round((sessionsToday.reduce((sum: number, s: any) => sum + (s.duration_minutes || 0), 0) / 60) * 10) / 10;
 
       const attempts = questionsRes.data || [];
       const questionsPracticed = attempts.length;
-      const questionsToday = attempts.filter((a: any) => a.created_at?.startsWith(todayStr)).length;
+      const questionsToday = attempts.filter((a: any) => isTimestampInIndianDate(a.created_at, todayStr)).length;
       const correctCount = attempts.filter((a: any) => a.is_correct).length;
       const accuracyPercentage = questionsPracticed > 0 ? Math.round((correctCount / questionsPracticed) * 100) : 0;
 
       const mockAttempts = mocksRes.data || [];
       const mockTestsCompleted = mockAttempts.length;
-      const mockTestsThisMonth = mockAttempts.filter((m: any) => (m.completed_at || m.created_at)?.startsWith(currentMonthPrefix)).length;
+      const mockTestsThisMonth = mockAttempts.filter((m: any) =>
+        isTimestampInIndianMonth(m.completed_at || m.created_at, currentMonthPrefix)
+      ).length;
 
       const completedTopicIds = new Set((userProgressRes.data || []).map((p) => p.topic_id));
       const subjects = courseSubjectsRes.data || [];
@@ -1532,24 +1611,8 @@ export async function getDashboardMetrics(
       };
     } catch (err) {
       console.warn("Failed to load dashboard metrics:", err);
-      return {
-        study_hours: 0,
-        study_hours_today: 0,
-        questions_practiced: 0,
-        questions_practiced_today: 0,
-        accuracy_percentage: 0,
-        mock_tests_completed: 0,
-        mock_tests_this_month: 0,
-        study_streak_days: 0,
-        official_progress_percentage: 0,
-        personal_progress_percentage: 0,
-        total_official_topics: 0,
-        completed_official_topics: 0,
-        total_personal_topics: 0,
-        completed_personal_topics: 0,
-        recent_activities: [],
-        subject_progress: [],
-      };
+      // Re-throw so caller preserves valid cached metrics rather than overwriting with zeros
+      throw err;
     }
   }, forceRefresh);
 }
@@ -1698,7 +1761,7 @@ export async function createStudentDoubt(payload: {
   try {
     await supabase.from("study_sessions").insert({
       user_id: payload.user_id,
-      session_date: new Date().toISOString().split("T")[0],
+      session_date: getIndianDateStr(),
       duration_minutes: 99999,
       notes: JSON.stringify({ type: "student_doubt", ...newDoubt }),
     });
@@ -1707,8 +1770,21 @@ export async function createStudentDoubt(payload: {
   return newDoubt;
 }
 
+export const STUDY_SESSIONS_LOCAL_KEY = "@odisharank_study_sessions_";
+
+export interface StudySessionRecord {
+  id: string;
+  user_id: string;
+  duration_minutes: number;
+  notes: string | null;
+  session_date: string;
+  created_at: string;
+  subject_id?: string | null;
+  topic_id?: string | null;
+}
+
 /**
- * Log a study session
+ * Log a study session with local persistence & Supabase sync
  */
 export async function logStudySession(payload: {
   userId: string;
@@ -1716,17 +1792,127 @@ export async function logStudySession(payload: {
   notes?: string;
   sessionDate?: string;
 }): Promise<boolean> {
+  const sessionDate = payload.sessionDate || getIndianDateStr();
+  const notes = payload.notes || "Mobile study revision";
+  const now = new Date().toISOString();
+  const tempId = `local_${Date.now()}`;
+
+  // Optimistic local storage write
   try {
-    const { error } = await supabase.from("study_sessions").insert({
+    const raw = await AsyncStorage.getItem(`${STUDY_SESSIONS_LOCAL_KEY}${payload.userId}`);
+    const list: StudySessionRecord[] = raw ? JSON.parse(raw) : [];
+    const newRecord: StudySessionRecord = {
+      id: tempId,
       user_id: payload.userId,
       duration_minutes: payload.durationMinutes,
-      notes: payload.notes || "Mobile study revision",
-      session_date: payload.sessionDate || new Date().toISOString().split("T")[0],
-    });
+      notes,
+      session_date: sessionDate,
+      created_at: now,
+    };
+    list.unshift(newRecord);
+    await AsyncStorage.setItem(`${STUDY_SESSIONS_LOCAL_KEY}${payload.userId}`, JSON.stringify(list));
+  } catch {}
+
+  try {
+    const { data, error } = await supabase.from("study_sessions").insert({
+      user_id: payload.userId,
+      duration_minutes: payload.durationMinutes,
+      notes,
+      session_date: sessionDate,
+    }).select("id, user_id, duration_minutes, notes, session_date, created_at").single();
+
+    if (data) {
+      try {
+        const raw = await AsyncStorage.getItem(`${STUDY_SESSIONS_LOCAL_KEY}${payload.userId}`);
+        if (raw) {
+          const list: StudySessionRecord[] = JSON.parse(raw);
+          const idx = list.findIndex((item) => item.id === tempId);
+          if (idx !== -1) {
+            list[idx] = data as StudySessionRecord;
+            await AsyncStorage.setItem(`${STUDY_SESSIONS_LOCAL_KEY}${payload.userId}`, JSON.stringify(list));
+          }
+        }
+      } catch {}
+    }
     return !error;
   } catch {
-    return false;
+    return true; // Local session saved successfully
   }
+}
+
+/**
+ * Fetch all study session history for a student
+ */
+export async function getStudySessionsList(userId: string): Promise<StudySessionRecord[]> {
+  const cacheKey = `${STUDY_SESSIONS_LOCAL_KEY}${userId}`;
+  let localList: StudySessionRecord[] = [];
+  try {
+    const raw = await AsyncStorage.getItem(cacheKey);
+    if (raw) {
+      localList = JSON.parse(raw);
+    }
+  } catch {}
+
+  try {
+    const { data, error } = await supabase
+      .from("study_sessions")
+      .select("id, user_id, duration_minutes, notes, session_date, created_at, subject_id, topic_id")
+      .eq("user_id", userId)
+      .neq("duration_minutes", 99999)
+      .order("created_at", { ascending: false });
+
+    if (!error && Array.isArray(data)) {
+      // Merge remote with un-synced local records
+      const remoteIds = new Set(data.map((d: any) => d.id));
+      const unSynced = localList.filter((l) => l.id.startsWith("local_") && !remoteIds.has(l.id));
+      const merged = [...unSynced, ...data];
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(merged)).catch(() => {});
+      return merged;
+    }
+  } catch (err) {
+    console.warn("Failed to fetch remote study sessions, falling back to local:", err);
+  }
+
+  return localList;
+}
+
+/**
+ * Delete a study session
+ */
+export async function deleteStudySession(userId: string, sessionId: string): Promise<boolean> {
+  const cacheKey = `${STUDY_SESSIONS_LOCAL_KEY}${userId}`;
+  try {
+    const raw = await AsyncStorage.getItem(cacheKey);
+    if (raw) {
+      const list: StudySessionRecord[] = JSON.parse(raw);
+      const filtered = list.filter((item) => item.id !== sessionId);
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(filtered));
+    }
+  } catch {}
+
+  if (!sessionId.startsWith("local_")) {
+    try {
+      await supabase.from("study_sessions").delete().eq("id", sessionId).eq("user_id", userId);
+    } catch {}
+  }
+  return true;
+}
+
+/**
+ * Fetch planned study tasks for a given date
+ */
+export async function getPlannedTasksForDate(userId: string, dateStr: string): Promise<{ plannedMinutes: number; taskCount: number }> {
+  try {
+    const raw = await AsyncStorage.getItem(`odisharank_today_goals_${userId}_${dateStr}`);
+    if (raw) {
+      const tasks = JSON.parse(raw);
+      if (Array.isArray(tasks)) {
+        const totalMin = tasks.reduce((acc: number, t: any) => acc + (t.estimatedMinutes || 45), 0);
+        return { plannedMinutes: totalMin, taskCount: tasks.length };
+      }
+    }
+  } catch {}
+  return { plannedMinutes: 0, taskCount: 0 };
 }
 
 /**

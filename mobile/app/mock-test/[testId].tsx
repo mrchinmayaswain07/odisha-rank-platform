@@ -257,6 +257,22 @@ export default function MockTestSimulationScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
+        ) : !test ? (
+          <View style={styles.loaderContainer}>
+            <AlertCircle size={44} color="#ef4444" style={{ marginBottom: 12 }} />
+            <Text style={{ fontSize: 16, fontWeight: "700", color: "#0f172a", marginBottom: 6 }}>
+              Mock Test Not Found
+            </Text>
+            <Text style={{ fontSize: 13, color: "#64748b", textAlign: "center", paddingHorizontal: 24, marginBottom: 20 }}>
+              The requested examination simulation could not be found or has been removed.
+            </Text>
+            <Button
+              title="Return to Mock Tests"
+              onPress={() => router.back()}
+              variant="outline"
+              size="sm"
+            />
+          </View>
         ) : (
           <View style={styles.loaderContainer}>
             <AlertCircle size={44} color="#f59e0b" style={{ marginBottom: 12 }} />

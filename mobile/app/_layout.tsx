@@ -57,6 +57,7 @@ export default function RootLayout() {
           <Stack.Screen name="bodmas" options={{ headerShown: false }} />
           <Stack.Screen name="speed-math" options={{ headerShown: false }} />
           <Stack.Screen name="doubts" options={{ headerShown: false }} />
+          <Stack.Screen name="study-history" options={{ headerShown: false }} />
           <Stack.Screen name="games/index" options={{ headerShown: false }} />
           <Stack.Screen name="games/[gameId]" options={{ headerShown: false }} />
         </Stack>

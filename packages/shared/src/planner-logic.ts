@@ -13,6 +13,7 @@ import {
   StudyPaceEstimate,
   Subject,
 } from "./types";
+import { getIndianDateStr, addDaysToIndianDate, getDaysDifference } from "./date-utils";
 
 /**
  * Calculate accurate study pace, completed/remaining hours, and completion estimates.
@@ -29,15 +30,10 @@ export function calculateStudyPace(params: {
   const remainingHours = Math.max(0, Math.round((targetTotal - completedHours) * 10) / 10);
   const progressPct = Math.min(100, Math.round((completedHours / targetTotal) * 100));
 
-  // Exam Countdown
+  // Exam Countdown (IST calendar days)
   let daysToExam: number | null = null;
   if (goal.exam_date) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const target = new Date(goal.exam_date);
-    target.setHours(0, 0, 0, 0);
-    const diffMs = target.getTime() - today.getTime();
-    daysToExam = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    daysToExam = getDaysDifference(goal.exam_date);
   }
 
   // Required Daily Hours to hit exam deadline
@@ -90,11 +86,9 @@ export function calculateStudyPace(params: {
     };
   }
 
-  // Projected Completion Date
+  // Projected Completion Date (Indian calendar days)
   const daysNeeded = Math.ceil(remainingHours / roundedAvgPace);
-  const projDate = new Date();
-  projDate.setDate(projDate.getDate() + daysNeeded);
-  const estimatedCompletionDate = projDate.toISOString().split("T")[0];
+  const estimatedCompletionDate = addDaysToIndianDate(getIndianDateStr(), daysNeeded);
 
   // Pace status comparison
   let paceStatus: StudyPaceEstimate["pace_status"] = "on_track";
@@ -249,9 +243,8 @@ export function generateSuggestedTimetable(params: {
 export function calculateNextRevisionDate(lastRevisedDate: string, currentStep: number): string {
   const intervals = [1, 3, 7, 21];
   const daysToAdd = intervals[Math.min(currentStep, intervals.length - 1)] || 7;
-  const base = new Date(lastRevisedDate || Date.now());
-  base.setDate(base.getDate() + daysToAdd);
-  return base.toISOString().split("T")[0];
+  const baseDateStr = lastRevisedDate ? getIndianDateStr(lastRevisedDate) : getIndianDateStr();
+  return addDaysToIndianDate(baseDateStr, daysToAdd);
 }
 
 /**

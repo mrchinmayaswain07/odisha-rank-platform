@@ -1,4 +1,5 @@
 import { MockTest, Question } from "./types";
+import { getIndianDateStr, addDaysToIndianDate } from "./date-utils";
 
 /**
  * Pure calculation for syllabus completion percentages.
@@ -18,24 +19,29 @@ export function calculateAccuracy(correctCount: number, attemptedCount: number):
 }
 
 /**
- * Pure calculation for study streak days from session ISO date strings.
+ * Pure calculation for study streak days based on Indian calendar days (Asia/Kolkata).
  */
-export function calculateStudyStreak(dates: string[]): number {
+export function calculateStudyStreak(dates: string[], baseDate?: Date | string | null): number {
   if (!dates || dates.length === 0) return 0;
 
-  const dateSet = new Set(dates.map((d) => d.split("T")[0]));
+  // Convert each date / timestamp to Indian calendar date (YYYY-MM-DD)
+  const dateSet = new Set(
+    dates.map((d) => {
+      if (d.length === 10 && d.includes("-")) return d;
+      return getIndianDateStr(d);
+    })
+  );
+
   let streak = 0;
-  const today = new Date();
+  const todayStr = getIndianDateStr(baseDate);
 
   for (let i = 0; i < 365; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split("T")[0];
+    const dateStr = addDaysToIndianDate(todayStr, -i);
 
     if (dateSet.has(dateStr)) {
       streak++;
     } else if (i === 0) {
-      // Today might not have a session logged yet; continue checking backwards from yesterday
+      // Today in India might not have a session logged yet; continue checking backwards from yesterday
       continue;
     } else {
       break;

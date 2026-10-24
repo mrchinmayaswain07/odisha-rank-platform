@@ -18,6 +18,7 @@ import {
   Coffee,
   Check,
 } from "lucide-react";
+import { getIndianDateStr } from "@odisha-rank/shared";
 
 interface StudyTimerModalProps {
   isOpen: boolean;
@@ -189,7 +190,7 @@ export const StudyTimerModal: React.FC<StudyTimerModalProps> = ({
           notes:
             sessionNotes.trim() ||
             `${mode === "stopwatch" ? "Stopwatch" : "Pomodoro"} study session (${activeCourseName})`,
-          session_date: new Date().toISOString().split("T")[0],
+          session_date: getIndianDateStr(),
         }),
       });
 

@@ -104,6 +104,7 @@ export const PlannerClient: React.FC<PlannerClientProps> = ({
   // Core Goal and Task States
   const [dailyGoal, setDailyGoal] = useState<DailyGoal>(getStoredDailyGoal());
   const [studyGoal, setStudyGoal] = useState<StudentStudyGoal>(getStoredStudyGoal(profile?.id));
+  const [customTotalHoursInput, setCustomTotalHoursInput] = useState<string>(String(studyGoal.target_total_hours || 300));
   const [timetableConfig, setTimetableConfig] = useState<TimetableConfig>(getStoredTimetableConfig());
   const [subjectPriorities, setSubjectPriorities] = useState<SubjectPriority[]>(getStoredSubjectPriorities());
 
@@ -415,9 +416,11 @@ export const PlannerClient: React.FC<PlannerClientProps> = ({
 
   // Quick total target hours change
   const handleUpdateTotalHours = (newTotal: number) => {
+    const valid = Math.max(1, Math.round(newTotal));
+    setCustomTotalHoursInput(String(valid));
     const updated: StudentStudyGoal = {
       ...studyGoal,
-      target_total_hours: Math.max(10, newTotal),
+      target_total_hours: valid,
       updated_at: new Date().toISOString(),
     };
     setStudyGoal(updated);
@@ -658,8 +661,8 @@ export const PlannerClient: React.FC<PlannerClientProps> = ({
                   <div className="text-2xl font-black text-slate-900">
                     {studyGoal.target_total_hours} <span className="text-xs text-slate-500 font-bold">hrs</span>
                   </div>
-                  <div className="flex items-center gap-1.5 pt-1">
-                    {[150, 300, 450, 600].map((preset) => (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    {[150, 300, 500, 750, 1000].map((preset) => (
                       <button
                         key={preset}
                         onClick={() => handleUpdateTotalHours(preset)}
@@ -672,6 +675,23 @@ export const PlannerClient: React.FC<PlannerClientProps> = ({
                         {preset}h
                       </button>
                     ))}
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <input
+                      type="number"
+                      min="1"
+                      value={customTotalHoursInput}
+                      onChange={(e) => {
+                        setCustomTotalHoursInput(e.target.value);
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val) && val > 0) {
+                          handleUpdateTotalHours(Math.round(val));
+                        }
+                      }}
+                      placeholder="Custom"
+                      className="w-20 px-2 py-0.5 text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="text-[10px] text-slate-400 font-bold">hrs custom</span>
                   </div>
                 </div>
 
@@ -905,6 +925,35 @@ export const PlannerClient: React.FC<PlannerClientProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* Planned Task Hours Summary & Exceed Warning */}
+                {(() => {
+                  const plannedMins = dailyGoal.tasks.reduce((sum, t) => sum + (t.durationMinutes || 0), 0);
+                  const plannedHrs = Math.round((plannedMins / 60) * 10) / 10;
+                  const targetHrs = dailyGoal.targetStudyHours || 3;
+                  const isExceeding = plannedHrs > targetHrs;
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                        <span className="text-slate-600 font-medium">
+                          Today&apos;s Planned Hours: <strong className="text-slate-900 font-mono">{plannedHrs} hrs</strong> ({dailyGoal.tasks.length} tasks)
+                        </span>
+                        <span className="text-slate-600 font-medium">
+                          Daily Study Target: <strong className="text-blue-600 font-mono">{targetHrs} hrs</strong>
+                        </span>
+                      </div>
+                      {isExceeding && (
+                        <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold">Planned durations exceed daily target:</span> Total planned tasks ({plannedHrs} hrs) exceed your {targetHrs} hrs daily target. You can still proceed or adjust task durations.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Tasks List */}
                 <div className="space-y-2.5">
@@ -1630,6 +1679,7 @@ export const PlannerClient: React.FC<PlannerClientProps> = ({
         isOpen={showGoalModal}
         onClose={() => setShowGoalModal(false)}
         todayStudyHours={todayHours}
+        totalCompletedHours={totalCompletedHours}
         todayQuestions={todayQuestions}
         activeCourseTitle={targetExamTitle}
         onGoalUpdated={(g) => {

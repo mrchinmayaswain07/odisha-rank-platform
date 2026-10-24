@@ -39,6 +39,7 @@ interface TodayGoalModalProps {
   todayStudyHours?: number;
   todayQuestions?: number;
   activeCourseTitle?: string;
+  totalCompletedHours?: number;
   onGoalUpdated?: (newGoal: DailyGoal) => void;
 }
 
@@ -48,10 +49,13 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
   todayStudyHours = 0,
   todayQuestions = 0,
   activeCourseTitle = "OSSC Combined Graduate Level",
+  totalCompletedHours,
   onGoalUpdated,
 }) => {
   const [goal, setGoal] = useState<DailyGoal>(getStoredDailyGoal());
   const [studyGoal, setStudyGoal] = useState(getStoredStudyGoal());
+  const [customTotalHoursInput, setCustomTotalHoursInput] = useState<string>("");
+  const [customWeeklyHoursInput, setCustomWeeklyHoursInput] = useState<string>("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskCategory, setNewTaskCategory] = useState<GoalTask["category"]>("study");
   const [newTaskPriority, setNewTaskPriority] = useState<"high" | "medium" | "low">("medium");
@@ -61,8 +65,12 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setGoal(getStoredDailyGoal());
-      setStudyGoal(getStoredStudyGoal());
+      const g = getStoredDailyGoal();
+      const sg = getStoredStudyGoal();
+      setGoal(g);
+      setStudyGoal(sg);
+      setCustomTotalHoursInput(String(sg.target_total_hours || 300));
+      setCustomWeeklyHoursInput(String(sg.weekly_target_hours || 20));
     }
   }, [isOpen]);
 
@@ -89,6 +97,34 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
       status: updated.status,
     };
     handleSave(updatedDaily);
+  };
+
+  const handleApplyCustomTotalHours = (valStr: string) => {
+    setCustomTotalHoursInput(valStr);
+    const parsed = parseFloat(valStr);
+    if (!isNaN(parsed) && parsed > 0) {
+      const validHours = Math.round(parsed);
+      handleSaveOverallGoal({ target_total_hours: validHours });
+    }
+  };
+
+  const handleSelectTotalPreset = (preset: number) => {
+    setCustomTotalHoursInput(String(preset));
+    handleSaveOverallGoal({ target_total_hours: preset });
+  };
+
+  const handleApplyCustomWeeklyHours = (valStr: string) => {
+    setCustomWeeklyHoursInput(valStr);
+    const parsed = parseFloat(valStr);
+    if (!isNaN(parsed) && parsed > 0) {
+      const validHours = Math.round(parsed);
+      handleSaveOverallGoal({ weekly_target_hours: validHours });
+    }
+  };
+
+  const handleSelectWeeklyPreset = (preset: number) => {
+    setCustomWeeklyHoursInput(String(preset));
+    handleSaveOverallGoal({ weekly_target_hours: preset });
   };
 
   const handleToggleTask = (taskId: string) => {
@@ -170,12 +206,23 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
     handleSave({ ...goal, tasks: convertedTasks });
   };
 
+  // Real preparation hours metrics
+  const totalTargetHours = Math.max(1, studyGoal.target_total_hours || 300);
+  const actualCompletedHours = totalCompletedHours !== undefined ? totalCompletedHours : todayStudyHours;
+  const remainingHours = Math.max(0, Math.round((totalTargetHours - actualCompletedHours) * 10) / 10);
+  const totalProgressPct = Math.min(100, Math.round((actualCompletedHours / totalTargetHours) * 100));
+
+  // Today's Planned Tasks Hours calculation
+  const plannedMinutes = goal.tasks.reduce((sum, t) => sum + (t.durationMinutes || 0), 0);
+  const plannedHours = Math.round((plannedMinutes / 60) * 10) / 10;
+  const isPlannedExceedingTarget = plannedHours > (goal.targetStudyHours || 3);
+
   // Calculations & Study Pace
   const paceEstimate = calculateStudyPace({
     goal: studyGoal,
-    completedHours: todayStudyHours + 12.5, // Total historical study hours
-    sessionDaysCount: 4, // Multi-day baseline
-    recentDailyHours: [2.5, 3.0, 3.5, todayStudyHours],
+    completedHours: actualCompletedHours,
+    sessionDaysCount: actualCompletedHours > 0 ? Math.max(3, Math.ceil(actualCompletedHours / Math.max(1, studyGoal.daily_target_hours || 3))) : 0,
+    recentDailyHours: [studyGoal.daily_target_hours || 3, studyGoal.daily_target_hours || 3, todayStudyHours],
   });
 
   const hoursProgress = Math.min(100, Math.round((todayStudyHours / (goal.targetStudyHours || 1)) * 100));
@@ -251,6 +298,39 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
           {activeTab === "daily" ? (
             <>
+              {/* Overall Preparation Goal Connection Banner */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-slate-50 border border-blue-200/80 shadow-xs">
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Target className="w-4 h-4 text-blue-600" />
+                    Overall Preparation Goal: <strong className="text-blue-700 font-mono">{totalTargetHours} hrs</strong>
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-600 bg-white/80 px-2 py-0.5 rounded-md border border-slate-200">
+                    {totalProgressPct}% Reached
+                  </span>
+                </div>
+                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden mb-2">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full transition-all duration-500"
+                    style={{ width: `${totalProgressPct}%` }}
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                  <div className="bg-white/70 rounded-xl p-1.5 border border-slate-200/60">
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Target</span>
+                    <strong className="text-xs text-slate-800 font-mono">{totalTargetHours}h</strong>
+                  </div>
+                  <div className="bg-white/70 rounded-xl p-1.5 border border-slate-200/60">
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Completed</span>
+                    <strong className="text-xs text-emerald-600 font-mono">{actualCompletedHours}h</strong>
+                  </div>
+                  <div className="bg-white/70 rounded-xl p-1.5 border border-slate-200/60">
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Remaining</span>
+                    <strong className="text-xs text-amber-600 font-mono">{remainingHours}h</strong>
+                  </div>
+                </div>
+              </div>
+
               {/* Daily Target Selectors */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -301,6 +381,7 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
                       </button>
                     ))}
                   </div>
+
                   {/* Progress bar */}
                   <div className="pt-1">
                     <div className="flex justify-between text-[11px] text-slate-500 mb-1">
@@ -314,6 +395,25 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
                       />
                     </div>
                   </div>
+
+                  {/* Planned Hours vs Daily Target & Exceed Warning */}
+                  <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600 font-medium">
+                      Today's Planned Tasks: <strong className="text-slate-900 font-mono">{plannedHours} hrs</strong> ({goal.tasks.length} tasks)
+                    </span>
+                    <span className="text-slate-600 font-medium">
+                      Target: <strong className="text-blue-700 font-mono">{goal.targetStudyHours || 3} hrs</strong>
+                    </span>
+                  </div>
+
+                  {isPlannedExceedingTarget && (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2 mt-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">Planned duration exceeds daily target:</span> Total planned tasks ({plannedHours} hrs) exceed your {goal.targetStudyHours || 3} hrs daily goal. You can still proceed or adjust task durations.
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Target Questions to Practice */}
@@ -474,6 +574,17 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
                       <option value="braingym">Brain Gym</option>
                     </select>
                     <select
+                      value={newTaskDuration}
+                      onChange={(e) => setNewTaskDuration(Number(e.target.value))}
+                      className="px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold focus:outline-none"
+                    >
+                      <option value="15">15m</option>
+                      <option value="30">30m</option>
+                      <option value="45">45m</option>
+                      <option value="60">60m</option>
+                      <option value="90">90m</option>
+                    </select>
+                    <select
                       value={newTaskPriority}
                       onChange={(e) => setNewTaskPriority(e.target.value as any)}
                       className="px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-semibold focus:outline-none"
@@ -496,6 +607,7 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
           ) : (
             /* Overall Goals Tab */
             <div className="space-y-5 animate-fade-in">
+              {/* Total Preparation Hours Target */}
               <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-transparent border border-blue-200/80 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
@@ -503,14 +615,17 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
                     Total Preparation Hours Target
                   </span>
                   <span className="text-xs font-black text-blue-600 font-mono">
-                    {studyGoal.target_total_hours} Hours Total
+                    {totalTargetHours} Hours Total
                   </span>
                 </div>
+
+                {/* Preset Buttons */}
                 <div className="flex items-center gap-2">
                   {[150, 300, 500, 750, 1000].map((tot) => (
                     <button
                       key={tot}
-                      onClick={() => handleSaveOverallGoal({ target_total_hours: tot })}
+                      type="button"
+                      onClick={() => handleSelectTotalPreset(tot)}
                       className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all ${
                         studyGoal.target_total_hours === tot
                           ? "bg-blue-600 text-white shadow-xs"
@@ -520,6 +635,102 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
                       {tot}h
                     </button>
                   ))}
+                </div>
+
+                {/* Custom Total Hours Input */}
+                <div className="pt-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-600">
+                      Enter Custom Target Hours (Any positive number)
+                    </label>
+                    <span className="text-[10px] text-slate-400">e.g. 450, 800, 1200, 1500</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={customTotalHoursInput}
+                        onChange={(e) => handleApplyCustomTotalHours(e.target.value)}
+                        placeholder="e.g. 1200"
+                        className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                      <span className="absolute right-3 top-2 text-xs font-bold text-slate-400">hrs</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCustomTotalHours(customTotalHoursInput)}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
+                    >
+                      Set Goal
+                    </button>
+                  </div>
+                </div>
+
+                {/* Real Preparation Metrics Row */}
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-blue-200/60 text-center">
+                  <div className="p-2 rounded-xl bg-white/80 border border-slate-200/60">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Target</div>
+                    <div className="text-sm font-black text-slate-900 font-mono">{totalTargetHours}h</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white/80 border border-slate-200/60">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Completed</div>
+                    <div className="text-sm font-black text-emerald-600 font-mono">{actualCompletedHours}h</div>
+                  </div>
+                  <div className="p-2 rounded-xl bg-white/80 border border-slate-200/60">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Remaining</div>
+                    <div className="text-sm font-black text-amber-600 font-mono">{remainingHours}h</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Weekly Target Hours Section */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-indigo-600" />
+                    Weekly Study-Hour Target (Independent)
+                  </span>
+                  <span className="text-xs font-black text-indigo-600 font-mono">
+                    {studyGoal.weekly_target_hours || 20} hrs / week
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {[15, 20, 25, 30, 40].map((wk) => (
+                    <button
+                      key={wk}
+                      type="button"
+                      onClick={() => handleSelectWeeklyPreset(wk)}
+                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        (studyGoal.weekly_target_hours || 20) === wk
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      {wk}h
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      min="1"
+                      value={customWeeklyHoursInput}
+                      onChange={(e) => handleApplyCustomWeeklyHours(e.target.value)}
+                      placeholder="Custom weekly hours"
+                      className="w-full px-3.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    />
+                    <span className="absolute right-3 top-1.5 text-xs font-bold text-slate-400">hrs/wk</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyCustomWeeklyHours(customWeeklyHoursInput)}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
+                  >
+                    Set Weekly
+                  </button>
                 </div>
               </div>
 
@@ -602,6 +813,7 @@ export const TodayGoalModal: React.FC<TodayGoalModalProps> = ({
                       handleSaveOverallGoal({
                         target_total_hours: 300,
                         daily_target_hours: 3,
+                        weekly_target_hours: 20,
                         status: "reset",
                       });
                     }

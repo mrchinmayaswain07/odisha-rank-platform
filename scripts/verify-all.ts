@@ -947,9 +947,10 @@ async function runTests() {
     assert(freshMetrics.weekly_stats?.[0]?.accuracyPercentage === 0, "Weekly stats accuracy is 0 when unattempted");
     assert(Array.isArray(freshMetrics.monthly_stats) && freshMetrics.monthly_stats.length === 30, "Monthly stats array has 30 days");
 
-    // 2. Add realistic study sessions: yesterday 30m, today 60m
-    const todayStr = new Date().toISOString().split("T")[0];
-    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    // 2. Add realistic study sessions: yesterday 30m, today 60m (using Indian Standard Time)
+    const { getIndianDateStr, addDaysToIndianDate } = await import("@odisha-rank/shared");
+    const todayStr = getIndianDateStr();
+    const yesterdayStr = addDaysToIndianDate(todayStr, -1);
 
     saveRuntimeStudySession({
       user_id: freshStudentId,

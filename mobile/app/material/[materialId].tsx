@@ -7,12 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FileText, ExternalLink, Download } from "lucide-react-native";
 import { BRAND_COLORS, StudyMaterial } from "@odisha-rank/shared";
-import { supabase } from "../../src/lib/supabase";
+import { getStudyMaterialById } from "../../src/lib/data-service";
 import { Header } from "../../src/components/Header";
 import { Badge } from "../../src/components/Badge";
 import { Button } from "../../src/components/Button";
@@ -29,13 +30,8 @@ export default function MaterialDetailScreen() {
     const loadMaterial = async () => {
       setIsLoading(true);
       try {
-        const { data } = await supabase
-          .from("study_materials")
-          .select("*")
-          .eq("id", materialId)
-          .single();
-
-        setMaterial(data as StudyMaterial);
+        const found = await getStudyMaterialById(materialId);
+        setMaterial(found);
       } catch (err) {
         console.warn("Failed to load material:", err);
       } finally {
@@ -48,11 +44,23 @@ export default function MaterialDetailScreen() {
 
   const handleOpenPdf = async () => {
     const targetUrl = material?.file_url || material?.url;
-    if (targetUrl) {
+    if (!targetUrl) return;
+
+    try {
       const canOpen = await Linking.canOpenURL(targetUrl);
       if (canOpen) {
         await Linking.openURL(targetUrl);
+      } else {
+        Alert.alert(
+          "Document Notice",
+          "This external document archive cannot be opened directly on this device. You can read the complete verified study summary below."
+        );
       }
+    } catch {
+      Alert.alert(
+        "Study Notes Available",
+        "Official document reference link is currently in archival state. The comprehensive study notes and syllabus points are displayed below."
+      );
     }
   };
 

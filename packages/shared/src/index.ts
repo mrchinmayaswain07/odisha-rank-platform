@@ -11,3 +11,4 @@ export * from "./business-logic";
 export * from "./speed-math";
 export * from "./games";
 export * from "./planner-logic";
+export * from "./date-utils";
