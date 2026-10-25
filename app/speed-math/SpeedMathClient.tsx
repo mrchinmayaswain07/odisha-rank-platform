@@ -643,6 +643,27 @@ export const SpeedMathClient: React.FC<SpeedMathClientProps> = ({
                 </div>
               </div>
 
+                            {/* Calculation Speed Trainer Callout Banner */}
+              <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-amber-600 rounded-3xl p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-bold">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    TIMED SPRINT MODE
+                  </div>
+                  <h3 className="text-xl font-black">Calculation Speed Trainer (10-Min Sprint)</h3>
+                  <p className="text-xs text-blue-100 max-w-xl">
+                    Test your mental math with 15 categories, 4 difficulty tiers, live CPM tracking, Vedic shortcut tips, and weak area analytics.
+                  </p>
+                </div>
+                <Link
+                  href="/calculation-trainer"
+                  className="px-6 py-3 rounded-2xl bg-white hover:bg-slate-50 text-blue-900 font-extrabold text-sm shadow-md transition shrink-0 flex items-center justify-center gap-2"
+                >
+                  <Play className="w-4 h-4 fill-blue-900 text-blue-900" />
+                  <span>Start Trainer</span>
+                </Link>
+              </div>
+
               {/* Filter Tabs & Search Bar */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">

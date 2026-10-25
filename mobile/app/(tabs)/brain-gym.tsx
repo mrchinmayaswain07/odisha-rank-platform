@@ -171,6 +171,7 @@ export default function BrainGymScreen() {
   const [gamesPlayed, setGamesPlayed] = useState<number>(0);
   const [accuracy, setAccuracy] = useState<number>(94);
   const [showCheatsheet, setShowCheatsheet] = useState<boolean>(false);
+  const [trainerHistory, setTrainerHistory] = useState<any[]>([]);
 
   // Quick Live Warmup State
   const [quickMode, setQuickMode] = useState<QuickMode>("add");
@@ -197,6 +198,15 @@ export default function BrainGymScreen() {
           if (parsed.brainScore !== undefined) setBrainScore(parsed.brainScore);
           if (parsed.totalPlayed !== undefined) setGamesPlayed(parsed.totalPlayed);
           if (parsed.streakDays !== undefined) setStreakDays(parsed.streakDays);
+        } catch {}
+      }
+    });
+
+    AsyncStorage.getItem("@odisha_rank_calc_trainer_history").then((raw) => {
+      if (raw) {
+        try {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) setTrainerHistory(list);
         } catch {}
       }
     });
@@ -598,6 +608,73 @@ export default function BrainGymScreen() {
                 <Text style={styles.seeAllText}>All Drills →</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Calculation Speed Trainer Hero Card (Phase 2 Entry Point) */}
+            <TouchableOpacity
+              style={styles.calcTrainerHeroCard}
+              onPress={() => router.push("/calculation-trainer" as any)}
+              activeOpacity={0.88}
+            >
+              <View style={styles.calcTrainerTopRow}>
+                <View style={styles.calcTrainerBadge}>
+                  <Zap size={13} color="#f59e0b" fill="#f59e0b" />
+                  <Text style={styles.calcTrainerBadgeText}>10-MIN TIMED SPRINT</Text>
+                </View>
+                <View style={styles.calcTrainerDiffBadge}>
+                  <Text style={styles.calcTrainerDiffText}>MANUAL DIFFICULTY</Text>
+                </View>
+              </View>
+
+              <Text style={styles.calcTrainerTitle}>Calculation Speed Trainer</Text>
+              <Text style={styles.calcTrainerSubtitle}>
+                Improve calculation speed and accuracy for OSSC CGL & Odisha exams
+              </Text>
+
+              {trainerHistory.length > 0 ? (
+                <View style={styles.calcTrainerHistoryRow}>
+                  <View style={styles.calcTrainerMiniStat}>
+                    <Text style={styles.calcTrainerStatLabel}>LAST ACCURACY</Text>
+                    <Text style={styles.calcTrainerStatVal}>{trainerHistory[0].accuracyPercentage}%</Text>
+                  </View>
+                  <View style={styles.calcTrainerMiniStat}>
+                    <Text style={styles.calcTrainerStatLabel}>AVG SPEED</Text>
+                    <Text style={styles.calcTrainerStatVal}>
+                      {(trainerHistory[0].avgResponseTimeMs / 1000).toFixed(1)}s
+                    </Text>
+                  </View>
+                  <View style={styles.calcTrainerMiniStat}>
+                    <Text style={styles.calcTrainerStatLabel}>BEST CPM</Text>
+                    <Text style={[styles.calcTrainerStatVal, { color: "#f59e0b" }]}>
+                      {trainerHistory.reduce((max: number, s: any) => Math.max(max, s.correctPerMinute || 0), 0)}
+                    </Text>
+                  </View>
+                  <View style={styles.calcTrainerMiniStat}>
+                    <Text style={styles.calcTrainerStatLabel}>SESSIONS</Text>
+                    <Text style={styles.calcTrainerStatVal}>{trainerHistory.length}</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.calcTrainerPillsRow}>
+                  <View style={styles.featurePill}>
+                    <Text style={styles.featurePillText}>⚡ 15 Categories</Text>
+                  </View>
+                  <View style={styles.featurePill}>
+                    <Text style={styles.featurePillText}>🎯 Real-time Timer</Text>
+                  </View>
+                  <View style={styles.featurePill}>
+                    <Text style={styles.featurePillText}>📊 Mistake Analysis</Text>
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.calcTrainerActionRow}>
+                <View style={styles.calcTrainerStartBtn}>
+                  <Play size={13} color="#ffffff" fill="#ffffff" />
+                  <Text style={styles.calcTrainerStartBtnText}>Start Training</Text>
+                </View>
+                <Text style={styles.calcTrainerActionHint}>Select difficulty & categories →</Text>
+              </View>
+            </TouchableOpacity>
 
             <View style={styles.toolsGrid}>
               {calculationTools.map((tool) => {
@@ -1754,5 +1831,134 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#475569",
     lineHeight: 16,
+  },
+  calcTrainerHeroCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#334155",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: { elevation: 3 },
+    }),
+  },
+  calcTrainerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  calcTrainerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+  },
+  calcTrainerBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#f59e0b",
+    letterSpacing: 0.5,
+  },
+  calcTrainerDiffBadge: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  calcTrainerDiffText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#94a3b8",
+  },
+  calcTrainerTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+  calcTrainerSubtitle: {
+    fontSize: 12,
+    color: "#94a3b8",
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  calcTrainerHistoryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    backgroundColor: "#1e293b",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+  },
+  calcTrainerMiniStat: {
+    alignItems: "center",
+  },
+  calcTrainerStatLabel: {
+    fontSize: 8,
+    fontWeight: "700",
+    color: "#94a3b8",
+    marginBottom: 2,
+  },
+  calcTrainerStatVal: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  calcTrainerPillsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  featurePill: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  featurePillText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#cbd5e1",
+  },
+  calcTrainerActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  calcTrainerStartBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#2563eb",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  calcTrainerStartBtnText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  calcTrainerActionHint: {
+    fontSize: 11,
+    color: "#64748b",
+    fontWeight: "500",
   },
 });

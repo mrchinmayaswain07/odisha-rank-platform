@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Zap,
   Gamepad2,
+  Calculator,
   X,
 } from "lucide-react";
 
@@ -54,6 +55,12 @@ export const StudentSidebar: React.FC<StudentSidebarProps> = ({
       href: "/games",
       icon: Gamepad2,
       badge: "32 GAMES",
+    },
+    {
+      name: "Calculation Trainer",
+      href: "/calculation-trainer",
+      icon: Calculator,
+      badge: "NEW",
     },
     {
       name: "Practice Questions",
